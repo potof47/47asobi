@@ -136,3 +136,17 @@
 - `EVO_CR` / `EVO_COIN` / `lvCost` … 進化・強化のコスト
 - `GACHA_1` / `GACHA_10` / `RATE5` / `RATE4` … ガチャの価格と確率
 - `QUESTS` / `LAYOUTS` … クエストの敵配置・倍率・報酬
+
+## アイテム無制限版（検証・デバッグ用）
+
+`unlimited.html` は、ジェム・コイン・結晶が減らない別バージョンです（URL: `…/47asobi/unlimited.html`）。
+ガチャ・強化・進化・バランス調整の確認に使います。
+
+- ジェムとコインは常に 9,999,999、結晶は各属性 9,999 に戻ります。
+- セーブは別キー `mflick-save-unlimited-v1` に保存されるので、通常版のデータは変わりません。
+- ランキングへのスコア送信・オフライン対応（`sw.js`）・ホーム画面追加は無効です。
+- `unlimited.html` は `index.html` から自動生成しています。`index.html` を更新したら、次のコマンドで作り直してください。
+
+```
+node tools/make-unlimited.js
+```
