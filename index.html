@@ -269,6 +269,33 @@ const FAM = [
   ["ジン",     "wood",  6, "reflect", "headband", "sharp",  "kikou",   "haou",   "human"],
   // ★6限定キャラ
   ["パニパニ", "fire",  6, "pierce",  "fringe",   "round",  "ssboom",  "rally",  "human"],
+  // 恒常★6（常設ガチャの★6枠）各属性1体
+  ["紅竜ヴァルカ", "fire",  6, "reflect", "horns",  "sharp",   "blast",   "meteor", "dragon"],
+  ["蒼姫ミズハ",   "water", 6, "pierce",  "twin",   "sparkle", "laser",   "wave",   "human"],
+  ["樹王ドルン",   "wood",  6, "reflect", "bear",   "sharp",   "thunder", "burst",  "beast"],
+  ["聖騎士アルテ", "light", 6, "reflect", "helmet", "sharp",   "homing",  "judge",  "human"],
+  ["魔竜ゼノス",   "dark",  6, "pierce",  "horns",  "sharp",   "laser",   "meteor", "dragon"],
+  // 恒常キャラ追加分
+  ["ホノカ",   "fire",  4, "pierce",  "long",    "round",   "heal",    "wave",   "human"],
+  ["マグマル", "fire",  3, "reflect", "spikes",  "sharp",   "blast",   "needle"],
+  ["フェネ",   "fire",  4, "reflect", "fox",     "sparkle", "homing",  "burst",  "beast"],
+  ["ヒイロ",   "fire",  5, "pierce",  "crest",   "sharp",   "thunder", "meteor", "bird"],
+  ["ミナモ",   "water", 4, "reflect", "twin",    "round",   "laser",   "judge",  "human"],
+  ["タツノ",   "water", 3, "pierce",  "angler",  "round",   "homing",  "needle", "fish"],
+  ["シロクマル", "water", 4, "reflect", "bear",  "sleepy",  "blast",   "wave",   "beast"],
+  ["アオバネ", "water", 5, "pierce",  "tuft",    "sharp",   "laser",   "meteor", "bird"],
+  ["カエデ",   "wood",  4, "pierce",  "long",    "sparkle", "heal",    "wave",   "human"],
+  ["コロボ",   "wood",  3, "reflect", "leaf",    "round",   "homing",  "burst"],
+  ["ヤマネコ", "wood",  4, "reflect", "wolf",    "sharp",   "thunder", "judge",  "beast"],
+  ["モクリュウ", "wood", 5, "pierce", "horns",   "round",   "blast",   "meteor", "dragon"],
+  ["ヒカル",   "light", 4, "reflect", "spiky",   "round",   "blast",   "burst",  "human"],
+  ["キラリ",   "light", 3, "pierce",  "star",    "sparkle", "laser",   "needle"],
+  ["ハクバ",   "light", 4, "pierce",  "fox",     "round",   "heal",    "judge",  "beast"],
+  ["コウリュウ", "light", 5, "reflect", "horns", "sharp",   "thunder", "wave",   "dragon"],
+  ["ヨミ",     "dark",  4, "pierce",  "mage",    "sleepy",  "homing",  "meteor", "human"],
+  ["クロマル", "dark",  3, "reflect", "horns",   "sharp",   "blast",   "burst"],
+  ["ヨルガ",   "dark",  4, "reflect", "wolf",    "sharp",   "laser",   "judge",  "beast"],
+  ["ネクロウ", "dark",  5, "pierce",  "tuft",    "sleepy",  "thunder", "meteor", "bird"],
 ].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
 // 図鑑の並び順（属性 → レア度）
 const ORDER = FAM.map(f => f.idx).sort((a, b) =>
@@ -283,6 +310,12 @@ const BASE_BOOST = FAM.map(f => f.boost || 1);   // 管理者設定で上書き�
 const LIMITED_PANI = FAM.find(f => f.name === "パニパニ").idx;
 FAM[LIMITED_PANI].boost = 1.35;
 const LIMITED_ALL = [LIMITED, LIMITED_JIN, LIMITED_PANI];
+// 恒常★6（常設ガチャの★6枠）
+const PERM6 = ["紅竜ヴァルカ", "蒼姫ミズハ", "樹王ドルン", "聖騎士アルテ", "魔竜ゼノス"].map(n => FAM.find(f => f.name === n).idx);
+for (const fi of PERM6) FAM[fi].boost = 1.15;
+// 限定キャラ以外（恒常キャラ）はすべて能力1.2倍
+const PERM_BONUS = 1.2;
+const isLimited = fi => LIMITED_ALL.includes(fi);
 
 const RBASE = {
   3: { atk: 1600, hp: 11000, spd: 13.5 },
@@ -464,9 +497,10 @@ function unitStats(fi) {
   // タイプ補正 [攻撃力, HP]: 反射は攻撃力1.5倍
   const tm = f.type === "pierce" ? [1.05, 0.95] : [1.5, 1];
   const bo = f.boost || 1;
+  const pb = isLimited(fi) ? 1 : PERM_BONUS;   // 恒常キャラの底上げ
   return {
-    atk: Math.round(b.atk * v * tm[0] * lvm * am * bo),
-    hp: Math.round(b.hp * (2 - v) * tm[1] * lvm * am * bo),
+    atk: Math.round(b.atk * v * tm[0] * lvm * am * bo * pb),
+    hp: Math.round(b.hp * (2 - v) * tm[1] * lvm * am * bo * pb),
     spd: b.spd + (fi % 3) * 0.4 + (bo > 1 ? 1.5 : 0),
   };
 }
@@ -1350,29 +1384,58 @@ function evolve(fi) {
 }
 
 // ---- ガチャ -----------------------------------------------------------
-// ガチャの種類。limited: ★6枠で出る限定キャラ（1体につき RATE6 の確率）
-const BANNERS = {
-  star: { name: "スターダストガチャ", limited: [LIMITED, LIMITED_JIN], c1: "#ff7ae0", c2: "#7a4aff" },
-  fire: { name: "灼熱ガチャ",         limited: [LIMITED_PANI],         c1: "#ff9a5a", c2: "#c0301a" },
-};
+// 限定ガチャは3日ごとに入れ替わる。limited: ★6枠で出る限定キャラ（1体につき RATE6 の確率）
+const DAY = 86400000;
+const GACHA_DAYS = 3;
+const ROTATION_START = "2026-10-09";   // この日から3日間はスターダストと灼熱の両方
+const LIMITED_GACHAS = [
+  { key: "star", name: "スターダストガチャ", short: "スターダスト", limited: [LIMITED, LIMITED_JIN], c1: "#ff7ae0", c2: "#7a4aff" },
+  { key: "fire", name: "灼熱ガチャ",         short: "灼熱",         limited: [LIMITED_PANI],         c1: "#ff9a5a", c2: "#c0301a" },
+];
+// 常設ガチャ: いつでも引ける。★6枠は恒常★6（合計 STD_RATE6）
+let STD_RATE6 = 0.01;
+const STD_GACHA = { key: "std", name: "常設ガチャ", short: "常設", limited: PERM6, c1: "#7cf0ff", c2: "#1f5fae", std: true };
 let gachaBanner = "star";
-const rate6Total = banner => RATE6 * BANNERS[banner].limited.length;
 
-function rollOne(guarantee4, banner) {
-  const r = Math.random(), r6 = rate6Total(banner);
-  if (r < r6) return pick(BANNERS[banner].limited);
+const dayStart = s => new Date(s + "T00:00:00").getTime();
+// 今開催中の限定ガチャ（管理者の予定 → なければ自動ローテーション）
+function activeLimitedGachas() {
+  const now = Date.now();
+  const planned = (CFG.gachaSchedule || []).filter(g => g && g.name && g.from && g.until
+    && now >= dayStart(g.from) && now < dayStart(g.until) + DAY).map((g, i) => {
+    const ids = (g.limited || []).map(n => FAM.find(f => f.name === n)).filter(Boolean).map(f => f.idx);
+    return { key: "plan" + i + g.from, name: g.name, short: (g.short || g.name).slice(0, 7), limited: ids,
+      c1: g.c1 || "#ffcf4a", c2: g.c2 || "#d6542a", endsAt: dayStart(g.until) + DAY };
+  }).filter(g => g.limited.length);
+  if (planned.length) return planned;
+  // 自動ローテーション: 最初の3日は両方、そのあとは3日ごとに1つずつ復刻
+  const start = dayStart(ROTATION_START), cycle = Math.max(0, Math.floor((now - start) / (GACHA_DAYS * DAY)));
+  const endsAt = start + (cycle + 1) * GACHA_DAYS * DAY;
+  if (cycle === 0) return LIMITED_GACHAS.map(g => ({ ...g, endsAt }));
+  const g = LIMITED_GACHAS[(cycle - 1) % LIMITED_GACHAS.length];
+  return [{ ...g, name: g.name + "（復刻）", endsAt }];
+}
+const activeGachas = () => [...activeLimitedGachas(), STD_GACHA];
+const findGacha = key => activeGachas().find(g => g.key === key);
+const rate6Total = g => g.std ? STD_RATE6 : RATE6 * g.limited.length;
+
+function rollOne(guarantee4, g) {
+  const r = Math.random(), r6 = rate6Total(g);
+  if (r < r6) return pick(g.limited);
   let rar = r < r6 + RATE5 ? 5 : r < r6 + RATE5 + RATE4 ? 4 : 3;
   if (guarantee4 && rar === 3) rar = 4;
   return pick(FAM.filter(f => f.rar === rar)).idx;
 }
 function pullGacha(n, banner = gachaBanner) {
+  const g = findGacha(banner);
+  if (!g) { showToast("このガチャは終了しました"); go("gacha"); return; }
   const cost = n === 10 ? GACHA_10 : GACHA_1;
   if (save.gems < cost) { showToast("ジェムが足りません"); return; }
   save.gems -= cost;
   const res = [];
   for (let i = 0; i < n; i++) {
     const guarantee = n === 10 && i === 9 && !res.some(r => FAM[r.fi].rar >= 4);
-    res.push(acquire(rollOne(guarantee, banner)));
+    res.push(acquire(rollOne(guarantee, g)));
   }
   addStat("pulls", n);
   persist();
@@ -3300,18 +3363,18 @@ function drawGacha() {
   drawMenuBg("#3a1a5c", "#0c0618");
   drawTopBar();
   header("ガチャ", "");
-  // ガチャが複数ある時だけ切り替えタブを出す
-  const keys = Object.keys(BANNERS), tw = (W - 120) / keys.length;
-  if (keys.length > 1) keys.forEach((k, i) => {
-    const x = 106 + i * tw, active = gachaBanner === k;
-    ctx.fillStyle = active ? BANNERS[k].c1 : "rgba(255,255,255,0.1)";
+  // 開催中のガチャ（限定は3日ごとに入れ替わり、常設はいつでも）
+  const list = activeGachas(), tw = (W - 120) / list.length;
+  list.forEach((gb, i) => {
+    const x = 106 + i * tw, active = gachaBanner === gb.key;
+    ctx.fillStyle = active ? gb.c1 : "rgba(255,255,255,0.1)";
     roundRect(x + 2, 49, tw - 4, 26, 8);
     ctx.fill();
-    txt(BANNERS[k].name, x + tw / 2, 62, 11, active ? "#1a1030" : "#cfd6ff", "center");
-    button(x, 49, tw, 26, "", () => { gachaBanner = k; }, { hidden: true });
+    txt(gb.short, x + tw / 2, 62, 11, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, 49, tw, 26, "", () => { gachaBanner = gb.key; }, { hidden: true });
   });
-  if (!BANNERS[gachaBanner]) gachaBanner = keys[0];
-  const B = BANNERS[gachaBanner];
+  if (!findGacha(gachaBanner)) gachaBanner = list[0].key;
+  const B = findGacha(gachaBanner);
   // バナー
   ctx.save();
   const g = ctx.createLinearGradient(0, 80, 0, 330);
@@ -3341,28 +3404,43 @@ function drawGacha() {
   outlinedText(B.name, W / 2, 110, "#fff", 22, "#3a0a5c");
   ctx.restore();
   const lims = B.limited.map(fi => FAM[fi]);
-  txt(`★6限定 ${lims.map(f => f.name).join("・")} 出現中!`, W / 2, 136, 13, "#ffe066", "center");
-  // ★6限定キャラを中央に大きく並べる
+  txt(B.std ? `恒常★6 ${lims.length}体がいつでも出る!` : `★6限定 ${lims.map(f => f.name).join("・")} 出現中!`,
+    W / 2, 136, 13, "#ffe066", "center");
+  // ★6キャラを中央に並べる（多いときは小さく）
+  const sp = lims.length > 3 ? 56 : 76, cr = lims.length > 3 ? 18 : 26;
   lims.forEach((lf, i) => {
-    const lx = W / 2 + (i - (lims.length - 1) / 2) * 76;
-    const ly = 205 + Math.sin(frameNo * 0.05 + i) * 4;
-    drawChar({ shape: lf.shape, el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, lx, ly, 26);
+    const lx = W / 2 + (i - (lims.length - 1) / 2) * sp;
+    const ly = (lims.length > 3 ? 196 + (i % 2) * 34 : 205) + Math.sin(frameNo * 0.05 + i) * 4;
+    drawChar({ shape: lf.shape, el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, lx, ly, cr);
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    outlinedText(lf.name, lx, ly + 48, `hsl(${(frameNo * 4 + i * 90) % 360},90%,72%)`, 13);
+    outlinedText(lf.name, lx, ly + cr + 20, `hsl(${(frameNo * 4 + i * 90) % 360},90%,72%)`, lims.length > 3 ? 9 : 13);
     ctx.restore();
   });
-  const fives = FAM.filter(f => f.rar === 5);
-  fives.forEach((f, i) => {
-    const side = i < 3 ? -1 : 1, k = i % 3;
-    const x = W / 2 + side * (k === 1 ? 138 : 112), y = 172 + k * 52 + Math.sin(frameNo * 0.05 + i) * 3;
-    drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: 5, evo: false }, x, y, 13);
-    txt(f.name, x, y + 22, 9, "#fff", "center");
-  });
-  const pct = v => Math.round(v * 100);
-  const r6 = rate6Total(gachaBanner);
-  txt(`提供割合  ★6: ${pct(r6)}%（各${pct(RATE6)}%）  ★5: ${pct(RATE5)}%  ★4: ${pct(RATE4)}%  ★3: ${pct(1 - r6 - RATE5 - RATE4)}%`, W / 2, 350, 11, "#cfd6ff", "center");
+  if (lims.length <= 3) {
+    const fives = FAM.filter(f => f.rar === 5).slice(0, 6);
+    fives.forEach((f, i) => {
+      const side = i < 3 ? -1 : 1, k = i % 3;
+      const x = W / 2 + side * (k === 1 ? 138 : 112), y = 172 + k * 52 + Math.sin(frameNo * 0.05 + i) * 3;
+      drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: 5, evo: false }, x, y, 13);
+      txt(f.name, x, y + 22, 9, "#fff", "center");
+    });
+  }
+  // 残り時間
+  if (B.endsAt) {
+    const left = Math.max(0, B.endsAt - Date.now());
+    const d = Math.floor(left / DAY), h = Math.floor(left % DAY / 3600000), m = Math.floor(left % 3600000 / 60000);
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    roundRect(W / 2 - 90, 306, 180, 20, 10);
+    ctx.fill();
+    txt(`終了まで ${d ? d + "日 " : ""}${h}時間 ${m}分`, W / 2, 316, 11, "#fff", "center");
+  } else {
+    txt("いつでも引ける常設ガチャ", W / 2, 316, 11, "#fff", "center");
+  }
+  const pct = v => +(v * 100).toFixed(1);
+  const r6 = rate6Total(B);
+  txt(`提供割合  ★6: ${pct(r6)}%  ★5: ${pct(RATE5)}%  ★4: ${pct(RATE4)}%  ★3: ${pct(1 - r6 - RATE5 - RATE4)}%`, W / 2, 350, 11, "#cfd6ff", "center");
   txt("持っているキャラが出ると「覚醒」(最大5) で能力アップ", W / 2, 368, 11, "#cfd6ff", "center");
   button(24, 392, W - 48, 64, "1回ガチャ", () => pullGacha(1),
     { size: 18, sub: `ジェム ${GACHA_1}`, disabled: save.gems < GACHA_1 });
@@ -3674,15 +3752,17 @@ function applyConfig() {
   GACHA_1 = cfgNum(g.price1, 0, 1e6, 50);
   GACHA_10 = cfgNum(g.price10, 0, 1e7, 450);
   const r6 = cfgNum(g.rate6, 0, 0.5, 0.01), r5 = cfgNum(g.rate5, 0, 1, 0.06), r4 = cfgNum(g.rate4, 0, 1, 0.30);
-  // ★6枠のキャラ: limited = スターダストガチャ、limited2 = 灼熱ガチャ
+  // ★6枠のキャラ: limited = スターダストガチャ、limited2 = 灼熱ガチャ（自動ローテーション用）
   const toIds = list => (Array.isArray(list) ? list : []).map(n => FAM.find(f => f.name === n)).filter(Boolean).map(f => f.idx);
   const lim1 = toIds(g.limited).length ? toIds(g.limited) : [LIMITED, LIMITED_JIN];
   const lim2 = toIds(g.limited2).length ? toIds(g.limited2) : [LIMITED_PANI];
-  if (r6 * Math.max(lim1.length, lim2.length) + r5 + r4 <= 1) {
+  if (r6 * Math.max(lim1.length, lim2.length, 3) + r5 + r4 <= 1) {
     RATE6 = r6; RATE5 = r5; RATE4 = r4;
-    BANNERS.star.limited = lim1;
-    BANNERS.fire.limited = lim2;
+    LIMITED_GACHAS[0].limited = lim1;
+    LIMITED_GACHAS[1].limited = lim2;
   }
+  // 常設ガチャの★6（恒常★6全体の合計確率）
+  STD_RATE6 = cfgNum(g.stdRate6, 0, 0.3, 0.01);
   // デイリーボーナス
   const d = CFG.daily || {};
   DAILY_BONUS.gems = cfgNum(d.gems, 0, 1e6, 50);

@@ -207,10 +207,33 @@
         <div><label for="gaR4">★4（%）</label><input id="gaR4" type="number" min="0" max="100" step="0.1" value="30"></div>
       </div>
       <p class="note" id="gaInfo"></p>
-      <h3>★6枠で出るキャラ（スターダストガチャ）</h3>
+      <label for="gaStd">常設ガチャの★6（恒常★6 5体の合計 %）</label>
+      <input id="gaStd" type="number" min="0" max="30" step="0.1" value="1">
+      <h3>自動ローテーションの★6（スターダストガチャ）</h3>
       <div id="gaLimited" class="scroll"></div>
-      <h3>★6枠で出るキャラ（灼熱ガチャ）</h3>
+      <h3>自動ローテーションの★6（灼熱ガチャ）</h3>
       <div id="gaLimited2" class="scroll"></div>
+    </section>
+    <section>
+      <h2>限定ガチャの予定</h2>
+      <p class="note">
+        限定ガチャは3日ごとに入れ替わります。ここに予定を入れると、その期間はこのガチャが出ます。
+        予定がない期間は、スターダスト → 灼熱 の順に「復刻」が3日ずつ自動で回ります。常設ガチャはいつでも出ています。
+      </p>
+      <form id="schedForm">
+        <div class="row">
+          <div><label for="scName">ガチャの名前</label><input id="scName" maxlength="14" required placeholder="例: 新春ガチャ"></div>
+          <div><label for="scShort">タブに出す短い名前（7文字まで）</label><input id="scShort" maxlength="7" placeholder="例: 新春"></div>
+        </div>
+        <div class="row">
+          <div><label for="scFrom">開始日</label><input id="scFrom" type="date"></div>
+          <div><label for="scUntil">終了日（この日まで）</label><input id="scUntil" type="date"></div>
+        </div>
+        <label>★6枠で出るキャラ</label>
+        <div id="scChars" class="scroll"></div>
+        <button type="submit">予定に追加</button>
+      </form>
+      <div id="schedList" style="margin-top:12px"></div>
     </section>
     <section>
       <h2>ボーナス・初期アイテム・難易度</h2>
@@ -476,7 +499,46 @@ function fillSettings() {
   // ★6枠のキャラ（ガチャごとのチェックボックス）
   fillLimited("gaLimited", g.limited || DEFAULT_LIMITED);
   fillLimited("gaLimited2", g.limited2 || DEFAULT_LIMITED2);
+  fillLimited("scChars", []);
+  $("gaStd").value = +((g.stdRate6 ?? 0.01) * 100).toFixed(2);
   readSettings();
+  renderSchedule();
+}
+
+// ---- 限定ガチャの予定 --------------------------------------------------------
+$("scFrom").value = today();
+$("scUntil").value = plusDays(2);
+$("schedForm").onsubmit = e => {
+  e.preventDefault();
+  const limited = checkedNames("scChars");
+  if (!limited.length) { say("★6枠のキャラを1体以上選んでください"); return; }
+  const s = {
+    name: $("scName").value.trim().slice(0, 14), short: ($("scShort").value.trim() || $("scName").value.trim()).slice(0, 7),
+    from: $("scFrom").value, until: $("scUntil").value, limited,
+  };
+  if (!s.name || !s.from || !s.until) return;
+  if (s.until < s.from) { say("終了日が開始日より前になっています"); return; }
+  config.gachaSchedule = [...(config.gachaSchedule || []), s].sort((a, b) => a.from.localeCompare(b.from));
+  $("scName").value = "";
+  $("scShort").value = "";
+  fillLimited("scChars", []);
+  renderSchedule();
+  say(`「${s.name}」を予定に追加しました。「公開する」で保存してアップロードしてください`);
+};
+function renderSchedule() {
+  const box = $("schedList");
+  box.textContent = "";
+  const list = config.gachaSchedule || [];
+  if (!list.length) box.innerHTML = '<p class="note">予定はありません（自動ローテーション中）</p>';
+  list.forEach((s, i) => {
+    const ended = s.until < today();
+    box.append(itemRow(s.name, `${s.from} 〜 ${s.until}${ended ? "（終了）" : ""}`, `★6: ${s.limited.join("・")}`, "", ended, () => {
+      if (!confirm(`「${s.name}」を予定から消しますか？`)) return;
+      config.gachaSchedule.splice(i, 1);
+      renderSchedule();
+    }));
+  });
+  renderJson();
 }
 
 const DEFAULT_LIMITED = ["ikesaki", "ジン"];
@@ -509,6 +571,7 @@ function readSettings() {
     rate6: Number($("gaR6").value) / 100, rate5: Number($("gaR5").value) / 100, rate4: Number($("gaR4").value) / 100,
     limited: limited.length ? limited : DEFAULT_LIMITED,
     limited2: limited2.length ? limited2 : DEFAULT_LIMITED2,
+    stdRate6: Math.max(0, Number($("gaStd").value) || 0) / 100,
   };
   config.daily = { gems: clamp($("dGems").value, 0, 1e6), coins: clamp($("dCoins").value, 0, 1e8) };
   config.starter = { gems: clamp($("sGems").value, 0, 1e9), coins: clamp($("sCoins").value, 0, 1e10) };
