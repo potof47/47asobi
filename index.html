@@ -441,7 +441,8 @@ function unitStats(fi) {
   const f = FAM[fi], u = save.box[fi] || { rar: f.rar, lv: 1, awk: 0 }, b = RBASE[u.rar];
   const v = 1 + (((fi * 37) % 11) - 5) / 100;           // キャラごとの個性
   const lvm = 1 + (u.lv - 1) * 0.012, am = 1 + u.awk * 0.04;
-  const tm = f.type === "pierce" ? [1.05, 0.95] : [1, 1];
+  // タイプ補正 [攻撃力, HP]: 反射は攻撃力1.5倍
+  const tm = f.type === "pierce" ? [1.05, 0.95] : [1.5, 1];
   const bo = f.boost || 1;
   return {
     atk: Math.round(b.atk * v * tm[0] * lvm * am * bo),
