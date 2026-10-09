@@ -77,6 +77,52 @@
     color: #3a1c00;
     font: bold 16px system-ui, sans-serif;
   }
+  /* データ引き継ぎコード */
+  #codeBox {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10;
+  }
+  #codeBox[hidden] { display: none; }
+  #codePanel {
+    width: min(330px, 90vw);
+    padding: 18px;
+    border: 2px solid #5ef0ff;
+    border-radius: 14px;
+    background: #1b1f3e;
+    color: #fff;
+    font: bold 15px system-ui, sans-serif;
+    text-align: center;
+  }
+  #codeText {
+    width: 100%;
+    height: 110px;
+    box-sizing: border-box;
+    margin: 12px 0 6px;
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    font: 12px/1.4 ui-monospace, monospace;
+    word-break: break-all;
+    resize: none;
+  }
+  #codeNote { min-height: 1.4em; margin-bottom: 10px; color: #cfd6ff; font-size: 12px; font-weight: normal; }
+  #codeNote.err { color: #ff9a9a; font-weight: bold; }
+  #codePanel button {
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(#7cf0ff, #2a9fd6);
+    color: #06283a;
+    font: bold 16px system-ui, sans-serif;
+  }
+  #codePanel button.sub { background: #3a4170; color: #fff; }
 </style>
 </head>
 <body>
@@ -87,6 +133,15 @@
     <input id="nameInput" maxlength="12" autocomplete="off" placeholder="12文字まで">
     <button type="submit">決定</button>
   </form>
+</div>
+<div id="codeBox" hidden>
+  <div id="codePanel">
+    <div id="codeTitle"></div>
+    <textarea id="codeText" spellcheck="false" autocomplete="off"></textarea>
+    <div id="codeNote"></div>
+    <button id="codeMain" type="button"></button>
+    <button id="codeClose" class="sub" type="button">閉じる</button>
+  </div>
 </div>
 <script>
 "use strict";
@@ -242,9 +297,34 @@ function newSave() {
 function loadSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (s && s.box && s.party) { save = s; return; }
+    if (s && s.box && s.party) { save = normalizeSave(s); return; }
   } catch (e) { /* 読み込めない環境 */ }
   save = newSave();
+}
+// 古いセーブや引き継ぎコードを読み込む時に、足りない項目を補い、おかしな値を直す
+function normalizeSave(s) {
+  const d = newSave();
+  const int = (v, lo, hi, def) => Number.isFinite(Number(v)) ? Math.max(lo, Math.min(hi, Math.floor(Number(v)))) : def;
+  const out = { ...d, ...s };
+  out.gems = int(s.gems, 0, 1e9, d.gems);
+  out.coins = int(s.coins, 0, 1e10, d.coins);
+  out.cr = {};
+  for (const k of EL_KEYS) out.cr[k] = int(s.cr && s.cr[k], 0, 1e6, 0);
+  out.box = {};
+  for (const [k, u] of Object.entries(s.box || {})) {
+    const f = FAM[k];
+    if (!f || !u) continue;
+    const rar = int(u.rar, f.rar, 6, f.rar);
+    out.box[k] = { rar, lv: int(u.lv, 1, MAXLV[rar], 1), awk: int(u.awk, 0, MAX_AWK, 0) };
+  }
+  if (!Object.keys(out.box).length) out.box = d.box;
+  out.party = (Array.isArray(s.party) ? s.party : []).map(Number).filter((fi, i, a) => out.box[fi] && a.indexOf(fi) === i).slice(0, 4);
+  if (!out.party.length) out.party = [Number(Object.keys(out.box)[0])];
+  out.cleared = s.cleared && typeof s.cleared === "object" ? s.cleared : {};
+  out.best = s.best && typeof s.best === "object" ? s.best : {};
+  out.claimed = Array.isArray(s.claimed) ? s.claimed.map(String) : [];
+  out.name = typeof s.name === "string" ? s.name.slice(0, 12) : undefined;
+  return out;
 }
 function persist() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* 保存できない環境 */ }
@@ -2443,7 +2523,7 @@ function drawNav() {
   ctx.fillRect(0, NAV_Y, W, 1);
   const w = W / NAV.length;
   NAV.forEach(([s, label], i) => {
-    const active = state === s || (s === "box" && state === "detail") || (s === "home" && state === "gifts");
+    const active = state === s || (s === "box" && state === "detail") || (s === "home" && (state === "gifts" || state === "transfer"));
     if (active) {
       ctx.fillStyle = "rgba(255,211,92,0.15)";
       ctx.fillRect(i * w, NAV_Y, w, H - NAV_Y);
@@ -2472,6 +2552,7 @@ function drawHome() {
   // プレゼント（未受け取りの数をバッジ表示）
   const gn = unclaimed().length;
   button(12, 96, 78, 40, "プレゼント", () => go("gifts"), { size: 12, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
+  button(12, 144, 78, 32, "引き継ぎ", () => go("transfer"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
   if (gn) {
     ctx.fillStyle = "#ff3b4e";
     ctx.beginPath(); ctx.arc(86, 98, 10, 0, Math.PI * 2); ctx.fill();
@@ -2962,6 +3043,141 @@ function drawGifts() {
   drawNav();
 }
 
+// ---- データ引き継ぎコード ---------------------------------------------------
+// 形式: MF1Z-<圧縮データ(base64url)>-<チェック用の値>（圧縮できない環境では MF1-）
+function codeCheck(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h.toString(36);
+}
+function toB64url(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function fromB64url(s) {
+  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function pipeBytes(bytes, stream) {
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+}
+async function encodeSave() {
+  let bytes = new TextEncoder().encode(JSON.stringify(save)), tag = "MF1";
+  if (window.CompressionStream) {
+    bytes = await pipeBytes(bytes, new CompressionStream("deflate-raw"));
+    tag = "MF1Z";
+  }
+  const body = toB64url(bytes);
+  return `${tag}-${body}-${codeCheck(body)}`;
+}
+async function decodeSave(code) {
+  const m = code.replace(/\s+/g, "").match(/^(MF1Z?)-([A-Za-z0-9_-]+)-([a-z0-9]+)$/);
+  if (!m) throw new Error("引き継ぎコードの形ではありません");
+  if (codeCheck(m[2]) !== m[3]) throw new Error("コードが途中で切れているか、間違っています");
+  let bytes = fromB64url(m[2]);
+  if (m[1] === "MF1Z") {
+    if (!window.DecompressionStream) throw new Error("このブラウザでは読み込めません。新しいブラウザで試してください");
+    bytes = await pipeBytes(bytes, new DecompressionStream("deflate-raw"));
+  }
+  const s = JSON.parse(new TextDecoder().decode(bytes));
+  if (!s || !s.box || !s.party) throw new Error("セーブデータが入っていません");
+  return normalizeSave(s);
+}
+
+function openCodeBox(title, text, readOnly, note, mainLabel, onMain) {
+  const box = document.getElementById("codeBox"), area = document.getElementById("codeText");
+  document.getElementById("codeTitle").textContent = title;
+  area.value = text;
+  area.readOnly = readOnly;
+  area.placeholder = readOnly ? "" : "ここに引き継ぎコードを貼り付け";
+  setCodeNote(note);
+  const main = document.getElementById("codeMain");
+  main.textContent = mainLabel;
+  main.onclick = onMain;
+  document.getElementById("codeClose").onclick = () => { box.hidden = true; };
+  box.hidden = false;
+  if (!readOnly) setTimeout(() => area.focus(), 50);
+}
+function setCodeNote(text, err = false) {
+  const n = document.getElementById("codeNote");
+  n.textContent = text;
+  n.className = err ? "err" : "";
+}
+
+async function showExportCode() {
+  const code = await encodeSave();
+  openCodeBox("あなたの引き継ぎコード", code, true,
+    "新しい端末で「コードを入力」に貼り付けてね。他の人には教えないでね",
+    "コピーする", async () => {
+      try {
+        await navigator.clipboard.writeText(code);
+        setCodeNote("コピーしました! メモ帳やLINEの自分あてに保存しておくと安心です");
+      } catch (e) {
+        const area = document.getElementById("codeText");
+        area.focus();
+        area.select();
+        setCodeNote("コピーできなかったので、選択された文字を長押ししてコピーしてね", true);
+      }
+    });
+}
+
+function showImportCode() {
+  let pending = null;
+  openCodeBox("引き継ぎコードを入力", "", false, "前の端末で発行したコードを貼り付けてね", "確認する", async () => {
+    const main = document.getElementById("codeMain");
+    if (pending) {
+      // 2回目の押下で上書き
+      save = pending;
+      persist();
+      document.getElementById("codeBox").hidden = true;
+      go("home");
+      showToast("データを引き継ぎました!");
+      return;
+    }
+    try {
+      const s = await decodeSave(document.getElementById("codeText").value);
+      const chars = Object.keys(s.box).length, clears = Object.keys(s.cleared).length;
+      setCodeNote(`ジェム${s.gems.toLocaleString()}・キャラ${chars}体・クリア${clears}個のデータです。今のデータは上書きされます`, false);
+      pending = s;
+      main.textContent = "上書きして引き継ぐ";
+    } catch (e) {
+      setCodeNote(e.message || "読み込めませんでした", true);
+    }
+  });
+  document.getElementById("codeText").oninput = () => {
+    pending = null;
+    document.getElementById("codeMain").textContent = "確認する";
+  };
+}
+
+function drawTransfer() {
+  drawMenuBg("#14203a", "#070b16");
+  drawTopBar();
+  header("データ引き継ぎ", "");
+  const lines = [
+    "機種変更や、別のブラウザで遊ぶときに使います。",
+    "iPhoneで「ホーム画面に追加」したアプリは",
+    "Safariとデータが別なので、このコードで移してね。",
+  ];
+  lines.forEach((l, i) => txt(l, W / 2, 104 + i * 20, 12, "#cfd6ff", "center", "normal"));
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  roundRect(20, 176, W - 40, 150, 14);
+  ctx.fill();
+  txt("今の端末のデータを持っていく", W / 2, 198, 13, "#ffd35c", "center");
+  button(40, 214, W - 80, 52, "コードを発行", () => { showExportCode(); }, { size: 16, sub: "表示されたコードを保存してね", c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  txt(`ジェム${save.gems.toLocaleString()}・キャラ${Object.keys(save.box).length}体`, W / 2, 298, 12, "#9aa3d8", "center", "normal");
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  roundRect(20, 342, W - 40, 130, 14);
+  ctx.fill();
+  txt("前の端末のデータをこの端末に入れる", W / 2, 364, 13, "#ffd35c", "center");
+  button(40, 380, W - 80, 52, "コードを入力", () => showImportCode(), { size: 16, sub: "今のデータは上書きされます" });
+  txt("※ コードを知っている人は同じデータを作れます", W / 2, 452, 11, "#ff9a9a", "center", "normal");
+  drawNav();
+}
+
 // ---- 共有・ホーム画面に追加 -------------------------------------------------
 const SHARE_URL = "https://potof47.github.io/47asobi/";
 const qrImg = new Image();
@@ -3179,6 +3395,7 @@ function draw() {
     case "detail": drawDetail(); break;
     case "ranking": drawRanking(); break;
     case "gifts": drawGifts(); break;
+    case "transfer": drawTransfer(); break;
     default: drawBattle();
   }
   if (shareOpen) drawShare();
