@@ -484,6 +484,8 @@ function mob(x, y, el, hp, atk, cd, o = {}) {
     r: o.r || 22, boss: !!o.boss, name: o.name || "",
     weak: o.weak === undefined ? null : o.weak, roam: !!o.roam,
     atkType: o.atkType || "single", flash: 0, dead: false, wob: Math.random() * 6,
+    // guard: 弱点以外のダメージを1/4に / regen: 毎ターン最大HPのこの割合だけ回復
+    guard: !!o.guard, regen: o.regen || 0,
   };
 }
 const boss = (x, y, el, hp, atk, cd, name, o = {}) =>
@@ -538,6 +540,28 @@ const LAYOUTS = {
       mob(60, 110, s, 40000, 5000, 3, { weak: DOWN }), mob(300, 110, s, 40000, 5000, 3, { weak: DOWN }),
     ], rocks: [rock(70, 380), rock(290, 380)] }),
   ],
+  // 超絶・極限用: ガード（弱点以外ほぼ効かない）と再生（毎ターン回復）を持つ敵だらけ
+  D: (m, s, b) => [
+    () => ({ enemies: [
+      mob(60, 110, m, 40000, 4000, 2, { guard: true, weak: DOWN }),
+      mob(180, 100, s, 46000, 4500, 3, { weak: UP }),
+      mob(300, 110, m, 40000, 4000, 2, { guard: true, weak: DOWN }),
+      mob(100, 260, m, 42000, 4200, 2, { r: 26, guard: true, weak: 0, roam: true }),
+      mob(260, 260, s, 42000, 4200, 3, { weak: DOWN }),
+      mob(180, 350, m, 50000, 5000, 4, { r: 28, guard: true, weak: Math.PI, roam: true }),
+    ], rocks: [rock(120, 180), rock(240, 180)] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 170, m, 350000, 14000, 2, b[0], { regen: 0.04 }),
+      mob(60, 320, m, 40000, 4500, 2, { guard: true, weak: DOWN }),
+      mob(300, 320, m, 40000, 4500, 2, { guard: true, weak: DOWN }),
+      mob(180, 380, s, 44000, 5000, 3, { weak: DOWN }),
+    ], rocks: [rock(100, 250), rock(260, 250)] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 190, m, 700000, 20000, 2, b[1], { r: 58, regen: 0.05, guard: true }),
+      mob(50, 110, s, 46000, 5500, 3, { regen: 0.08, weak: DOWN }),
+      mob(310, 110, s, 46000, 5500, 3, { regen: 0.08, weak: DOWN }),
+    ], rocks: [rock(70, 380), rock(290, 380), rock(180, 400)] }),
+  ],
 };
 
 // mul: 敵のHP・攻撃力の倍率。crEl: 報酬の結晶の属性（null はランダム）
@@ -560,7 +584,19 @@ const QUESTS = [
   { name: "極・混沌の玉座", sub: "超高難度 / 光属性が有利", diff: 6, mul: 2.3, par: 20,
     bg: ["#2a0a14", "#0a0206"], coin: 6000, gem: 150, crEl: null, crN: 6,
     waves: LAYOUTS.C("dark", "fire", ["混沌帝カオスレイ (I)", "混沌帝カオスレイ (II)"]) },
+  // ここから「極・混沌の玉座」より難しいクエスト（ガード・再生持ちの敵）
+  // atkPow: 敵の攻撃力は mul の atkPow 乗（一撃で全滅しすぎないように少し抑える）
+  { name: "超絶・星喰いの深淵", sub: "超絶 / 木属性が有利 / ガード・再生", diff: 7, mul: 4, atkPow: 0.8, par: 24,
+    bg: ["#081a3a", "#02060f"], coin: 12000, gem: 300, crEl: "water", crN: 10,
+    waves: LAYOUTS.D("water", "dark", ["星喰いのリヴァイア (I)", "星喰いのリヴァイア (II)"]) },
+  { name: "超絶・終焉の炎神殿", sub: "超絶 / 水属性が有利 / ガード・再生", diff: 8, mul: 7, atkPow: 0.8, par: 24,
+    bg: ["#3a0a06", "#100202"], coin: 25000, gem: 500, crEl: "fire", crN: 15,
+    waves: LAYOUTS.D("fire", "light", ["終焉炎帝イグナトス (I)", "終焉炎帝イグナトス (II)"]) },
+  { name: "極限・神々の黄昏", sub: "極限 / 闇属性が有利 / ガード・再生", diff: 9, mul: 12, atkPow: 0.8, par: 26,
+    bg: ["#2a2410", "#080600"], coin: 60000, gem: 1000, crEl: null, crN: 25,
+    waves: LAYOUTS.D("light", "dark", ["黄昏の神王オルディス (I)", "黄昏の神王オルディス (II)"]) },
 ];
+const IKESAKI_QUEST = 5;   // ikesaki がもらえる「極・混沌の玉座」
 const questUnlocked = i => i === 0 || !!save.cleared[i - 1];
 
 // ---- 自動生成ステージ（ストーリー200ステージ・無限の塔） ---------------------------
@@ -740,7 +776,7 @@ function loadWave() {
   const w = quest.waves[waveIdx]();
   for (const e of w.enemies) {
     e.hp = e.maxHp = Math.round(e.hp * quest.mul);
-    e.atk = Math.round(e.atk * quest.mul);
+    e.atk = Math.round(e.atk * Math.pow(quest.mul, quest.atkPow || 1));
   }
   enemies = w.enemies;
   rocks = w.rocks || [];
@@ -818,8 +854,10 @@ function weakPos(e) {
 // ---- ダメージ ---------------------------------------------------------
 function damageEnemy(e, base, el, weak) {
   if (e.dead) return;
-  const m = elemMult(el, e.el) * (weak ? 3 : 1);
+  const guarded = e.guard && !weak;   // ガード持ちは弱点以外 1/4
+  const m = elemMult(el, e.el) * (weak ? 3 : 1) * (guarded ? 0.25 : 1);
   const dmg = Math.round(base * m * rand(0.92, 1.08));
+  if (guarded && Math.random() < 0.25) addText(e.x, e.y + e.r + 8, "ガード", "#9ad5ff", 11);
   e.hp -= dmg;
   e.flash = 6;
   hitCount++;
@@ -1114,6 +1152,14 @@ function startTurn() {
   }
   ssArmed = false;
   for (const e of alive()) if (e.roam && e.weak !== null) e.weak = Math.random() * Math.PI * 2;
+  // 再生持ちの敵は毎ターン回復
+  for (const e of alive()) {
+    if (!e.regen || e.hp >= e.maxHp) continue;
+    const v = Math.round(e.maxHp * e.regen);
+    e.hp = Math.min(e.maxHp, e.hp + v);
+    addText(e.x, e.y - e.r - 6, `+${v.toLocaleString()} 再生`, "#7dffa0", 12);
+    burst(e.x, e.y, "#7dffa0", 8, 2);
+  }
   if (hearts.length === 0 && Math.random() < 0.3) spawnHeart();
   state = "aim";
 }
@@ -1151,7 +1197,7 @@ function finishQuest() {
   const crN = q.crN + Math.floor(Math.random() * 3);
   const gem = first ? q.gem : 0;
   let drop = null;
-  if (questIdx === QUESTS.length - 1 && first) {
+  if (questIdx === IKESAKI_QUEST && first) {
     drop = acquire(LIMITED);                  // 最難関の初回クリアで★6限定キャラ
   } else if (Math.random() < 0.35) {
     const pool = FAM.filter(f => f.rar === 3 && f.el === crEl);
@@ -2321,6 +2367,28 @@ function drawEnemy(e) {
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
+  // ガード（六角形のバリア）と再生（緑の＋マーク）
+  if (e.guard) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(154,213,255,0.8)";
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.6 + Math.sin(frameNo * 0.1 + e.wob) * 0.2;
+    ctx.beginPath();
+    for (let i = 0; i <= 6; i++) {
+      const a = i * Math.PI / 3 + frameNo * 0.01;
+      ctx.lineTo(x + Math.cos(a) * (r + 7), y + Math.sin(a) * (r + 7));
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (e.regen) {
+    const px = x + r * 0.85, py = y - r * 0.15;
+    ctx.fillStyle = "#1e7a3a";
+    ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#7dffa0";
+    ctx.fillRect(px - 4, py - 1.2, 8, 2.4);
+    ctx.fillRect(px - 1.2, py - 4, 2.4, 8);
+  }
   if (e.weak !== null) {
     const w = weakPos(e);
     const pulse = 1 + Math.sin(frameNo * 0.2) * 0.15;
@@ -3014,28 +3082,25 @@ function drawStoryList() {
 
 // スペシャル（高難度・ランキング対象）
 function drawSpecialList() {
-  txt("ランキング対象の高難度クエスト", W / 2, 124, 11, "#9aa3d8", "center", "normal");
+  txt("ランキング対象の高難度クエスト（7つ目からは超絶・極限）", W / 2, 122, 11, "#9aa3d8", "center", "normal");
   QUESTS.forEach((q, i) => {
-    const y = 138 + i * 72, unlocked = questUnlocked(i);
-    button(14, y, W - 28, 66, "", () => {
+    const y = 132 + i * 50, unlocked = questUnlocked(i), hard = q.diff >= 7;
+    button(14, y, W - 28, 46, "", () => {
       if (!unlocked) { showToast("前のクエストをクリアしよう"); return; }
       startQuest(i);
-    }, { c1: unlocked ? q.bg[0] : "#2a2d3a", c2: unlocked ? "#151a33" : "#15171f" });
+    }, { c1: unlocked ? (hard ? "#5a0f2a" : q.bg[0]) : "#2a2d3a", c2: unlocked ? "#151a33" : "#15171f" });
     ctx.save();
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    outlinedText(q.name, 28, y + 18, unlocked ? "#fff" : "#777", 16);
+    outlinedText(q.name, 26, y + 15, unlocked ? (hard ? "#ff9ab8" : "#fff") : "#777", 14);
     ctx.textAlign = "right";
-    outlinedText("★".repeat(q.diff), W - 28, y + 18, "#ffd35c", 11);
+    outlinedText("★".repeat(q.diff), W - 26, y + 15, hard ? "#ff6b8b" : "#ffd35c", 9);
     ctx.restore();
-    if (!unlocked) { txt("LOCK  前のクエストをクリアで解放", 28, y + 44, 12, "#9aa3b8"); return; }
-    txt(q.sub, 28, y + 38, 11, "#cfd6ff");
-    txt(save.cleared[i] ? `CLEAR  ベスト${save.best[i]}T` : `初回ジェム${q.gem}`, 28, y + 54, 11, save.cleared[i] ? "#7dffa0" : "#5ef0ff");
-    coinIcon(W - 150, y + 54, 6);
-    txt(`${q.coin}`, W - 140, y + 54, 11, "#fff");
-    if (q.crEl) crystalIcon(q.crEl, W - 82, y + 54, 7);
-    else EL_KEYS.forEach((k, j) => crystalIcon(k, W - 96 + j * 7, y + 54, 5));
-    txt(`×${q.crN}〜`, W - 70, y + 54, 11, "#fff");
+    if (!unlocked) { txt("LOCK  前のクエストをクリアで解放", 26, y + 34, 11, "#9aa3b8"); return; }
+    txt(save.cleared[i] ? `CLEAR  ベスト${save.best[i]}T` : `初回ジェム${q.gem}`, 26, y + 34, 11, save.cleared[i] ? "#7dffa0" : "#5ef0ff");
+    txt(q.sub.split(" / ").slice(1).join(" / "), 130, y + 34, 10, "#cfd6ff", "left", "normal");
+    coinIcon(W - 82, y + 34, 5);
+    txt(`${q.coin}`, W - 74, y + 34, 10, "#fff", "left", "normal");
   });
 }
 
@@ -3856,8 +3921,9 @@ function drawRanking() {
     button(x, y, tw, 26, "", () => { rankQuest = i; }, { hidden: true });
   });
   const q = QUESTS[rankQuest];
-  txt(onlineRanking() ? "全国ランキング TOP15（少ないターン順）" : "この端末の記録（少ないターン順）", 16, 160, 12, "#ffd35c");
-  txt(`S: ${q.par}T以内`, W - 16, 160, 11, "#9aa3d8", "right");
+  const rowsY = 84 + Math.ceil(QUESTS.length / 3) * 30;   // クエスト選択の下
+  txt(onlineRanking() ? "全国ランキング（少ないターン順）" : "この端末の記録（少ないターン順）", 16, rowsY + 6, 12, "#ffd35c");
+  txt(`S: ${q.par}T以内`, W - 16, rowsY + 6, 11, "#9aa3d8", "right");
 
   let rows;
   if (onlineRanking()) {
@@ -3875,8 +3941,9 @@ function drawRanking() {
   if (rows.length === 0 && (!onlineRanking() || (rankCache[rankQuest] && rankCache[rankQuest].status === "ok"))) {
     txt("まだ記録がありません。クリアして記録を残そう!", W / 2, 240, 13, "#cfd6ff", "center");
   }
-  rows.slice(0, 15).forEach((r, i) => {
-    const y = 178 + i * 26;
+  const maxRows = Math.floor((NAV_Y - 8 - (rowsY + 22)) / 26);
+  rows.slice(0, maxRows).forEach((r, i) => {
+    const y = rowsY + 22 + i * 26;
     const mine = r.name === (save.name || "あなた");
     ctx.fillStyle = mine ? "rgba(255,211,92,0.16)" : i % 2 ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.07)";
     roundRect(12, y, W - 24, 23, 6);
