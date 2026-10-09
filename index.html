@@ -943,7 +943,7 @@ function judgeLaser(a, dx, dy) {
   fx.push({ kind: "line", x1: a.x, y1: a.y, x2, y2, w, life: big ? 50 : 34, max: big ? 50 : 34, color: big ? "#bfffd0" : EL[a.el].l });
   if (big) fx.push({ kind: "ring", x: a.x, y: a.y, r0: 70, r1: 10, life: 20, max: 20, color: "#ffffff", w: 6 });
   for (const e of alive()) {
-    if (segDist(e.x, e.y, a.x, a.y, x2, y2) < e.r + w / 2) damageEnemy(e, a.atk * (big ? 18 : 8), a.el, false);
+    if (segDist(e.x, e.y, a.x, a.y, x2, y2) < e.r + w / 2) damageEnemy(e, a.atk * (big ? 50 : 8), a.el, false);
   }
   shake = Math.max(shake, big ? 16 : 8);
 }
@@ -964,8 +964,21 @@ function fire(dx, dy) {
       case "burst":  shot.atkMul = 3; sp *= 1.3; break;
       case "wave":   fx.push({ kind: "wave", y: FB, life: 45, max: 45, hit: new Set(), base: a.atk * 3.5, el: a.el }); break;
       case "needle": shot.needle = 30; break;
-      case "judge":
-      case "haou":   judgeLaser(a, dx, dy); break;
+      case "judge":  judgeLaser(a, dx, dy); break;
+      case "haou":
+        judgeLaser(a, dx, dy);
+        // 撃ったターンから5ターン、能力2.5倍（攻撃力・HP・スピード）
+        if (!a.buff) {
+          a.buffHp = Math.round(a.hp * 1.5);
+          a.atk *= 2.5;
+          a.spd *= 2.5;
+          maxHp += a.buffHp;
+          hp += a.buffHp;
+          addText(a.x, a.y - 34, "能力2.5倍!", "#bfffd0", 16);
+        }
+        a.buff = 5;
+        sp *= 2.5;
+        break;
       case "meteor":
         for (let i = 0; i < 8; i++) addBolt(rand(30, W - 30), TOP - 20 - i * 25, 0, 6, a.atk * 2.2, a.el, 9);
         break;
@@ -991,9 +1004,11 @@ function fire(dx, dy) {
 function updateShot() {
   const s = shot, a = s.ally;
   if (!s.stopped) {
-    for (let k = 0; k < SUB; k++) {
-      a.x += a.vx / SUB;
-      a.y += a.vy / SUB;
+    // 速いほど細かく刻んで、すり抜けを防ぐ
+    const steps = Math.max(SUB, Math.ceil(Math.hypot(a.vx, a.vy) / 6));
+    for (let k = 0; k < steps; k++) {
+      a.x += a.vx / steps;
+      a.y += a.vy / steps;
       walls(a);
       for (const o of rocks) bounce(a, o.x, o.y, o.r);
       for (const e of enemies) {
@@ -1081,6 +1096,18 @@ function startTurn() {
   turn++;
   cur = (cur + 1) % allies.length;
   for (const a of allies) a.ssLeft = Math.max(0, a.ssLeft - 1);
+  // 能力アップの残りターンを減らし、切れたら元に戻す
+  for (const a of allies) {
+    if (!a.buff) continue;
+    a.buff--;
+    if (!a.buff) {
+      a.atk /= 2.5;
+      a.spd /= 2.5;
+      maxHp -= a.buffHp;
+      hp = Math.max(1, Math.min(hp, maxHp));
+      addText(a.x, a.y - 30, "能力アップ終了", "#9aa3b8", 12);
+    }
+  }
   ssArmed = false;
   for (const e of alive()) if (e.roam && e.weak !== null) e.weak = Math.random() * Math.PI * 2;
   if (hearts.length === 0 && Math.random() < 0.3) spawnHeart();
@@ -2470,6 +2497,14 @@ function drawAllies() {
       }
     }
     ctx.restore();
+    if (a.buff) {
+      // 能力アップ中は属性色の光がゆらめく
+      ctx.save();
+      ctx.globalAlpha = 0.35 + Math.sin(frameNo * 0.25) * 0.15;
+      ctx.fillStyle = EL[a.el].c;
+      ctx.beginPath(); ctx.arc(a.x, a.y, R + 9 + Math.sin(frameNo * 0.3) * 2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     if (a.glow > 0) {
       ctx.save();
       ctx.globalAlpha = a.glow / 20;
@@ -2658,7 +2693,7 @@ function drawPanel() {
     ctx.beginPath();
     ctx.arc(x - 12, y + 2, 21, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - a.ssLeft / a.ssTurns));
     ctx.stroke();
-    txt(a.type === "reflect" ? "反射" : "貫通", x + 13, y - 12, 10, "#e8ecff");
+    txt(a.buff ? `強化 ${a.buff}T` : a.type === "reflect" ? "反射" : "貫通", x + 13, y - 12, 10, a.buff ? "#bfffd0" : "#e8ecff");
     if (ready) {
       ctx.globalAlpha = 0.7 + Math.sin(frameNo * 0.15) * 0.3;
       ctx.textAlign = "left";
