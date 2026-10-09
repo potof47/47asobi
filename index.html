@@ -196,7 +196,7 @@ const SS = {
   meteor: { name: "メテオ",   turns: 11, desc: "隕石8発を敵に落とす" },
   // ikesaki 専用
   // ジン 専用
-  haou: { name: "覇王天翔波", turns: 9, fixed: true, desc: "狙った方向に特大レーザーで大ダメージ" },
+  haou: { name: "覇王天翔波", turns: 8, fixed: true, desc: "狙った方向に特大レーザーで大ダメージ" },
   smileburst: { name: "フルスマイル・バースト", turns: 8, fixed: true,
     desc: "全体大ダメージ＋敵の攻撃1T遅延＋HP30%回復＋攻撃3倍" },
 };
@@ -272,7 +272,7 @@ const STARTERS = [2, 8, 14, 20];   // ブレイズ・マリン・ソーン・ル
 const LIMITED = FAM.find(f => f.name === "ikesaki").idx;
 FAM[LIMITED].boost = 1.35;      // 限定キャラは能力1.35倍
 const LIMITED_JIN = FAM.find(f => f.name === "ジン").idx;
-FAM[LIMITED_JIN].boost = 1.35;
+FAM[LIMITED_JIN].boost = 1.45;  // ikesaki より強め
 const LIMITED_ALL = [LIMITED, LIMITED_JIN];
 
 const RBASE = {
@@ -943,7 +943,7 @@ function judgeLaser(a, dx, dy) {
   fx.push({ kind: "line", x1: a.x, y1: a.y, x2, y2, w, life: big ? 50 : 34, max: big ? 50 : 34, color: big ? "#bfffd0" : EL[a.el].l });
   if (big) fx.push({ kind: "ring", x: a.x, y: a.y, r0: 70, r1: 10, life: 20, max: 20, color: "#ffffff", w: 6 });
   for (const e of alive()) {
-    if (segDist(e.x, e.y, a.x, a.y, x2, y2) < e.r + w / 2) damageEnemy(e, a.atk * (big ? 15 : 8), a.el, false);
+    if (segDist(e.x, e.y, a.x, a.y, x2, y2) < e.r + w / 2) damageEnemy(e, a.atk * (big ? 18 : 8), a.el, false);
   }
   shake = Math.max(shake, big ? 16 : 8);
 }
@@ -1192,17 +1192,17 @@ function evolve(fi) {
 }
 
 // ---- ガチャ -----------------------------------------------------------
-// ガチャの種類。★6枠で出る限定キャラだけが違う（★3〜5は共通）
+// ガチャの種類。limited: ★6枠で出る限定キャラ（1体につき RATE6 の確率）
 const BANNERS = {
-  star: { name: "スターダストガチャ", limited: LIMITED,     c1: "#ff7ae0", c2: "#7a4aff" },
-  fist: { name: "拳聖ガチャ",         limited: LIMITED_JIN, c1: "#5fd36e", c2: "#1d6b3a" },
+  star: { name: "スターダストガチャ", limited: [LIMITED, LIMITED_JIN], c1: "#ff7ae0", c2: "#7a4aff" },
 };
 let gachaBanner = "star";
+const rate6Total = banner => RATE6 * BANNERS[banner].limited.length;
 
 function rollOne(guarantee4, banner) {
-  const r = Math.random();
-  if (r < RATE6) return BANNERS[banner].limited;
-  let rar = r < RATE6 + RATE5 ? 5 : r < RATE6 + RATE5 + RATE4 ? 4 : 3;
+  const r = Math.random(), r6 = rate6Total(banner);
+  if (r < r6) return pick(BANNERS[banner].limited);
+  let rar = r < r6 + RATE5 ? 5 : r < r6 + RATE5 + RATE4 ? 4 : 3;
   if (guarantee4 && rar === 3) rar = 4;
   return pick(FAM.filter(f => f.rar === rar)).idx;
 }
@@ -1903,7 +1903,7 @@ function drawHuman(k, x, y, r) {
       ctx.fill();
       break;
     case "headband": {
-      // 丸みのある茶色の短髪 ＋ 白いハチマキ（後ろでなびく）
+      // 丸みのある茶色の短髪（ハチマキなし）
       ctx.fillStyle = "#7a4a26";
       ctx.beginPath();
       ctx.arc(hx, hy - hr * 0.05, hr * 1.05, Math.PI * 1.0, Math.PI * 2.0);
@@ -1911,21 +1911,8 @@ function drawHuman(k, x, y, r) {
       ctx.quadraticCurveTo(hx, hy - hr * 0.25, hx - hr * 0.35, hy - hr * 0.45);
       ctx.quadraticCurveTo(hx - hr * 0.7, hy - hr * 0.2, hx - hr * 1.05, hy - hr * 0.05);
       ctx.fill();
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(hx - hr * 1.04, hy - hr * 0.62, hr * 2.08, hr * 0.2);
-      const flap = Math.sin(frameNo * 0.2) * hr * 0.12;
-      ctx.beginPath();
-      ctx.moveTo(hx + hr * 0.95, hy - hr * 0.6);
-      ctx.lineTo(hx + hr * 1.7, hy - hr * 0.75 + flap);
-      ctx.lineTo(hx + hr * 1.6, hy - hr * 0.5 + flap);
-      ctx.closePath();
-      ctx.moveTo(hx + hr * 0.95, hy - hr * 0.5);
-      ctx.lineTo(hx + hr * 1.55, hy - hr * 0.25 - flap);
-      ctx.lineTo(hx + hr * 1.4, hy - hr * 0.1 - flap);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = "#d33";
-      ctx.beginPath(); ctx.arc(hx, hy - hr * 0.52, hr * 0.08, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath(); ctx.ellipse(hx - hr * 0.35, hy - hr * 0.75, hr * 0.35, hr * 0.12, -0.3, 0, Math.PI * 2); ctx.fill();
       break;
     }
     case "hood":
@@ -3052,9 +3039,9 @@ function drawGacha() {
   drawMenuBg("#3a1a5c", "#0c0618");
   drawTopBar();
   header("ガチャ", "");
-  // ガチャの切り替えタブ
+  // ガチャが複数ある時だけ切り替えタブを出す
   const keys = Object.keys(BANNERS), tw = (W - 120) / keys.length;
-  keys.forEach((k, i) => {
+  if (keys.length > 1) keys.forEach((k, i) => {
     const x = 106 + i * tw, active = gachaBanner === k;
     ctx.fillStyle = active ? BANNERS[k].c1 : "rgba(255,255,255,0.1)";
     roundRect(x + 2, 49, tw - 4, 26, 8);
@@ -3062,6 +3049,7 @@ function drawGacha() {
     txt(BANNERS[k].name, x + tw / 2, 62, 11, active ? "#1a1030" : "#cfd6ff", "center");
     button(x, 49, tw, 26, "", () => { gachaBanner = k; }, { hidden: true });
   });
+  if (!BANNERS[gachaBanner]) gachaBanner = keys[0];
   const B = BANNERS[gachaBanner];
   // バナー
   ctx.save();
@@ -3091,25 +3079,29 @@ function drawGacha() {
   ctx.textBaseline = "middle";
   outlinedText(B.name, W / 2, 110, "#fff", 22, "#3a0a5c");
   ctx.restore();
-  const lf = FAM[B.limited];
-  txt(`★6限定 ${lf.name} はこのガチャだけ!`, W / 2, 136, 13, "#ffe066", "center");
-  // ★6限定キャラを中央に大きく
-  const ly = 205 + Math.sin(frameNo * 0.05) * 4;
-  drawChar({ shape: lf.shape, el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, W / 2, ly, 30);
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  outlinedText(`★6 ${lf.name}`, W / 2, ly + 52, `hsl(${(frameNo * 4) % 360},90%,72%)`, 14);
-  ctx.restore();
+  const lims = B.limited.map(fi => FAM[fi]);
+  txt(`★6限定 ${lims.map(f => f.name).join("・")} 出現中!`, W / 2, 136, 13, "#ffe066", "center");
+  // ★6限定キャラを中央に大きく並べる
+  lims.forEach((lf, i) => {
+    const lx = W / 2 + (i - (lims.length - 1) / 2) * 76;
+    const ly = 205 + Math.sin(frameNo * 0.05 + i) * 4;
+    drawChar({ shape: lf.shape, el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, lx, ly, 26);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText(lf.name, lx, ly + 48, `hsl(${(frameNo * 4 + i * 90) % 360},90%,72%)`, 13);
+    ctx.restore();
+  });
   const fives = FAM.filter(f => f.rar === 5);
   fives.forEach((f, i) => {
     const side = i < 3 ? -1 : 1, k = i % 3;
-    const x = W / 2 + side * (k === 1 ? 128 : 90), y = 172 + k * 52 + Math.sin(frameNo * 0.05 + i) * 3;
-    drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: 5, evo: false }, x, y, 14);
-    txt(f.name, x, y + 24, 10, "#fff", "center");
+    const x = W / 2 + side * (k === 1 ? 138 : 112), y = 172 + k * 52 + Math.sin(frameNo * 0.05 + i) * 3;
+    drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: 5, evo: false }, x, y, 13);
+    txt(f.name, x, y + 22, 9, "#fff", "center");
   });
   const pct = v => Math.round(v * 100);
-  txt(`提供割合  ★6: ${pct(RATE6)}%  ★5: ${pct(RATE5)}%  ★4: ${pct(RATE4)}%  ★3: ${pct(1 - RATE6 - RATE5 - RATE4)}%`, W / 2, 350, 11, "#cfd6ff", "center");
+  const r6 = rate6Total(gachaBanner);
+  txt(`提供割合  ★6: ${pct(r6)}%（各${pct(RATE6)}%）  ★5: ${pct(RATE5)}%  ★4: ${pct(RATE4)}%  ★3: ${pct(1 - r6 - RATE5 - RATE4)}%`, W / 2, 350, 11, "#cfd6ff", "center");
   txt("持っているキャラが出ると「覚醒」(最大5) で能力アップ", W / 2, 368, 11, "#cfd6ff", "center");
   button(24, 392, W - 48, 64, "1回ガチャ", () => pullGacha(1),
     { size: 18, sub: `ジェム ${GACHA_1}`, disabled: save.gems < GACHA_1 });
