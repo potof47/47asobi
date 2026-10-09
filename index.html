@@ -184,6 +184,8 @@ const COMBO = {
   thunder: { name: "チェインサンダー", desc: "近い敵へ連鎖する雷" },
   // ikesaki 専用
   smilestar: { name: "スマイルスター", desc: "追尾する星12発＋HP回復" },
+  // ジン 専用
+  kikou:   { name: "気功波", desc: "敵を追尾するレーザー10本" },
 };
 // ストライクショット（ターン経過で使用可能）。fixed: 属性名を付けない専用SS
 const SS = {
@@ -193,6 +195,8 @@ const SS = {
   judge:  { name: "レーザー", turns: 10, desc: "発射方向に極太レーザー" },
   meteor: { name: "メテオ",   turns: 11, desc: "隕石8発を敵に落とす" },
   // ikesaki 専用
+  // ジン 専用
+  haou: { name: "覇王天翔波", turns: 9, fixed: true, desc: "狙った方向に特大レーザーで大ダメージ" },
   smileburst: { name: "フルスマイル・バースト", turns: 8, fixed: true,
     desc: "全体大ダメージ＋敵の攻撃1T遅延＋HP30%回復＋攻撃3倍" },
 };
@@ -257,6 +261,8 @@ const FAM = [
   ["シャドウルフ", "dark", 4, "reflect", "wolf",  "sharp",   "thunder", "judge",  "beast"],
   ["カラスケ", "dark",  3, "reflect", "tuft",    "sharp",   "laser",   "burst",  "bird"],
   ["ヤミウオ", "dark",  3, "pierce",  "angler",  "sleepy",  "heal",    "wave",   "fish"],
+  // ★6限定キャラ（拳聖ガチャ専用）
+  ["ジン",     "wood",  6, "reflect", "headband", "sharp",  "kikou",   "haou",   "human"],
 ].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
 // 図鑑の並び順（属性 → レア度）
 const ORDER = FAM.map(f => f.idx).sort((a, b) =>
@@ -265,6 +271,9 @@ const SHAPE_NAME = { blob: "モンスター", human: "人型", beast: "獣", bir
 const STARTERS = [2, 8, 14, 20];   // ブレイズ・マリン・ソーン・ルクス
 const LIMITED = FAM.find(f => f.name === "ikesaki").idx;
 FAM[LIMITED].boost = 1.35;      // 限定キャラは能力1.35倍
+const LIMITED_JIN = FAM.find(f => f.name === "ジン").idx;
+FAM[LIMITED_JIN].boost = 1.35;
+const LIMITED_ALL = [LIMITED, LIMITED_JIN];
 
 const RBASE = {
   3: { atk: 1600, hp: 11000, spd: 13.5 },
@@ -892,6 +901,16 @@ function triggerCombo(a) {
       }
       break;
     }
+    case "kikou": {
+      // 敵を追いかけるレーザー10本
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 6, r1: 70, life: 20, max: 20, color: "#bfffd0", w: 6 });
+      for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * Math.PI * 2;
+        addBolt(a.x, a.y, Math.cos(ang) * 8, Math.sin(ang) * 8, a.atk * 0.55, a.el, 4);
+        bolts[bolts.length - 1].beam = true;
+      }
+      break;
+    }
     case "smilestar": {
       // 虹色の星12発（追尾）＋回復
       fx.push({ kind: "ring", x: a.x, y: a.y, r0: 8, r1: 80, life: 24, max: 24, color: "#ffe066", w: 6 });
@@ -919,11 +938,14 @@ function judgeLaser(a, dx, dy) {
   if (dy > 0) t = Math.min(t, (FB - a.y) / dy);
   if (dy < 0) t = Math.min(t, (TOP - a.y) / dy);
   const x2 = a.x + dx * t, y2 = a.y + dy * t;
-  fx.push({ kind: "line", x1: a.x, y1: a.y, x2, y2, w: 30, life: 34, max: 34, color: EL[a.el].l });
+  const big = a.ss === "haou";      // 覇王天翔波は特大・大ダメージ
+  const w = big ? 64 : 30;
+  fx.push({ kind: "line", x1: a.x, y1: a.y, x2, y2, w, life: big ? 50 : 34, max: big ? 50 : 34, color: big ? "#bfffd0" : EL[a.el].l });
+  if (big) fx.push({ kind: "ring", x: a.x, y: a.y, r0: 70, r1: 10, life: 20, max: 20, color: "#ffffff", w: 6 });
   for (const e of alive()) {
-    if (segDist(e.x, e.y, a.x, a.y, x2, y2) < e.r + 14) damageEnemy(e, a.atk * 8, a.el, false);
+    if (segDist(e.x, e.y, a.x, a.y, x2, y2) < e.r + w / 2) damageEnemy(e, a.atk * (big ? 15 : 8), a.el, false);
   }
-  shake = Math.max(shake, 8);
+  shake = Math.max(shake, big ? 16 : 8);
 }
 
 // ---- ターン進行 ---------------------------------------------------------
@@ -942,7 +964,8 @@ function fire(dx, dy) {
       case "burst":  shot.atkMul = 3; sp *= 1.3; break;
       case "wave":   fx.push({ kind: "wave", y: FB, life: 45, max: 45, hit: new Set(), base: a.atk * 3.5, el: a.el }); break;
       case "needle": shot.needle = 30; break;
-      case "judge":  judgeLaser(a, dx, dy); break;
+      case "judge":
+      case "haou":   judgeLaser(a, dx, dy); break;
       case "meteor":
         for (let i = 0; i < 8; i++) addBolt(rand(30, W - 30), TOP - 20 - i * 25, 0, 6, a.atk * 2.2, a.el, 9);
         break;
@@ -1169,25 +1192,32 @@ function evolve(fi) {
 }
 
 // ---- ガチャ -----------------------------------------------------------
-function rollOne(guarantee4) {
+// ガチャの種類。★6枠で出る限定キャラだけが違う（★3〜5は共通）
+const BANNERS = {
+  star: { name: "スターダストガチャ", limited: LIMITED,     c1: "#ff7ae0", c2: "#7a4aff" },
+  fist: { name: "拳聖ガチャ",         limited: LIMITED_JIN, c1: "#5fd36e", c2: "#1d6b3a" },
+};
+let gachaBanner = "star";
+
+function rollOne(guarantee4, banner) {
   const r = Math.random();
-  if (r < RATE6) return LIMITED;
+  if (r < RATE6) return BANNERS[banner].limited;
   let rar = r < RATE6 + RATE5 ? 5 : r < RATE6 + RATE5 + RATE4 ? 4 : 3;
   if (guarantee4 && rar === 3) rar = 4;
   return pick(FAM.filter(f => f.rar === rar)).idx;
 }
-function pullGacha(n) {
+function pullGacha(n, banner = gachaBanner) {
   const cost = n === 10 ? GACHA_10 : GACHA_1;
   if (save.gems < cost) { showToast("ジェムが足りません"); return; }
   save.gems -= cost;
   const res = [];
   for (let i = 0; i < n; i++) {
     const guarantee = n === 10 && i === 9 && !res.some(r => FAM[r.fi].rar >= 4);
-    res.push(acquire(rollOne(guarantee)));
+    res.push(acquire(rollOne(guarantee, banner)));
   }
   addStat("pulls", n);
   persist();
-  gacha = { res, i: 0, t: 0, opened: false };
+  gacha = { res, i: 0, t: 0, opened: false, banner };
   go("gachaAnim");
 }
 function gachaTap() {
@@ -1872,6 +1902,32 @@ function drawHuman(k, x, y, r) {
       ctx.quadraticCurveTo(hx + hr * 0.5, hy - hr * 1.1, hx + hr * 0.1, hy - hr * 0.95);
       ctx.fill();
       break;
+    case "headband": {
+      // 丸みのある茶色の短髪 ＋ 白いハチマキ（後ろでなびく）
+      ctx.fillStyle = "#7a4a26";
+      ctx.beginPath();
+      ctx.arc(hx, hy - hr * 0.05, hr * 1.05, Math.PI * 1.0, Math.PI * 2.0);
+      ctx.quadraticCurveTo(hx + hr * 0.7, hy - hr * 0.2, hx + hr * 0.35, hy - hr * 0.42);
+      ctx.quadraticCurveTo(hx, hy - hr * 0.25, hx - hr * 0.35, hy - hr * 0.45);
+      ctx.quadraticCurveTo(hx - hr * 0.7, hy - hr * 0.2, hx - hr * 1.05, hy - hr * 0.05);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(hx - hr * 1.04, hy - hr * 0.62, hr * 2.08, hr * 0.2);
+      const flap = Math.sin(frameNo * 0.2) * hr * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(hx + hr * 0.95, hy - hr * 0.6);
+      ctx.lineTo(hx + hr * 1.7, hy - hr * 0.75 + flap);
+      ctx.lineTo(hx + hr * 1.6, hy - hr * 0.5 + flap);
+      ctx.closePath();
+      ctx.moveTo(hx + hr * 0.95, hy - hr * 0.5);
+      ctx.lineTo(hx + hr * 1.55, hy - hr * 0.25 - flap);
+      ctx.lineTo(hx + hr * 1.4, hy - hr * 0.1 - flap);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#d33";
+      ctx.beginPath(); ctx.arc(hx, hy - hr * 0.52, hr * 0.08, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
     case "hood":
       // 忍者ずきん（目元以外を覆う）
       ctx.fillStyle = "#2a2838";
@@ -2469,7 +2525,16 @@ function drawBolts() {
     ctx.fillStyle = b.color;
     ctx.shadowColor = b.color;
     ctx.shadowBlur = b.size > 6 ? 18 : 10;
-    if (b.star) {
+    if (b.beam) {
+      // レーザー状の弾（進行方向に細長く）
+      ctx.strokeStyle = "#bfffd0";
+      ctx.lineCap = "round";
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(b.x - b.vx * 3, b.y - b.vy * 3); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (b.star) {
       ctx.fillStyle = `hsl(${(frameNo * 6 + b.x) % 360},95%,72%)`;
       starPath(b.x, b.y, b.size * 1.5);
       ctx.fill();
@@ -2987,11 +3052,22 @@ function drawGacha() {
   drawMenuBg("#3a1a5c", "#0c0618");
   drawTopBar();
   header("ガチャ", "");
+  // ガチャの切り替えタブ
+  const keys = Object.keys(BANNERS), tw = (W - 120) / keys.length;
+  keys.forEach((k, i) => {
+    const x = 106 + i * tw, active = gachaBanner === k;
+    ctx.fillStyle = active ? BANNERS[k].c1 : "rgba(255,255,255,0.1)";
+    roundRect(x + 2, 49, tw - 4, 26, 8);
+    ctx.fill();
+    txt(BANNERS[k].name, x + tw / 2, 62, 11, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, 49, tw, 26, "", () => { gachaBanner = k; }, { hidden: true });
+  });
+  const B = BANNERS[gachaBanner];
   // バナー
   ctx.save();
   const g = ctx.createLinearGradient(0, 80, 0, 330);
-  g.addColorStop(0, "#ff7ae0");
-  g.addColorStop(0.5, "#7a4aff");
+  g.addColorStop(0, B.c1);
+  g.addColorStop(0.5, B.c2);
   g.addColorStop(1, "#1a1050");
   ctx.fillStyle = g;
   roundRect(14, 82, W - 28, 250, 16);
@@ -3013,11 +3089,11 @@ function drawGacha() {
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  outlinedText("スターダストガチャ", W / 2, 110, "#fff", 22, "#3a0a5c");
+  outlinedText(B.name, W / 2, 110, "#fff", 22, "#3a0a5c");
   ctx.restore();
-  txt("★6限定 ikesaki ＆ ★5 キャラ 出現中!", W / 2, 136, 13, "#ffe066", "center");
+  const lf = FAM[B.limited];
+  txt(`★6限定 ${lf.name} はこのガチャだけ!`, W / 2, 136, 13, "#ffe066", "center");
   // ★6限定キャラを中央に大きく
-  const lf = FAM[LIMITED];
   const ly = 205 + Math.sin(frameNo * 0.05) * 4;
   drawChar({ shape: lf.shape, el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, W / 2, ly, 30);
   ctx.save();
@@ -3143,7 +3219,7 @@ function drawGachaResult() {
     outlinedText("★5 ゲット!!", W / 2, 330, `hsl(${(frameNo * 4) % 360},90%,70%)`, 26);
     ctx.restore();
   }
-  button(40, 380, W - 80, 52, "もう一度10連", () => pullGacha(10),
+  button(40, 380, W - 80, 52, "もう一度10連", () => pullGacha(10, gacha.banner),
     { size: 16, sub: `ジェム ${GACHA_10}`, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff", disabled: save.gems < GACHA_10 });
   button(40, 444, W - 80, 44, "BOXを見る", () => go("box"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
   button(40, 500, W - 80, 44, "ガチャに戻る", () => go("gacha"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
