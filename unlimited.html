@@ -1,0 +1,3980 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>モンスター・フリック（無制限版）</title>
+<!-- ホーム画面に追加（PWA） -->
+
+<meta name="theme-color" content="#2a1d5c">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="モンフリ">
+<!-- SNSでシェアした時のカード -->
+<meta property="og:title" content="モンスター・フリック">
+<meta property="og:description" content="引っ張って弾いて敵を倒す、ひっぱりハンティングゲーム">
+<meta property="og:image" content="https://potof47.github.io/47asobi/icon-512.png">
+<meta property="og:url" content="https://potof47.github.io/47asobi/">
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #05070f;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    touch-action: none;
+    border-radius: 12px;
+    box-shadow: 0 0 40px rgba(90, 120, 255, 0.25);
+  }
+  /* ランキング用の名前入力 */
+  #nameBox {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10;
+  }
+  #nameBox[hidden] { display: none; }
+  #nameForm {
+    width: min(300px, 86vw);
+    padding: 18px;
+    border: 2px solid #ffd35c;
+    border-radius: 14px;
+    background: #1b1f3e;
+    color: #fff;
+    font: bold 15px system-ui, sans-serif;
+    text-align: center;
+  }
+  #nameForm input {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 12px 0;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+  }
+  #nameForm button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(#ffcf4a, #ff8f1f);
+    color: #3a1c00;
+    font: bold 16px system-ui, sans-serif;
+  }
+  /* データ引き継ぎコード */
+  #codeBox {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10;
+  }
+  #codeBox[hidden] { display: none; }
+  #codePanel {
+    width: min(330px, 90vw);
+    padding: 18px;
+    border: 2px solid #5ef0ff;
+    border-radius: 14px;
+    background: #1b1f3e;
+    color: #fff;
+    font: bold 15px system-ui, sans-serif;
+    text-align: center;
+  }
+  #codeText {
+    width: 100%;
+    height: 110px;
+    box-sizing: border-box;
+    margin: 12px 0 6px;
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    font: 12px/1.4 ui-monospace, monospace;
+    word-break: break-all;
+    resize: none;
+  }
+  #codeNote { min-height: 1.4em; margin-bottom: 10px; color: #cfd6ff; font-size: 12px; font-weight: normal; }
+  #codeNote.err { color: #ff9a9a; font-weight: bold; }
+  #codePanel button {
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(#7cf0ff, #2a9fd6);
+    color: #06283a;
+    font: bold 16px system-ui, sans-serif;
+  }
+  #codePanel button.sub { background: #3a4170; color: #fff; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="nameBox" hidden>
+  <form id="nameForm">
+    <div>ランキングに表示する名前</div>
+    <input id="nameInput" maxlength="12" autocomplete="off" placeholder="12文字まで">
+    <button type="submit">決定</button>
+  </form>
+</div>
+<div id="codeBox" hidden>
+  <div id="codePanel">
+    <div id="codeTitle"></div>
+    <textarea id="codeText" spellcheck="false" autocomplete="off"></textarea>
+    <div id="codeNote"></div>
+    <button id="codeMain" type="button"></button>
+    <button id="codeClose" class="sub" type="button">閉じる</button>
+  </div>
+</div>
+<script>
+"use strict";
+
+// ---- 定数 -------------------------------------------------------------
+const W = 360, H = 640;      // 論理解像度
+const TOP = 40, FB = 550;    // バトルフィールドの上端・下端（下はパネル）
+const NAV_Y = H - 56;        // メニュー画面の下部ナビ
+const R = 17;                // 味方キャラの半径
+const FRICTION = 0.989;      // 摩擦（毎フレーム減速）
+const STOP = 0.45;           // これ未満で停止
+const SUB = 3;               // 衝突判定のサブステップ数
+const MIN_DRAG = 14;         // 発射に必要な引っ張り距離
+
+// ---- 属性 -------------------------------------------------------------
+// p: 進化後の名前の接頭語（★4 / ★5 / ★6）、w: ストライクショット名の接頭語
+const EL = {
+  fire:  { n: "火", c: "#ff5b3a", l: "#ffb199", d: "#8a1f0e", p: ["炎獣", "紅蓮", "煉獄神"], w: "紅蓮" },
+  water: { n: "水", c: "#3aa0ff", l: "#a6d4ff", d: "#0d3f7a", p: ["水精", "蒼海", "深淵神"], w: "激流" },
+  wood:  { n: "木", c: "#46c46a", l: "#aef0bf", d: "#165a2a", p: ["森精", "翠樹", "大樹神"], w: "翠緑" },
+  light: { n: "光", c: "#ffd23f", l: "#fff3b8", d: "#8a6a00", p: ["聖", "光輝", "天光神"], w: "聖光" },
+  dark:  { n: "闇", c: "#9b5cff", l: "#d6bcff", d: "#3a1670", p: ["影", "冥夜", "魔神"], w: "冥闇" },
+};
+const EL_KEYS = Object.keys(EL);
+// 有利属性: 火→木→水→火、光⇄闇
+const ADV = { fire: "wood", wood: "water", water: "fire", light: "dark", dark: "light" };
+function elemMult(atk, def) {
+  if (ADV[atk] === def) return 2;
+  if (ADV[def] === atk && atk !== "light" && atk !== "dark") return 0.5;
+  return 1;
+}
+
+// ---- キャラクター ---------------------------------------------------------
+// 友情コンボ（他のキャラに触れると発動）
+const COMBO = {
+  blast:   { name: "爆発",           desc: "周りの敵を巻き込む爆発" },
+  laser:   { name: "十字レーザー",   desc: "縦横にレーザー" },
+  homing:  { name: "ホーミング8",    desc: "追尾弾8発" },
+  heal:    { name: "ヒール",         desc: "HP回復" },
+  thunder: { name: "チェインサンダー", desc: "近い敵へ連鎖する雷" },
+  // ikesaki 専用
+  smilestar: { name: "スマイルスター", desc: "追尾する星12発＋HP回復" },
+  // ジン 専用
+  kikou:   { name: "気功波", desc: "敵を追尾するレーザー10本" },
+};
+// ストライクショット（ターン経過で使用可能）。fixed: 属性名を付けない専用SS
+const SS = {
+  burst:  { name: "突撃",     turns: 7,  desc: "攻撃力3倍＆スピードアップ" },
+  wave:   { name: "大波動",   turns: 9,  desc: "大波で敵全体に大ダメージ" },
+  needle: { name: "レイン",   turns: 8,  desc: "移動中に追尾弾を連射" },
+  judge:  { name: "レーザー", turns: 10, desc: "発射方向に極太レーザー" },
+  meteor: { name: "メテオ",   turns: 11, desc: "隕石8発を敵に落とす" },
+  // ikesaki 専用
+  // ジン 専用
+  haou: { name: "覇王天翔波", turns: 8, fixed: true, desc: "狙った方向に特大レーザー(攻撃力50倍)＋5T能力2.5倍" },
+  smileburst: { name: "フルスマイル・バースト", turns: 8, fixed: true,
+    desc: "全体に攻撃力30倍＋敵の攻撃1T遅延＋HP30%回復＋5T能力2.5倍" },
+};
+
+// 名前, 属性, 初期レア度, タイプ(reflect 反射 / pierce 貫通), 頭の飾り, 目, 友情コンボ, SS
+const FAM = [
+  ["ヒノコ",   "fire",  3, "pierce",  "spikes",  "round",   "homing",  "needle"],
+  ["ボルカ",   "fire",  3, "reflect", "horns",   "sharp",   "thunder", "burst"],
+  ["ブレイズ", "fire",  4, "reflect", "flame",   "round",   "blast",   "burst"],
+  ["フレア",   "fire",  4, "pierce",  "bow",     "sparkle", "laser",   "judge"],
+  ["ヒバナ",   "fire",  4, "reflect", "ears",    "round",   "heal",    "wave"],
+  ["エンラ",   "fire",  5, "reflect", "horns",   "sharp",   "blast",   "meteor"],
+  ["シズク",   "water", 3, "reflect", "bow",     "sleepy",  "heal",    "needle"],
+  ["アクアン", "water", 3, "pierce",  "antenna", "round",   "homing",  "burst"],
+  ["マリン",   "water", 4, "pierce",  "fin",     "round",   "laser",   "wave"],
+  ["ナミ",     "water", 4, "reflect", "bunny",   "sparkle", "thunder", "judge"],
+  ["セイラ",   "water", 4, "pierce",  "ears",    "round",   "blast",   "wave"],
+  ["ルリハ",   "water", 5, "reflect", "star",    "sharp",   "laser",   "meteor"],
+  ["モリノ",   "wood",  3, "pierce",  "leaf",    "sleepy",  "heal",    "burst"],
+  ["ツタマル", "wood",  3, "reflect", "spikes",  "round",   "blast",   "needle"],
+  ["ソーン",   "wood",  4, "reflect", "leaf",    "round",   "homing",  "needle"],
+  ["フローラ", "wood",  4, "pierce",  "bow",     "sparkle", "heal",    "judge"],
+  ["コケット", "wood",  4, "reflect", "ears",    "sleepy",  "laser",   "wave"],
+  ["ジュカ",   "wood",  5, "reflect", "antenna", "sharp",   "thunder", "meteor"],
+  ["ピカリ",   "light", 3, "reflect", "star",    "round",   "thunder", "burst"],
+  ["ハロ",     "light", 3, "pierce",  "halo",    "sleepy",  "laser",   "needle"],
+  ["ルクス",   "light", 4, "pierce",  "halo",    "round",   "heal",    "judge"],
+  ["ソレイユ", "light", 4, "reflect", "spikes",  "sharp",   "blast",   "wave"],
+  ["ルミナ",   "light", 4, "pierce",  "bunny",   "round",   "homing",  "judge"],
+  ["セラフィ", "light", 5, "pierce",  "halo",    "sparkle", "laser",   "meteor"],
+  ["カゲボウ", "dark",  3, "pierce",  "hat",     "sleepy",  "homing",  "needle"],
+  ["ヤミネコ", "dark",  3, "reflect", "ears",    "sharp",   "thunder", "burst"],
+  ["ノクス",   "dark",  4, "reflect", "horns",   "sharp",   "blast",   "burst"],
+  ["ルナリア", "dark",  4, "pierce",  "bunny",   "sparkle", "heal",    "wave"],
+  ["グリム",   "dark",  4, "reflect", "spikes",  "mono",    "thunder", "judge"],
+  ["ヘクセ",   "dark",  5, "pierce",  "hat",     "sharp",   "homing",  "meteor"],
+  // ★6限定キャラ
+  ["ikesaki",  "light", 6, "pierce",  "bowlcut", "smile",   "smilestar", "smileburst"],
+  // 人型・獣・鳥・竜・魚（9番目が体の形）
+  ["アカネ",   "fire",  4, "reflect", "spiky",   "sharp",   "blast",   "burst",  "human"],
+  ["カエン",   "fire",  5, "pierce",  "mage",    "sparkle", "laser",   "meteor", "human"],
+  ["ヒギツネ", "fire",  3, "pierce",  "fox",     "round",   "homing",  "needle", "beast"],
+  ["ホムラ",   "fire",  4, "reflect", "crest",   "sharp",   "thunder", "wave",   "bird"],
+  ["イグニドラ", "fire", 5, "reflect", "horns",  "sharp",   "blast",   "judge",  "dragon"],
+  ["ミナト",   "water", 4, "pierce",  "helmet",  "round",   "laser",   "wave",   "human"],
+  ["シオン",   "water", 3, "reflect", "twin",    "sparkle", "heal",    "needle", "human"],
+  ["ルーヴ",   "water", 4, "reflect", "wolf",    "sharp",   "thunder", "burst",  "beast"],
+  ["ペンタ",   "water", 3, "reflect", "tuft",    "round",   "homing",  "needle", "bird"],
+  ["アクアフィン", "water", 5, "pierce", "angler", "round", "laser",   "meteor", "fish"],
+  ["リーフィ", "wood",  3, "pierce",  "long",    "sleepy",  "heal",    "judge",  "human"],
+  ["タケル",   "wood",  5, "reflect", "hood",    "sharp",   "homing",  "burst",  "human"],
+  ["モリグマ", "wood",  4, "reflect", "bear",    "round",   "blast",   "wave",   "beast"],
+  ["フクロン", "wood",  3, "pierce",  "tuft",    "sleepy",  "thunder", "needle", "bird"],
+  ["グリンドラ", "wood", 4, "pierce", "horns",   "round",   "laser",   "meteor", "dragon"],
+  ["ユウキ",   "light", 4, "reflect", "helmet",  "sharp",   "blast",   "judge",  "human"],
+  ["ステラ",   "light", 5, "pierce",  "twin",    "sparkle", "laser",   "meteor", "human"],
+  ["ハクコ",   "light", 3, "reflect", "fox",     "sparkle", "homing",  "burst",  "beast"],
+  ["コハク",   "light", 4, "pierce",  "crest",   "round",   "heal",    "wave",   "bird"],
+  ["ソルドラ", "light", 4, "reflect", "horns",   "round",   "thunder", "burst",  "dragon"],
+  ["クロウ",   "dark",  4, "pierce",  "hood",    "sharp",   "homing",  "needle", "human"],
+  ["マオ",     "dark",  5, "reflect", "mage",    "sharp",   "blast",   "meteor", "human"],
+  ["シャドウルフ", "dark", 4, "reflect", "wolf",  "sharp",   "thunder", "judge",  "beast"],
+  ["カラスケ", "dark",  3, "reflect", "tuft",    "sharp",   "laser",   "burst",  "bird"],
+  ["ヤミウオ", "dark",  3, "pierce",  "angler",  "sleepy",  "heal",    "wave",   "fish"],
+  // ★6限定キャラ（拳聖ガチャ専用）
+  ["ジン",     "wood",  6, "reflect", "headband", "sharp",  "kikou",   "haou",   "human"],
+].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
+// 図鑑の並び順（属性 → レア度）
+const ORDER = FAM.map(f => f.idx).sort((a, b) =>
+  EL_KEYS.indexOf(FAM[a].el) - EL_KEYS.indexOf(FAM[b].el) || FAM[a].rar - FAM[b].rar || a - b);
+const SHAPE_NAME = { blob: "モンスター", human: "人型", beast: "獣", bird: "鳥", dragon: "竜", fish: "魚" };
+const STARTERS = [2, 8, 14, 20];   // ブレイズ・マリン・ソーン・ルクス
+const LIMITED = FAM.find(f => f.name === "ikesaki").idx;
+FAM[LIMITED].boost = 1.35;      // 限定キャラは能力1.35倍
+const LIMITED_JIN = FAM.find(f => f.name === "ジン").idx;
+FAM[LIMITED_JIN].boost = 1.45;  // ikesaki より強め
+const LIMITED_ALL = [LIMITED, LIMITED_JIN];
+
+const RBASE = {
+  3: { atk: 1600, hp: 11000, spd: 13.5 },
+  4: { atk: 2000, hp: 14000, spd: 14 },
+  5: { atk: 2450, hp: 17000, spd: 14.8 },
+  6: { atk: 3000, hp: 21000, spd: 15.5 },
+};
+const MAXLV = { 3: 30, 4: 50, 5: 70, 6: 99 };
+const MAX_AWK = 5;                                  // 覚醒（ガチャで被ると上がる）
+const EVO_CR = { 3: 5, 4: 12, 5: 25 };              // 進化に必要な結晶
+const EVO_COIN = { 3: 2000, 4: 6000, 5: 15000 };    // 進化に必要なコイン
+const RCOL = { 3: "#d39a5a", 4: "#d8e0f0", 5: "#ffd23f", 6: "#ff8ae6" };
+const lvCost = lv => 20 + lv * 8;
+
+// ---- ガチャ -----------------------------------------------------------
+const GACHA_1 = 50, GACHA_10 = 450;
+const RATE6 = 0.01, RATE5 = 0.06, RATE4 = 0.30;
+
+// ---- セーブデータ -------------------------------------------------------
+const SAVE_KEY = "mflick-save-unlimited-v1";
+let save = null;
+
+function newSave() {
+  const box = {};
+  for (const fi of STARTERS) box[fi] = { rar: FAM[fi].rar, lv: 1, awk: 0 };
+  const cr = {};
+  for (const k of EL_KEYS) cr[k] = 0;
+  return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "",
+    rank: 1, exp: 0, stats: {}, ach: {}, towerMax: 0 };
+}
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s && s.box && s.party) { save = normalizeSave(s); return; }
+  } catch (e) { /* 読み込めない環境 */ }
+  save = newSave();
+}
+// 古いセーブや引き継ぎコードを読み込む時に、足りない項目を補い、おかしな値を直す
+function normalizeSave(s) {
+  const d = newSave();
+  const int = (v, lo, hi, def) => Number.isFinite(Number(v)) ? Math.max(lo, Math.min(hi, Math.floor(Number(v)))) : def;
+  const out = { ...d, ...s };
+  out.gems = int(s.gems, 0, 1e9, d.gems);
+  out.coins = int(s.coins, 0, 1e10, d.coins);
+  out.cr = {};
+  for (const k of EL_KEYS) out.cr[k] = int(s.cr && s.cr[k], 0, 1e6, 0);
+  out.box = {};
+  for (const [k, u] of Object.entries(s.box || {})) {
+    const f = FAM[k];
+    if (!f || !u) continue;
+    const rar = int(u.rar, f.rar, 6, f.rar);
+    out.box[k] = { rar, lv: int(u.lv, 1, MAXLV[rar], 1), awk: int(u.awk, 0, MAX_AWK, 0) };
+  }
+  if (!Object.keys(out.box).length) out.box = d.box;
+  out.party = (Array.isArray(s.party) ? s.party : []).map(Number).filter((fi, i, a) => out.box[fi] && a.indexOf(fi) === i).slice(0, 4);
+  if (!out.party.length) out.party = [Number(Object.keys(out.box)[0])];
+  out.cleared = s.cleared && typeof s.cleared === "object" ? s.cleared : {};
+  out.best = s.best && typeof s.best === "object" ? s.best : {};
+  out.claimed = Array.isArray(s.claimed) ? s.claimed.map(String) : [];
+  out.name = typeof s.name === "string" ? s.name.slice(0, 12) : undefined;
+  out.rank = int(s.rank, 1, 1e6, 1);
+  out.exp = int(s.exp, 0, 1e9, 0);
+  out.towerMax = int(s.towerMax, 0, 1e6, 0);
+  const nums = o => Object.fromEntries(Object.entries(o && typeof o === "object" ? o : {}).map(([k, v]) => [k, int(v, 0, 1e12, 0)]));
+  out.stats = nums(s.stats);
+  out.ach = nums(s.ach);
+  return out;
+}
+
+// ---- プレイヤーランク・ミッション（遊ぶほどジェムがもらえる） ---------------------
+const expNeed = rank => 100 + rank * 20;
+// 経験値を足してランクアップ分のジェムを渡す（ランクに上限なし）
+function addExp(n) {
+  save.exp += n;
+  let ranks = 0, gems = 0;
+  while (save.exp >= expNeed(save.rank)) {
+    save.exp -= expNeed(save.rank);
+    save.rank++;
+    ranks++;
+    const g = 10 + (save.rank % 10 === 0 ? 50 : 0);
+    gems += g;
+  }
+  save.gems += gems;
+  return { ranks, gems };
+}
+
+// 実績（何回でももらえる）: step ごとに gem ジェム
+const ACH = [
+  { key: "kills",  name: "敵を倒す",          step: 100,  gem: 15 },
+  { key: "clears", name: "クエストをクリア",   step: 10,   gem: 20 },
+  { key: "srank",  name: "Sランクでクリア",    step: 5,    gem: 25 },
+  { key: "hits",   name: "合計ヒット",         step: 1000, gem: 10 },
+  { key: "weak",   name: "弱点に当てる",       step: 100,  gem: 10 },
+  { key: "ss",     name: "SSを使う",           step: 20,   gem: 10 },
+  { key: "pulls",  name: "ガチャを引く",       step: 10,   gem: 20 },
+  { key: "lvups",  name: "キャラを強化",       step: 50,   gem: 10 },
+  { key: "evos",   name: "キャラを進化",       step: 1,    gem: 30 },
+  { key: "dex",    name: "図鑑のキャラを集める", step: 1,  gem: 10 },
+];
+// デイリーミッション（毎日リセット）
+const DAILY = [
+  { key: "clears", name: "クエストを3回クリア", goal: 3,  gem: 20 },
+  { key: "kills",  name: "敵を30体倒す",       goal: 30, gem: 15 },
+  { key: "ss",     name: "SSを2回使う",        goal: 2,  gem: 10 },
+  { key: "pulls",  name: "ガチャを1回引く",     goal: 1,  gem: 10 },
+  { key: "lvups",  name: "キャラを5回強化",     goal: 5,  gem: 10 },
+];
+const DAILY_ALL_GEM = 30;
+
+function dailyState() {
+  if (!save.dm || save.dm.date !== today()) save.dm = { date: today(), prog: {}, claimed: [], all: false };
+  return save.dm;
+}
+function addStat(key, n = 1) {
+  save.stats[key] = (save.stats[key] || 0) + n;
+  const d = dailyState();
+  d.prog[key] = (d.prog[key] || 0) + n;
+}
+const statValue = key => key === "dex" ? Object.keys(save.box).length : (save.stats[key] || 0);
+// まだ受け取っていない実績の段数
+const achReady = a => Math.max(0, Math.floor(statValue(a.key) / a.step) - (save.ach[a.key] || 0));
+const dailyDone = m => (dailyState().prog[m.key] || 0) >= m.goal;
+const dailyReady = m => dailyDone(m) && !dailyState().claimed.includes(m.key);
+const dailyAllReady = () => DAILY.every(m => dailyState().claimed.includes(m.key)) && !dailyState().all;
+function missionBadge() {
+  return ACH.filter(a => achReady(a) > 0).length + DAILY.filter(dailyReady).length + (dailyAllReady() ? 1 : 0);
+}
+function claimAch(a) {
+  const n = achReady(a);
+  if (!n) return 0;
+  save.ach[a.key] = (save.ach[a.key] || 0) + n;
+  save.gems += n * a.gem;
+  return n * a.gem;
+}
+function claimDaily(m) {
+  if (!dailyReady(m)) return 0;
+  dailyState().claimed.push(m.key);
+  save.gems += m.gem;
+  return m.gem;
+}
+function claimDailyAll() {
+  if (!dailyAllReady()) return 0;
+  dailyState().all = true;
+  save.gems += DAILY_ALL_GEM;
+  return DAILY_ALL_GEM;
+}
+function claimEverything() {
+  let g = 0;
+  for (const m of DAILY) g += claimDaily(m);
+  g += claimDailyAll();
+  for (const a of ACH) g += claimAch(a);
+  return g;
+}
+
+// ---- 無制限版: ジェム・コイン・結晶が減らない -----------------------------------
+const UNLIMITED = { gems: 9999999, coins: 9999999, cr: 9999 };
+function refillItems() {
+  if (!save) return;
+  save.gems = UNLIMITED.gems;
+  save.coins = UNLIMITED.coins;
+  for (const k of EL_KEYS) save.cr[k] = UNLIMITED.cr;
+}
+function persist() {
+  refillItems();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* 保存できない環境 */ }
+}
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+// ---- ユニット計算 -------------------------------------------------------
+const owned = fi => !!save.box[fi];
+function unitRar(fi) { return save.box[fi] ? save.box[fi].rar : FAM[fi].rar; }
+function displayName(fi) {
+  const f = FAM[fi], rar = unitRar(fi);
+  return rar > f.rar ? EL[f.el].p[rar - 4] + f.name : f.name;
+}
+function look(fi) {
+  const f = FAM[fi];
+  return { shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: unitRar(fi), evo: unitRar(fi) > f.rar };
+}
+function unitStats(fi) {
+  const f = FAM[fi], u = save.box[fi] || { rar: f.rar, lv: 1, awk: 0 }, b = RBASE[u.rar];
+  const v = 1 + (((fi * 37) % 11) - 5) / 100;           // キャラごとの個性
+  const lvm = 1 + (u.lv - 1) * 0.012, am = 1 + u.awk * 0.04;
+  // タイプ補正 [攻撃力, HP]: 反射は攻撃力1.5倍
+  const tm = f.type === "pierce" ? [1.05, 0.95] : [1.5, 1];
+  const bo = f.boost || 1;
+  return {
+    atk: Math.round(b.atk * v * tm[0] * lvm * am * bo),
+    hp: Math.round(b.hp * (2 - v) * tm[1] * lvm * am * bo),
+    spd: b.spd + (fi % 3) * 0.4 + (bo > 1 ? 1.5 : 0),
+  };
+}
+function ssTurns(fi) { return Math.max(4, SS[FAM[fi].ss].turns - (unitRar(fi) - FAM[fi].rar)); }
+function ssName(fi) {
+  const s = SS[FAM[fi].ss];
+  return s.fixed ? s.name : EL[FAM[fi].el].w + "の" + s.name;
+}
+
+// キャラ入手（新規 or 覚醒 or コイン変換）
+function acquire(fi) {
+  const u = save.box[fi];
+  if (!u) { save.box[fi] = { rar: FAM[fi].rar, lv: 1, awk: 0 }; return { fi, kind: "new" }; }
+  if (u.awk < MAX_AWK) { u.awk++; return { fi, kind: "awk" }; }
+  const c = 500 * FAM[fi].rar;
+  save.coins += c;
+  return { fi, kind: "coin", coins: c };
+}
+
+// ---- クエスト ---------------------------------------------------------
+let uid = 1;
+// weak: 弱点の角度（null で弱点なし）。roam: 毎ターン弱点が移動
+function mob(x, y, el, hp, atk, cd, o = {}) {
+  return {
+    id: uid++, x, y, el, hp, maxHp: hp, atk, cd, maxCd: cd,
+    r: o.r || 22, boss: !!o.boss, name: o.name || "",
+    weak: o.weak === undefined ? null : o.weak, roam: !!o.roam,
+    atkType: o.atkType || "single", flash: 0, dead: false, wob: Math.random() * 6,
+  };
+}
+const boss = (x, y, el, hp, atk, cd, name, o = {}) =>
+  mob(x, y, el, hp, atk, cd, { r: 46, boss: true, name, weak: Math.PI / 2, roam: true, atkType: "all", ...o });
+const rock = (x, y, r = 13) => ({ x, y, r });
+const UP = -Math.PI / 2, DOWN = Math.PI / 2;
+
+// ステージ構成のひな形（m: メイン属性, s: サブ属性）
+const LAYOUTS = {
+  A: (m, s, b) => [
+    () => ({ enemies: [
+      mob(90, 150, m, 15000, 2000, 3), mob(270, 150, m, 15000, 2000, 3),
+      mob(180, 260, s, 20000, 2500, 2, { weak: DOWN }),
+    ] }),
+    () => ({ enemies: [
+      mob(70, 120, m, 22000, 2500, 3), mob(290, 120, m, 22000, 2500, 3),
+      mob(130, 290, s, 26000, 3000, 2, { weak: DOWN }), mob(230, 290, m, 26000, 3000, 2, { weak: DOWN }),
+    ], rocks: [rock(180, 190), rock(50, 380), rock(310, 380)] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 175, m, 180000, 9000, 3, b[0]),
+      mob(65, 330, m, 20000, 2500, 2), mob(295, 330, s, 20000, 2500, 2),
+    ] }),
+  ],
+  B: (m, s, b) => [
+    () => ({ enemies: [
+      mob(70, 140, m, 26000, 3000, 2), mob(180, 110, m, 30000, 3500, 3, { weak: UP }),
+      mob(290, 140, m, 26000, 3000, 2), mob(180, 300, s, 30000, 3500, 3, { weak: DOWN }),
+    ] }),
+    () => ({ enemies: [
+      mob(90, 120, m, 34000, 3500, 3, { weak: DOWN }), mob(270, 120, m, 34000, 3500, 3, { weak: DOWN }),
+      mob(60, 300, s, 30000, 4000, 2), mob(300, 300, s, 30000, 4000, 2),
+      mob(180, 230, m, 40000, 4500, 4, { r: 28, weak: 0, roam: true }),
+    ], rocks: [rock(180, 120), rock(130, 360), rock(230, 360)] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 165, m, 320000, 12000, 3, b[0]),
+      mob(60, 290, m, 30000, 4000, 2), mob(300, 290, m, 30000, 4000, 2),
+      mob(180, 330, s, 36000, 4500, 3, { weak: DOWN }),
+    ], rocks: [rock(110, 240), rock(250, 240)] }),
+  ],
+  C: (m, s, b) => [
+    () => ({ enemies: [
+      mob(80, 130, m, 38000, 4000, 2, { weak: DOWN }), mob(280, 130, m, 38000, 4000, 2, { weak: DOWN }),
+      mob(180, 220, m, 46000, 5000, 3, { r: 28, weak: UP }),
+      mob(80, 320, s, 36000, 4000, 3), mob(280, 320, s, 36000, 4000, 3),
+    ] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 160, m, 300000, 13000, 3, b[0]),
+      mob(60, 320, m, 36000, 4500, 2), mob(300, 320, m, 36000, 4500, 2),
+    ], rocks: [rock(120, 260), rock(240, 260), rock(180, 360)] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 200, m, 480000, 16000, 2, b[1], { r: 54 }),
+      mob(60, 110, s, 40000, 5000, 3, { weak: DOWN }), mob(300, 110, s, 40000, 5000, 3, { weak: DOWN }),
+    ], rocks: [rock(70, 380), rock(290, 380)] }),
+  ],
+};
+
+// mul: 敵のHP・攻撃力の倍率。crEl: 報酬の結晶の属性（null はランダム）
+const QUESTS = [
+  { name: "はじまりの森", sub: "木属性中心 / 火属性が有利", diff: 1, mul: 0.8, par: 12,
+    bg: ["#173322", "#0a170f"], coin: 800, gem: 50, crEl: "wood", crN: 3,
+    waves: LAYOUTS.A("wood", "water", ["森の番人グロウガ"]) },
+  { name: "灼熱の火山", sub: "火属性中心 / 水属性が有利", diff: 2, mul: 1.15, par: 12,
+    bg: ["#3a1a12", "#160806"], coin: 1200, gem: 50, crEl: "fire", crN: 3,
+    waves: LAYOUTS.A("fire", "wood", ["溶岩竜バルガロス"]) },
+  { name: "蒼の海溝", sub: "水属性中心 / 木属性が有利", diff: 3, mul: 1.0, par: 16,
+    bg: ["#0f2440", "#060d1c"], coin: 1800, gem: 80, crEl: "water", crN: 4,
+    waves: LAYOUTS.B("water", "fire", ["深淵の主ヴォルタク"]) },
+  { name: "光の神殿", sub: "光属性中心 / 闇属性が有利", diff: 4, mul: 1.35, par: 16,
+    bg: ["#3a3416", "#141006"], coin: 2600, gem: 80, crEl: "light", crN: 4,
+    waves: LAYOUTS.B("light", "wood", ["天秤の守護者アストレイ"]) },
+  { name: "冥府の塔", sub: "闇属性中心 / 光属性が有利", diff: 5, mul: 1.3, par: 20,
+    bg: ["#24133a", "#0c0616"], coin: 3500, gem: 100, crEl: "dark", crN: 5,
+    waves: LAYOUTS.C("dark", "light", ["冥王ノクスガルド (I)", "冥王ノクスガルド (II)"]) },
+  { name: "極・混沌の玉座", sub: "超高難度 / 光属性が有利", diff: 6, mul: 2.3, par: 20,
+    bg: ["#2a0a14", "#0a0206"], coin: 6000, gem: 150, crEl: null, crN: 6,
+    waves: LAYOUTS.C("dark", "fire", ["混沌帝カオスレイ (I)", "混沌帝カオスレイ (II)"]) },
+];
+const questUnlocked = i => i === 0 || !!save.cleared[i - 1];
+
+// ---- 自動生成ステージ（ストーリー200ステージ・無限の塔） ---------------------------
+// 同じ番号なら毎回同じ配置になるよう、番号から乱数を作る
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const CHAPTERS = [
+  ["はじまりの草原", "wood", "water"], ["ほのおの谷", "fire", "wood"], ["しずくの湖", "water", "fire"],
+  ["ひかりの丘", "light", "wood"], ["かげの洞窟", "dark", "water"], ["ささやきの森", "wood", "dark"],
+  ["ようがんの火口", "fire", "light"], ["さんごの海", "water", "light"], ["そらの神殿", "light", "fire"],
+  ["まよいの墓地", "dark", "fire"], ["ほしくずの浜", "water", "dark"], ["からくり工場", "fire", "dark"],
+  ["まぼろしの城", "light", "dark"], ["いにしえの迷宮", "wood", "light"], ["らいめいの塔", "light", "water"],
+  ["しんかいの都", "water", "wood"], ["たいようの祭壇", "fire", "water"], ["つきかげの里", "dark", "light"],
+  ["こんとんの境界", "dark", "wood"], ["はてしない天空", "light", "dark"],
+];
+const STAGES_PER_CHAPTER = 10;
+const STORY_COUNT = CHAPTERS.length * STAGES_PER_CHAPTER;
+const BOSS_TITLE = ["守護竜", "大精霊", "魔像", "巨人", "大蛇", "獣王", "騎士団長", "古代兵器", "妖精女王", "番人"];
+const EL_BG = {
+  fire: ["#3a1a12", "#160806"], water: ["#0f2440", "#060d1c"], wood: ["#173322", "#0a170f"],
+  light: ["#3a3416", "#141006"], dark: ["#24133a", "#0c0616"],
+};
+
+// 1つのWAVEを作る（r: 乱数, m/s: メイン/サブ属性, n: 雑魚の数, mul: 強さ倍率）
+function genWave(r, m, s, n, mul, bossOpt) {
+  const enemies = [], rocks = [];
+  const place = rad => {
+    for (let k = 0; k < 40; k++) {
+      const x = 40 + r() * (W - 80), y = TOP + 70 + r() * 300;
+      if ([...enemies, ...rocks].every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + 20)) return { x, y };
+    }
+    return { x: 40 + r() * (W - 80), y: TOP + 70 + r() * 300 };
+  };
+  const atkMul = Math.pow(mul, 0.9);
+  if (bossOpt) {
+    enemies.push(boss(W / 2, TOP + 150, m, Math.round(160000 * mul * bossOpt.hpMul), Math.round(8000 * atkMul),
+      bossOpt.cd || 3, bossOpt.name, { r: bossOpt.r || 46 }));
+  }
+  for (let i = 0; i < n; i++) {
+    const el = r() < 0.7 ? m : s, big = r() < 0.15, rad = big ? 28 : 22;
+    const p = place(rad);
+    enemies.push(mob(p.x, p.y, el, Math.round((14000 + r() * 8000) * mul * (big ? 1.6 : 1)),
+      Math.round((1800 + r() * 800) * atkMul), 2 + Math.floor(r() * 3),
+      { r: rad, weak: r() < 0.45 ? (r() < 0.6 ? DOWN : r() * Math.PI * 2) : undefined, roam: big && r() < 0.5 }));
+  }
+  const nr = Math.floor(r() * 3.2);
+  for (let i = 0; i < nr; i++) { const p = place(13); rocks.push(rock(p.x, p.y)); }
+  return { boss: !!bossOpt, enemies, rocks };
+}
+
+const diffStars = mul => Math.max(1, Math.min(6, Math.round(1 + Math.log2(mul / 0.5) * 1.4)));
+
+// ストーリーの n 番目（0始まり）のステージ
+function storyStage(n) {
+  const ch = Math.floor(n / STAGES_PER_CHAPTER), k = n % STAGES_PER_CHAPTER;
+  const [chName, m, s] = CHAPTERS[ch];
+  const mul = 0.5 * (1 + n * 0.055);
+  const bossStage = k === STAGES_PER_CHAPTER - 1, midBoss = k === 4;
+  const waveCount = bossStage ? 3 : k >= 5 ? 3 : 2;
+  const mobs = Math.min(6, 2 + Math.floor(n / 25));
+  const rn = seeded(n * 7919 + 13);
+  const bossName = `${EL[m].w}の${BOSS_TITLE[Math.floor(rn() * BOSS_TITLE.length)]}`;
+  const waves = [];
+  for (let w = 0; w < waveCount; w++) {
+    const last = w === waveCount - 1;
+    const bossOpt = last && bossStage ? { name: bossName, hpMul: 1.6, r: 52 }
+      : last && midBoss ? { name: bossName, hpMul: 0.8 } : null;
+    const seed = n * 1000 + w;
+    waves.push(() => genWave(seeded(seed), m, s, bossOpt ? Math.max(1, mobs - 2) : mobs, mul, bossOpt));
+  }
+  return {
+    id: "s" + n, kind: "story",
+    name: `${ch + 1}-${k + 1} ${chName}`, sub: `${EL[m].n}属性中心 / ${EL[ADV_BY[m]].n}属性が有利`,
+    boss: bossStage || midBoss, diff: diffStars(mul), mul: 1, par: waveCount * 3 + 1,
+    bg: EL_BG[m], coin: 300 + n * 40, gem: bossStage ? 20 : midBoss ? 10 : 5, crEl: m, crN: 1 + Math.floor(n / 40),
+    exp: 20 + Math.floor(n / 2), waves,
+  };
+}
+
+// 無限の塔の f 階（1始まり）
+function towerFloor(f) {
+  const els = EL_KEYS;
+  const m = els[(f * 3) % 5], s = els[(f * 7 + 2) % 5];
+  const mul = 0.6 + f * 0.08;
+  const bossF = f % 10 === 0, waveCount = bossF ? 2 : f % 5 === 0 ? 2 : 1;
+  const mobs = Math.min(6, 3 + Math.floor(f / 30));
+  const waves = [];
+  for (let w = 0; w < waveCount; w++) {
+    const bossOpt = bossF && w === waveCount - 1 ? { name: `${f}階の${BOSS_TITLE[f / 10 % BOSS_TITLE.length]}`, hpMul: 1.2 } : null;
+    waves.push(() => genWave(seeded(500000 + f * 100 + w), m, s, bossOpt ? mobs - 2 : mobs, mul, bossOpt));
+  }
+  return {
+    id: "t" + f, kind: "tower", floor: f,
+    name: `無限の塔 ${f}階`, sub: `${EL[m].n}属性中心 / ${EL[ADV_BY[m]].n}属性が有利`,
+    boss: bossF, diff: diffStars(mul), mul: 1, par: waveCount * 3 + 1,
+    bg: ["#1d1a3a", "#08061a"], coin: 400 + f * 30, gem: towerGem(f), crEl: null, crN: 1 + Math.floor(f / 25),
+    exp: 25 + f, waves,
+  };
+}
+const towerGem = f => 5 + Math.floor(f / 10) * 2 + (f % 10 === 0 ? 30 : 0);
+
+// その属性に有利な属性（例: 木 → 火）
+const ADV_BY = Object.fromEntries(EL_KEYS.map(k => [k, EL_KEYS.find(a => ADV[a] === k)]));
+
+// クエストID: 数字=スペシャル、"s番号"=ストーリー、"t階"=無限の塔
+function getQuest(id) {
+  if (typeof id === "number") return { ...QUESTS[id], id, kind: "special", exp: 60 * QUESTS[id].diff };
+  if (id[0] === "s") return storyStage(Number(id.slice(1)));
+  return towerFloor(Number(id.slice(1)));
+}
+const storyUnlocked = n => n === 0 || !!save.cleared["s" + (n - 1)];
+const storyProgress = () => { let n = 0; while (n < STORY_COUNT && save.cleared["s" + n]) n++; return n; };
+
+// ---- 状態 -------------------------------------------------------------
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+// home | quests | gacha | gachaAnim | gachaResult | box | detail | party
+// | aim | shoot | enemy | wave | clear | over
+let state = "home";
+const BATTLE = new Set(["aim", "shoot", "enemy", "wave", "clear", "over"]);
+let questIdx = 0, quest = null, waveIdx = 0;
+let allies = [], enemies = [], rocks = [], hearts = [];
+let hp = 0, maxHp = 0, turn = 1, cur = 0, ssArmed = false;
+let shot = null, hitCount = 0;
+let bolts = [], fx = [], particles = [], texts = [], events = [];
+let banner = null, shake = 0, frameNo = 0, toast = null;
+let lastResult = null;
+let gacha = null, detailFi = 0;
+let ui = [];           // 当たり判定付きボタン（毎フレーム描画時に登録）
+
+let dragging = false, dragStart = null, dragNow = null;
+
+function showToast(text) { toast = { text, life: 90 }; }
+function go(s) {
+  state = s; particles = []; texts = []; banner = null; shareOpen = false;
+  if (s === "home" || s === "gifts") loadGifts();
+}
+
+// ---- バトル開始 ---------------------------------------------------------
+function makeAlly(fi, x, y) {
+  const f = FAM[fi], s = unitStats(fi), t = ssTurns(fi);
+  return {
+    fi, name: displayName(fi), el: f.el, type: f.type, atk: s.atk, hp: s.hp, spd: s.spd,
+    combo: f.combo, comboName: COMBO[f.combo].name,
+    ss: f.ss, ssName: ssName(fi), ssTurns: t, ssDesc: SS[f.ss].desc, ssLeft: t,
+    look: look(fi), x, y, vx: 0, vy: 0, hurt: 0, glow: 0,
+  };
+}
+
+function startQuest(i) {
+  questIdx = i;
+  quest = getQuest(i);
+  waveIdx = 0;
+  const n = save.party.length;
+  allies = save.party.map((fi, k) => makeAlly(fi, W / (n + 1) * (k + 1), 505));
+  maxHp = hp = allies.reduce((s, a) => s + a.hp, 0);
+  turn = 1;
+  cur = 0;
+  ssArmed = false;
+  shot = null;
+  bolts = []; fx = []; particles = []; texts = []; events = [];
+  loadWave();
+  state = "aim";
+}
+
+function loadWave() {
+  const w = quest.waves[waveIdx]();
+  for (const e of w.enemies) {
+    e.hp = e.maxHp = Math.round(e.hp * quest.mul);
+    e.atk = Math.round(e.atk * quest.mul);
+  }
+  enemies = w.enemies;
+  rocks = w.rocks || [];
+  hearts = [];
+  for (const a of allies) resolveOverlap(a);
+  const last = waveIdx === quest.waves.length - 1;
+  if (w.boss) showBanner(last ? "BOSS BATTLE" : "BOSS 出現", enemies[0].name, "#ff5b6b");
+  else showBanner(`WAVE ${waveIdx + 1}`, `${waveIdx + 1} / ${quest.waves.length}`, "#ffd35c");
+}
+
+function schedule(t, fn) { events.push({ t, fn }); }
+function showBanner(text, sub, color) { banner = { text, sub, color, life: 70, max: 70 }; }
+function addText(x, y, text, color, size = 15) {
+  texts.push({ x, y, text: String(text), color, size, life: 42 });
+}
+function burst(x, y, color, n, spd = 3) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = Math.random() * spd + 0.5;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 30, max: 30, color, size: 1.5 + Math.random() * 2.5 });
+  }
+}
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const alive = () => enemies.filter(e => !e.dead);
+
+// ---- 物理 -------------------------------------------------------------
+function overlap(b, cx, cy, r) { return Math.hypot(b.x - cx, b.y - cy) < R + r; }
+
+// 円との衝突と反射。重なっていたら true
+function bounce(b, cx, cy, r) {
+  const dx = b.x - cx, dy = b.y - cy;
+  const d = Math.hypot(dx, dy);
+  const min = R + r;
+  if (d >= min || d === 0) return false;
+  const nx = dx / d, ny = dy / d;
+  b.x = cx + nx * min;
+  b.y = cy + ny * min;
+  const vn = b.vx * nx + b.vy * ny;
+  if (vn < 0) { b.vx -= 2 * vn * nx; b.vy -= 2 * vn * ny; }
+  return true;
+}
+
+function walls(b) {
+  if (b.x < R)          { b.x = R;          b.vx = Math.abs(b.vx); }
+  if (b.x > W - R)      { b.x = W - R;      b.vx = -Math.abs(b.vx); }
+  if (b.y < TOP + R)    { b.y = TOP + R;    b.vy = Math.abs(b.vy); }
+  if (b.y > FB - R)     { b.y = FB - R;     b.vy = -Math.abs(b.vy); }
+}
+
+// 停止位置が他の物体と重ならないよう押し出す
+function resolveOverlap(a) {
+  for (let k = 0; k < 12; k++) {
+    let moved = false;
+    const objs = [...enemies.filter(e => !e.dead), ...rocks, ...allies.filter(o => o !== a).map(o => ({ x: o.x, y: o.y, r: R }))];
+    for (const o of objs) {
+      const dx = a.x - o.x, dy = a.y - o.y, d = Math.hypot(dx, dy) || 0.01, min = R + o.r + 1;
+      if (d < min) { a.x = o.x + dx / d * min; a.y = o.y + dy / d * min; moved = true; }
+    }
+    a.x = Math.min(W - R, Math.max(R, a.x));
+    a.y = Math.min(FB - R, Math.max(TOP + R, a.y));
+    if (!moved) break;
+  }
+}
+
+function segDist(px, py, x1, y1, x2, y2) {
+  const vx = x2 - x1, vy = y2 - y1;
+  const t = Math.max(0, Math.min(1, ((px - x1) * vx + (py - y1) * vy) / (vx * vx + vy * vy)));
+  return Math.hypot(px - (x1 + vx * t), py - (y1 + vy * t));
+}
+
+function weakPos(e) {
+  return { x: e.x + Math.cos(e.weak) * e.r * 0.62, y: e.y + Math.sin(e.weak) * e.r * 0.62, r: e.r * 0.34 };
+}
+
+// ---- ダメージ ---------------------------------------------------------
+function damageEnemy(e, base, el, weak) {
+  if (e.dead) return;
+  const m = elemMult(el, e.el) * (weak ? 3 : 1);
+  const dmg = Math.round(base * m * rand(0.92, 1.08));
+  e.hp -= dmg;
+  e.flash = 6;
+  hitCount++;
+  addStat("hits");
+  if (weak) addStat("weak");
+  const col = m >= 2 ? "#ffe066" : m < 1 ? "#9aa3b8" : "#ffffff";
+  addText(e.x + rand(-12, 12), e.y - e.r * 0.3 + rand(-6, 6), dmg.toLocaleString(), col, weak ? 19 : 15);
+  if (weak) addText(e.x, e.y - e.r - 16, "弱点!", "#ffef5c", 14);
+  burst(e.x, e.y, EL[el].l, weak ? 10 : 5);
+  if (e.boss) shake = Math.max(shake, weak ? 5 : 2);
+  if (e.hp <= 0) {
+    e.hp = 0;
+    e.dead = true;
+    burst(e.x, e.y, EL[e.el].c, e.boss ? 60 : 24, e.boss ? 6 : 4);
+    addText(e.x, e.y, e.boss ? "撃破!!" : "撃破!", "#ffd35c", e.boss ? 24 : 17);
+    shake = Math.max(shake, e.boss ? 12 : 4);
+    addStat("kills");
+  }
+}
+
+function damageParty(dmg, x, y) {
+  hp = Math.max(0, hp - dmg);
+  addText(x, y - 26, "-" + dmg.toLocaleString(), "#ff6b6b", 16);
+  shake = Math.max(shake, 6);
+  if (hp <= 0) {
+    events = [];
+    schedule(40, () => { state = "over"; lastResult = null; });
+  }
+}
+
+function healParty(v, x, y) {
+  hp = Math.min(maxHp, hp + v);
+  addText(x, y - 26, "+" + v.toLocaleString(), "#7dffa0", 15);
+}
+
+function addBolt(x, y, vx, vy, base, el, size = 4) {
+  bolts.push({ x, y, vx, vy, target: null, base, el, color: EL[el].l, size, life: 140 });
+}
+
+// ---- 友情コンボ ---------------------------------------------------------
+function triggerCombo(a) {
+  a.glow = 20;
+  const col = EL[a.el].l;
+  addText(a.x, a.y - 30, a.comboName, col, 13);
+  switch (a.combo) {
+    case "blast": {
+      const rad = 95;
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 10, r1: rad, life: 22, max: 22, color: EL[a.el].c, w: 8 });
+      for (const e of alive()) if (Math.hypot(e.x - a.x, e.y - a.y) < rad + e.r) damageEnemy(e, a.atk * 1.7, a.el, false);
+      break;
+    }
+    case "laser": {
+      fx.push({ kind: "line", x1: 0, y1: a.y, x2: W, y2: a.y, w: 10, life: 18, max: 18, color: col });
+      fx.push({ kind: "line", x1: a.x, y1: TOP, x2: a.x, y2: FB, w: 10, life: 18, max: 18, color: col });
+      for (const e of alive()) {
+        if (Math.abs(e.y - a.y) < e.r + 8 || Math.abs(e.x - a.x) < e.r + 8) damageEnemy(e, a.atk * 1.5, a.el, false);
+      }
+      break;
+    }
+    case "homing": {
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        addBolt(a.x, a.y, Math.cos(ang) * 5, Math.sin(ang) * 5, a.atk * 0.45, a.el);
+      }
+      break;
+    }
+    case "thunder": {
+      // 近い敵へ順に連鎖する雷（最大4体）
+      let from = { x: a.x, y: a.y };
+      const hit = new Set();
+      for (let k = 0; k < 4; k++) {
+        const next = alive().filter(e => !hit.has(e))
+          .sort((p, q) => Math.hypot(p.x - from.x, p.y - from.y) - Math.hypot(q.x - from.x, q.y - from.y))[0];
+        if (!next) break;
+        hit.add(next);
+        fx.push({ kind: "bolt", x1: from.x, y1: from.y, x2: next.x, y2: next.y, life: 18, max: 18, color: col });
+        damageEnemy(next, a.atk * 1.1, a.el, false);
+        from = next;
+      }
+      break;
+    }
+    case "kikou": {
+      // 敵を追いかけるレーザー10本
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 6, r1: 70, life: 20, max: 20, color: "#bfffd0", w: 6 });
+      for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * Math.PI * 2;
+        addBolt(a.x, a.y, Math.cos(ang) * 8, Math.sin(ang) * 8, a.atk * 0.55, a.el, 4);
+        bolts[bolts.length - 1].beam = true;
+      }
+      break;
+    }
+    case "smilestar": {
+      // 虹色の星12発（追尾）＋回復
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 8, r1: 80, life: 24, max: 24, color: "#ffe066", w: 6 });
+      for (let i = 0; i < 12; i++) {
+        const ang = (i / 12) * Math.PI * 2;
+        addBolt(a.x, a.y, Math.cos(ang) * 6, Math.sin(ang) * 6, a.atk * 0.8, a.el, 6);
+        bolts[bolts.length - 1].star = true;
+      }
+      healParty(Math.round(a.hp * 0.12), a.x, a.y);
+      break;
+    }
+    case "heal": {
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 8, r1: 60, life: 24, max: 24, color: "#9dffb0", w: 5 });
+      healParty(Math.round(a.hp * 0.15), a.x, a.y);
+      break;
+    }
+  }
+}
+
+// ---- ストライクショット -----------------------------------------------------
+function judgeLaser(a, dx, dy) {
+  let t = Infinity;
+  if (dx > 0) t = Math.min(t, (W - a.x) / dx);
+  if (dx < 0) t = Math.min(t, -a.x / dx);
+  if (dy > 0) t = Math.min(t, (FB - a.y) / dy);
+  if (dy < 0) t = Math.min(t, (TOP - a.y) / dy);
+  const x2 = a.x + dx * t, y2 = a.y + dy * t;
+  const big = a.ss === "haou";      // 覇王天翔波は特大・大ダメージ
+  const w = big ? 64 : 30;
+  fx.push({ kind: "line", x1: a.x, y1: a.y, x2, y2, w, life: big ? 50 : 34, max: big ? 50 : 34, color: big ? "#bfffd0" : EL[a.el].l });
+  if (big) fx.push({ kind: "ring", x: a.x, y: a.y, r0: 70, r1: 10, life: 20, max: 20, color: "#ffffff", w: 6 });
+  for (const e of alive()) {
+    if (segDist(e.x, e.y, a.x, a.y, x2, y2) < e.r + w / 2) damageEnemy(e, a.atk * (big ? 50 : 8), a.el, false);
+  }
+  shake = Math.max(shake, big ? 16 : 8);
+}
+
+// 撃ったターンから5ターン、能力2.5倍（攻撃力・HP・スピード）。重ねがけはせず残りターンだけ戻す
+function applyBuff(a) {
+  if (!a.buff) {
+    a.buffHp = Math.round(a.hp * 1.5);
+    a.atk *= 2.5;
+    a.spd *= 2.5;
+    maxHp += a.buffHp;
+    hp += a.buffHp;
+    addText(a.x, a.y - 34, "能力2.5倍!", EL[a.el].l, 16);
+  }
+  a.buff = 5;
+}
+
+// ---- ターン進行 ---------------------------------------------------------
+function fire(dx, dy) {
+  const a = allies[cur];
+  let sp = a.spd;
+  shot = { ally: a, cool: new Map(), touched: new Set(), atkMul: 1, stopped: false, needle: 0, needleT: 0, trail: [] };
+  hitCount = 0;
+  if (ssArmed) {
+    ssArmed = false;
+    a.ssLeft = a.ssTurns;
+    addStat("ss");
+    showBanner(a.ssName, "ストライクショット!", EL[a.el].c);
+    burst(a.x, a.y, EL[a.el].l, 30, 5);
+    switch (a.ss) {
+      case "burst":  shot.atkMul = 3; sp *= 1.3; break;
+      case "wave":   fx.push({ kind: "wave", y: FB, life: 45, max: 45, hit: new Set(), base: a.atk * 3.5, el: a.el }); break;
+      case "needle": shot.needle = 30; break;
+      case "judge":  judgeLaser(a, dx, dy); break;
+      case "haou":
+        judgeLaser(a, dx, dy);
+        applyBuff(a);
+        sp *= 2.5;
+        break;
+      case "meteor":
+        for (let i = 0; i < 8; i++) addBolt(rand(30, W - 30), TOP - 20 - i * 25, 0, 6, a.atk * 2.2, a.el, 9);
+        break;
+      case "smileburst":
+        // フィールド全体に笑顔の光 → 全体に攻撃力30倍・攻撃遅延・回復・5ターン能力2.5倍
+        fx.push({ kind: "smile", life: 60, max: 60 });
+        for (const e of alive()) {
+          damageEnemy(e, a.atk * 30, a.el, false);
+          if (!e.dead) { e.cd++; addText(e.x, e.y + e.r + 10, "攻撃+1T", "#9ad5ff", 12); }
+        }
+        healParty(Math.round(maxHp * 0.3), W / 2, FB - 20);
+        applyBuff(a);
+        sp *= 2.5;
+        shake = Math.max(shake, 14);
+        break;
+    }
+  }
+  a.vx = dx * sp;
+  a.vy = dy * sp;
+  state = "shoot";
+}
+
+function updateShot() {
+  const s = shot, a = s.ally;
+  if (!s.stopped) {
+    // 速いほど細かく刻んで、すり抜けを防ぐ
+    const steps = Math.max(SUB, Math.ceil(Math.hypot(a.vx, a.vy) / 6));
+    for (let k = 0; k < steps; k++) {
+      a.x += a.vx / steps;
+      a.y += a.vy / steps;
+      walls(a);
+      for (const o of rocks) bounce(a, o.x, o.y, o.r);
+      for (const e of enemies) {
+        if (e.dead) continue;
+        const hit = a.type === "reflect" ? bounce(a, e.x, e.y, e.r) : overlap(a, e.x, e.y, e.r);
+        if (hit && !s.cool.has(e.id)) {
+          s.cool.set(e.id, a.type === "reflect" ? 6 : 10);
+          let weak = false;
+          if (e.weak !== null) { const w = weakPos(e); weak = Math.hypot(a.x - w.x, a.y - w.y) < R + w.r; }
+          damageEnemy(e, a.atk * s.atkMul, a.el, weak);
+        }
+      }
+      for (const o of allies) {
+        if (o !== a && !s.touched.has(o) && overlap(a, o.x, o.y, R)) { s.touched.add(o); triggerCombo(o); }
+      }
+      for (const h of hearts) {
+        if (!h.taken && overlap(a, h.x, h.y, h.r)) {
+          h.taken = true;
+          healParty(Math.round(maxHp * 0.15), h.x, h.y);
+          burst(h.x, h.y, "#ff8fb1", 16);
+        }
+      }
+    }
+    hearts = hearts.filter(h => !h.taken);
+    for (const [k, v] of s.cool) { if (v <= 1) s.cool.delete(k); else s.cool.set(k, v - 1); }
+    a.vx *= FRICTION;
+    a.vy *= FRICTION;
+    s.trail.push({ x: a.x, y: a.y });
+    if (s.trail.length > 12) s.trail.shift();
+
+    if (s.needle > 0 && --s.needleT <= 0 && alive().length) {
+      s.needle--;
+      s.needleT = 4;
+      const ang = Math.random() * Math.PI * 2;
+      addBolt(a.x, a.y, Math.cos(ang) * 6, Math.sin(ang) * 6, a.atk * 0.8, a.el);
+    }
+
+    if (Math.hypot(a.vx, a.vy) < STOP) {
+      s.stopped = true;
+      a.vx = a.vy = 0;
+      s.trail = [];
+      resolveOverlap(a);
+    }
+  }
+  if (s.stopped && !bolts.length && !fx.some(f => f.kind === "wave")) endShot();
+}
+
+function endShot() {
+  shot = null;
+  if (!alive().length) { waveClear(); return; }
+  enemyPhase();
+}
+
+function enemyPhase() {
+  state = "enemy";
+  let delay = 12;
+  for (const e of alive()) {
+    if (--e.cd > 0) continue;
+    e.cd = e.maxCd;
+    schedule(delay, () => enemyAttack(e));
+    delay += 26;
+  }
+  schedule(delay + 6, startTurn);
+}
+
+function enemyAttack(e) {
+  if (e.dead || hp <= 0) return;
+  e.flash = 10;
+  if (e.atkType === "all") {
+    fx.push({ kind: "ring", x: e.x, y: e.y, r0: e.r, r1: 560, life: 30, max: 30, color: "#ff4d6d", w: 12 });
+    for (const a of allies) a.hurt = 16;
+    addText(e.x, e.y + e.r + 12, "全体攻撃", "#ff8b9b", 14);
+    damageParty(e.atk, W / 2, FB - 10);
+  } else {
+    const t = pick(allies);
+    fx.push({ kind: "line", x1: e.x, y1: e.y, x2: t.x, y2: t.y, w: 5, life: 16, max: 16, color: "#ff5b6b" });
+    t.hurt = 16;
+    burst(t.x, t.y, "#ff5b6b", 10);
+    damageParty(e.atk, t.x, t.y);
+  }
+}
+
+function startTurn() {
+  if (hp <= 0) return;
+  turn++;
+  cur = (cur + 1) % allies.length;
+  for (const a of allies) a.ssLeft = Math.max(0, a.ssLeft - 1);
+  // 能力アップの残りターンを減らし、切れたら元に戻す
+  for (const a of allies) {
+    if (!a.buff) continue;
+    a.buff--;
+    if (!a.buff) {
+      a.atk /= 2.5;
+      a.spd /= 2.5;
+      maxHp -= a.buffHp;
+      hp = Math.max(1, Math.min(hp, maxHp));
+      addText(a.x, a.y - 30, "能力アップ終了", "#9aa3b8", 12);
+    }
+  }
+  ssArmed = false;
+  for (const e of alive()) if (e.roam && e.weak !== null) e.weak = Math.random() * Math.PI * 2;
+  if (hearts.length === 0 && Math.random() < 0.3) spawnHeart();
+  state = "aim";
+}
+
+function spawnHeart() {
+  for (let k = 0; k < 30; k++) {
+    const h = { x: rand(40, W - 40), y: rand(TOP + 60, FB - 60), r: 11, taken: false };
+    const blocked = [...alive(), ...rocks].some(o => Math.hypot(o.x - h.x, o.y - h.y) < o.r + 24)
+      || allies.some(a => Math.hypot(a.x - h.x, a.y - h.y) < R + 24);
+    if (!blocked) { hearts.push(h); return; }
+  }
+}
+
+function waveClear() {
+  state = "wave";
+  const last = waveIdx === quest.waves.length - 1;
+  showBanner(last ? "QUEST CLEAR!" : "WAVE CLEAR", "", "#7dffa0");
+  schedule(last ? 80 : 60, () => {
+    if (last) { finishQuest(); return; }
+    waveIdx++;
+    loadWave();
+    startTurn();
+  });
+}
+
+// クリア報酬
+function finishQuest() {
+  const q = quest, first = !save.cleared[questIdx];
+  const best = save.best[questIdx];
+  const isBest = best === undefined || turn < best;
+  if (isBest) save.best[questIdx] = turn;
+  const rank = turn <= q.par ? "S" : turn <= q.par * 1.4 ? "A" : "B";
+  const coin = Math.round(q.coin * (rank === "S" ? 1.5 : rank === "A" ? 1.2 : 1));
+  const crEl = q.crEl || pick(EL_KEYS);
+  const crN = q.crN + Math.floor(Math.random() * 3);
+  const gem = first ? q.gem : 0;
+  let drop = null;
+  if (questIdx === QUESTS.length - 1 && first) {
+    drop = acquire(LIMITED);                  // 最難関の初回クリアで★6限定キャラ
+  } else if (Math.random() < 0.35) {
+    const pool = FAM.filter(f => f.rar === 3 && f.el === crEl);
+    drop = acquire(pick(pool.length ? pool : FAM.filter(f => f.rar === 3)).idx);
+  }
+  save.coins += coin;
+  save.gems += gem;
+  save.cr[crEl] += crN;
+  save.cleared[questIdx] = true;
+  if (q.kind === "tower") save.towerMax = Math.max(save.towerMax || 0, q.floor);
+  addStat("clears");
+  if (rank === "S") addStat("srank");
+  const up = addExp(q.exp || 30);
+  if (up.ranks) showToast(`ランクアップ! ランク${save.rank}  ジェム+${up.gems}`);
+  persist();
+  lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, netRank: undefined,
+    exp: q.exp || 30, kind: q.kind };
+  if (q.kind !== "special") { state = "clear"; return; }
+  // ランキングに記録（スペシャルクエストのみ）
+  const leader = displayName(save.party[0]);
+  addLocalRecord(questIdx, turn, leader);
+  persist();
+  if (onlineRanking()) {
+    const res = lastResult, q = questIdx, t = turn;
+    (save.name ? Promise.resolve() : askName())
+      .then(() => submitScore(q, t, leader))
+      .then(r => { res.netRank = r; });
+  }
+  state = "clear";
+}
+
+// ---- 育成 -------------------------------------------------------------
+function levelUp(fi, toMax) {
+  const u = save.box[fi], cap = MAXLV[u.rar];
+  if (u.lv >= cap) { showToast("レベルが上限です。進化させよう!"); return; }
+  let n = 0;
+  while (u.lv < cap && save.coins >= lvCost(u.lv)) {
+    save.coins -= lvCost(u.lv);
+    u.lv++;
+    n++;
+    if (!toMax) break;
+  }
+  if (!n) { showToast("コインが足りません"); return; }
+  addStat("lvups", n);
+  burst(180, 170, "#ffe066", 20, 4);
+  addText(180, 120, `Lv UP! → ${u.lv}`, "#ffe066", 20);
+  persist();
+}
+function maxCost(fi) {
+  const u = save.box[fi], cap = MAXLV[u.rar];
+  let c = 0;
+  for (let lv = u.lv; lv < cap; lv++) c += lvCost(lv);
+  return c;
+}
+function evolve(fi) {
+  const u = save.box[fi], f = FAM[fi];
+  if (u.rar >= 6) return;
+  if (u.lv < MAXLV[u.rar]) { showToast(`Lv${MAXLV[u.rar]}にすると進化できます`); return; }
+  if (save.cr[f.el] < EVO_CR[u.rar]) { showToast(`${EL[f.el].n}の結晶が足りません`); return; }
+  if (save.coins < EVO_COIN[u.rar]) { showToast("コインが足りません"); return; }
+  save.cr[f.el] -= EVO_CR[u.rar];
+  save.coins -= EVO_COIN[u.rar];
+  u.rar++;
+  addStat("evos");
+  persist();
+  burst(180, 170, EL[f.el].l, 70, 6);
+  burst(180, 170, "#ffffff", 30, 4);
+  showBanner("進化成功!", `${displayName(fi)}  ★${u.rar}`, RCOL[u.rar]);
+}
+
+// ---- ガチャ -----------------------------------------------------------
+// ガチャの種類。limited: ★6枠で出る限定キャラ（1体につき RATE6 の確率）
+const BANNERS = {
+  star: { name: "スターダストガチャ", limited: [LIMITED, LIMITED_JIN], c1: "#ff7ae0", c2: "#7a4aff" },
+};
+let gachaBanner = "star";
+const rate6Total = banner => RATE6 * BANNERS[banner].limited.length;
+
+function rollOne(guarantee4, banner) {
+  const r = Math.random(), r6 = rate6Total(banner);
+  if (r < r6) return pick(BANNERS[banner].limited);
+  let rar = r < r6 + RATE5 ? 5 : r < r6 + RATE5 + RATE4 ? 4 : 3;
+  if (guarantee4 && rar === 3) rar = 4;
+  return pick(FAM.filter(f => f.rar === rar)).idx;
+}
+function pullGacha(n, banner = gachaBanner) {
+  const cost = n === 10 ? GACHA_10 : GACHA_1;
+  if (save.gems < cost) { showToast("ジェムが足りません"); return; }
+  save.gems -= cost;
+  const res = [];
+  for (let i = 0; i < n; i++) {
+    const guarantee = n === 10 && i === 9 && !res.some(r => FAM[r.fi].rar >= 4);
+    res.push(acquire(rollOne(guarantee, banner)));
+  }
+  addStat("pulls", n);
+  persist();
+  gacha = { res, i: 0, t: 0, opened: false, banner };
+  go("gachaAnim");
+}
+function gachaTap() {
+  if (!gacha.opened) {
+    if (gacha.t < 30) return;
+    gacha.opened = true;
+    gacha.t = 0;
+    const f = FAM[gacha.res[gacha.i].fi];
+    burst(W / 2, 300, RCOL[f.rar], f.rar >= 5 ? 80 : 40, 6);
+    return;
+  }
+  if (gacha.t < 15) return;
+  gacha.i++;
+  gacha.opened = false;
+  gacha.t = 0;
+  if (gacha.i >= gacha.res.length) go("gachaResult");
+}
+
+// ---- 更新ループ -------------------------------------------------------
+function updateBolts() {
+  for (const b of bolts) {
+    if (!b.target || b.target.dead) {
+      const list = alive();
+      b.target = list.length ? pick(list) : null;
+    }
+    b.life--;
+    if (!b.target) { b.life = 0; continue; }
+    const dx = b.target.x - b.x, dy = b.target.y - b.y, d = Math.hypot(dx, dy) || 1;
+    b.vx += (dx / d * 11 - b.vx) * 0.16;
+    b.vy += (dy / d * 11 - b.vy) * 0.16;
+    b.x += b.vx;
+    b.y += b.vy;
+    if (d < b.target.r) {
+      damageEnemy(b.target, b.base, b.el, false);
+      if (b.size > 6) burst(b.x, b.y, b.color, 14, 4);
+      b.life = 0;
+    }
+  }
+  bolts = bolts.filter(b => b.life > 0);
+}
+
+function updateFx() {
+  for (const f of fx) {
+    f.life--;
+    if (f.kind === "wave") {
+      f.y = FB - (FB - TOP + 40) * (1 - f.life / f.max);
+      for (const e of alive()) {
+        if (!f.hit.has(e.id) && e.y + e.r > f.y) { f.hit.add(e.id); damageEnemy(e, f.base, f.el, false); }
+      }
+    }
+  }
+  fx = fx.filter(f => f.life > 0);
+}
+
+function update() {
+  refillItems();
+  frameNo++;
+  for (const t of texts) { t.y -= 0.55; t.life--; }
+  texts = texts.filter(t => t.life > 0);
+  for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy *= 0.94; p.life--; }
+  particles = particles.filter(p => p.life > 0);
+  if (banner && --banner.life <= 0) banner = null;
+  if (toast && --toast.life <= 0) toast = null;
+  if (shake > 0) shake *= 0.85;
+  if (shake < 0.3) shake = 0;
+  if (gacha) gacha.t++;
+
+  if (!BATTLE.has(state) || state === "clear" || state === "over") return;
+
+  for (const a of allies) { if (a.hurt > 0) a.hurt--; if (a.glow > 0) a.glow--; }
+  for (const e of enemies) if (e.flash > 0) e.flash--;
+  updateBolts();
+  updateFx();
+  if (state === "shoot") updateShot();
+  enemies = enemies.filter(e => !e.dead);
+
+  const due = events.filter(ev => --ev.t <= 0);
+  events = events.filter(ev => ev.t > 0);
+  for (const ev of due) ev.fn();
+}
+
+// ---- 入力 -------------------------------------------------------------
+function toLogical(ev) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (ev.clientX - r.left) / r.width * W, y: (ev.clientY - r.top) / r.height * H };
+}
+
+function computeAim(from, to) {
+  const vx = from.x - to.x, vy = from.y - to.y, len = Math.hypot(vx, vy);
+  if (len < MIN_DRAG) return null;
+  return { dx: vx / len, dy: vy / len };
+}
+
+canvas.addEventListener("pointerdown", ev => {
+  ev.preventDefault();
+  const p = toLogical(ev);
+  for (let i = ui.length - 1; i >= 0; i--) {
+    const b = ui[i];
+    if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { b.onTap(); return; }
+  }
+  if (state !== "aim") return;
+  dragging = true;
+  dragStart = dragNow = p;
+  canvas.setPointerCapture(ev.pointerId);
+});
+
+canvas.addEventListener("pointermove", ev => {
+  if (dragging) dragNow = toLogical(ev);
+});
+
+canvas.addEventListener("pointerup", ev => {
+  if (!dragging) return;
+  dragging = false;
+  const a = computeAim(dragStart, toLogical(ev));
+  if (a && state === "aim") fire(a.dx, a.dy);
+});
+canvas.addEventListener("pointercancel", () => { dragging = false; });
+
+// ---- 描画: 部品 ---------------------------------------------------------
+function button(x, y, w, h, label, onTap, opt = {}) {
+  ui.push({ x, y, w, h, onTap });
+  if (opt.hidden) return;
+  ctx.save();
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, opt.disabled ? "#59607a" : opt.c1 || "#ffcf4a");
+  g.addColorStop(1, opt.disabled ? "#3a3f55" : opt.c2 || "#ff8f1f");
+  ctx.fillStyle = g;
+  roundRect(x, y, w, h, 10);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = opt.disabled ? "#c4c8d8" : opt.fg || "#3a1c00";
+  ctx.font = `bold ${opt.size || 16}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  if (opt.sub) {
+    ctx.fillText(label, x + w / 2, y + h / 2 - 7);
+    ctx.font = `bold 11px system-ui, sans-serif`;
+    ctx.fillText(opt.sub, x + w / 2, y + h / 2 + 11);
+  } else {
+    ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+  }
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function outlinedText(text, x, y, color, size, stroke = "#000") {
+  ctx.font = `900 ${size}px system-ui, sans-serif`;
+  ctx.lineWidth = Math.max(3, size / 6);
+  ctx.strokeStyle = stroke;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+
+function txt(text, x, y, size, color, align = "left", weight = "bold") {
+  ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x, y);
+}
+
+function starPath(x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+
+function drawStars(n, x, y, s) {
+  const w = s * 1.9, sx = x - (n - 1) * w / 2;
+  ctx.save();
+  for (let i = 0; i < n; i++) {
+    starPath(sx + i * w, y, s);
+    ctx.fillStyle = n >= 6 ? `hsl(${(frameNo * 3 + i * 50) % 360},90%,70%)` : "#ffd23f";
+    ctx.fill();
+    ctx.strokeStyle = "#5a3a00";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function rarityStroke(rar, x, y, w, h) {
+  if (rar < 6) return RCOL[rar];
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  for (let i = 0; i <= 5; i++) g.addColorStop(i / 5, `hsl(${(frameNo * 2 + i * 60) % 360},90%,65%)`);
+  return g;
+}
+
+function gemIcon(x, y, s) {
+  ctx.save();
+  ctx.fillStyle = "#5ef0ff";
+  ctx.beginPath();
+  ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.8, y - s * 0.2); ctx.lineTo(x, y + s);
+  ctx.lineTo(x - s * 0.8, y - s * 0.2); ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.beginPath();
+  ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.3, y - s * 0.2); ctx.lineTo(x - s * 0.3, y - s * 0.2); ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+function coinIcon(x, y, s) {
+  ctx.save();
+  ctx.fillStyle = "#ffcf3f";
+  ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#a87400";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(x, y, s * 0.65, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+function crystalIcon(el, x, y, s) {
+  ctx.save();
+  ctx.fillStyle = EL[el].c;
+  ctx.strokeStyle = EL[el].l;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.55, y - s * 0.3); ctx.lineTo(x + s * 0.4, y + s);
+  ctx.lineTo(x - s * 0.4, y + s); ctx.lineTo(x - s * 0.55, y - s * 0.3); ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+// キャラ（すべてコードで描くオリジナルデザイン）
+// k: { shape, el, acc, eye, rar, evo }
+function drawChar(k, x, y, r) {
+  if (k.shape && k.shape !== "blob") { drawCreature(k, x, y, r); return; }
+  const c = EL[k.el];
+  ctx.save();
+  drawAura(k, x, y, r);
+  drawAngelWings(k, x, y, r);
+  // 頭の飾り（後ろ側）
+  switch (k.acc) {
+    case "flame":
+      for (const [ox, h, col] of [[-0.42, 0.75, "#ff7a2e"], [0, 1.05, "#ff7a2e"], [0.42, 0.75, "#ff7a2e"], [0, 0.7, "#ffd34a"]]) {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(x + (ox - 0.3) * r, y - r * 0.55);
+        ctx.quadraticCurveTo(x + (ox - 0.1) * r, y - r * (0.6 + h * 0.6), x + ox * r, y - r * (0.55 + h));
+        ctx.quadraticCurveTo(x + (ox + 0.1) * r, y - r * (0.6 + h * 0.6), x + (ox + 0.3) * r, y - r * 0.55);
+        ctx.fill();
+      }
+      break;
+    case "fin":
+      ctx.fillStyle = c.d;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.45, y - r * 0.75);
+      ctx.quadraticCurveTo(x + r * 0.05, y - r * 1.75, x + r * 0.55, y - r * 0.7);
+      ctx.fill();
+      break;
+    case "leaf":
+      ctx.strokeStyle = "#2d7a3c";
+      ctx.lineWidth = r * 0.12;
+      ctx.beginPath(); ctx.moveTo(x, y - r * 0.9); ctx.lineTo(x, y - r * 1.25); ctx.stroke();
+      ctx.fillStyle = "#5fd36e";
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(x + s * r * 0.3, y - r * 1.25, r * 0.36, r * 0.16, s * -0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case "horns":
+      ctx.fillStyle = "#f3e9d2";
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.3, y - r * 0.8);
+        ctx.quadraticCurveTo(x + s * r * 0.9, y - r * 1.1, x + s * r * 0.85, y - r * 1.55);
+        ctx.quadraticCurveTo(x + s * r * 0.75, y - r * 1.0, x + s * r * 0.65, y - r * 0.6);
+        ctx.fill();
+      }
+      break;
+    case "ears":
+      for (const s of [-1, 1]) {
+        ctx.fillStyle = c.c;
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.2, y - r * 0.85);
+        ctx.lineTo(x + s * r * 0.75, y - r * 1.35);
+        ctx.lineTo(x + s * r * 0.85, y - r * 0.45);
+        ctx.fill();
+        ctx.fillStyle = "#ffb3c8";
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.35, y - r * 0.8);
+        ctx.lineTo(x + s * r * 0.7, y - r * 1.15);
+        ctx.lineTo(x + s * r * 0.75, y - r * 0.6);
+        ctx.fill();
+      }
+      break;
+    case "bunny":
+      for (const s of [-1, 1]) {
+        ctx.fillStyle = c.c;
+        ctx.beginPath(); ctx.ellipse(x + s * r * 0.35, y - r * 1.3, r * 0.2, r * 0.6, s * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffd0dc";
+        ctx.beginPath(); ctx.ellipse(x + s * r * 0.35, y - r * 1.28, r * 0.09, r * 0.42, s * 0.2, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    case "antenna":
+      ctx.strokeStyle = c.d;
+      ctx.lineWidth = Math.max(1.5, r * 0.08);
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.25, y - r * 0.9);
+        ctx.quadraticCurveTo(x + s * r * 0.3, y - r * 1.4, x + s * r * 0.6, y - r * 1.5);
+        ctx.stroke();
+        ctx.fillStyle = c.l;
+        ctx.beginPath(); ctx.arc(x + s * r * 0.6, y - r * 1.5, r * 0.15, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    case "spikes":
+      ctx.fillStyle = c.d;
+      for (let i = -2; i <= 2; i++) {
+        const a = -Math.PI / 2 + i * 0.42;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a - 0.17) * r * 0.9, y + Math.sin(a - 0.17) * r * 0.9);
+        ctx.lineTo(x + Math.cos(a) * r * 1.45, y + Math.sin(a) * r * 1.45);
+        ctx.lineTo(x + Math.cos(a + 0.17) * r * 0.9, y + Math.sin(a + 0.17) * r * 0.9);
+        ctx.fill();
+      }
+      break;
+  }
+  // 体（bowlcut は肌色の顔）
+  const skin = k.acc === "bowlcut";
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
+  g.addColorStop(0, skin ? "#fff1e6" : c.l);
+  g.addColorStop(1, skin ? "#f2c2a0" : c.c);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = Math.max(1, r * 0.1);
+  ctx.stroke();
+  // 進化済み: 額の宝石
+  if (k.evo) {
+    ctx.fillStyle = RCOL[k.rar] === undefined ? "#fff" : (k.rar >= 6 ? `hsl(${(frameNo * 3) % 360},90%,65%)` : RCOL[k.rar]);
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 0.72); ctx.lineTo(x + r * 0.12, y - r * 0.56);
+    ctx.lineTo(x, y - r * 0.4); ctx.lineTo(x - r * 0.12, y - r * 0.56); ctx.closePath();
+    ctx.fill();
+  }
+  drawFace(k, x, y, r, c.c);
+  // 頭の飾り（前側）
+  drawFrontAcc(k, x, y, r);
+  if (k.rar >= 6 && k.acc !== "hat") drawCrown(x - r * 0.55, y - r * 0.95, r, -0.4);
+  ctx.restore();
+}
+
+// 目と口（lid: 眠そうな目のまぶたの色、noMouth: くちばし等で口を描かない）
+function drawFace(k, x, y, r, lid, noMouth = false) {
+  const pupil = "#1b1b2a";
+  if (k.eye === "smile") {
+    // にっこり目と大きな笑顔
+    ctx.strokeStyle = pupil;
+    ctx.lineWidth = Math.max(1.4, r * 0.08);
+    ctx.lineCap = "round";
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); ctx.arc(x + s * r * 0.36, y + r * 0.04, r * 0.12, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+      ctx.fillStyle = "rgba(255,120,130,0.4)";
+      ctx.beginPath(); ctx.ellipse(x + s * r * 0.62, y + r * 0.3, r * 0.14, r * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    if (!noMouth) {
+      ctx.fillStyle = "#8a2a2a";
+      ctx.beginPath(); ctx.arc(x, y + r * 0.3, r * 0.3, 0, Math.PI); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x - r * 0.24, y + r * 0.3, r * 0.48, r * 0.09);
+    }
+  } else if (k.eye === "mono") {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.ellipse(x, y - r * 0.05, r * 0.32, r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = pupil;
+    ctx.beginPath(); ctx.arc(x, y, r * 0.17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(x - r * 0.06, y - r * 0.07, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  } else {
+    for (const s of [-1, 1]) {
+      const ex = x + s * r * 0.33, ey = y - r * 0.05;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.ellipse(ex, ey, r * 0.2, r * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = pupil;
+      ctx.beginPath(); ctx.arc(ex, ey + r * 0.05, r * 0.12, 0, Math.PI * 2); ctx.fill();
+      if (k.eye === "sparkle") {
+        ctx.fillStyle = "#fff";
+        starPath(ex - r * 0.04, ey, r * 0.08);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = "#fff";
+        ctx.beginPath(); ctx.arc(ex - r * 0.04, ey, r * 0.045, 0, Math.PI * 2); ctx.fill();
+      }
+      if (k.eye === "sleepy") {
+        // まぶた
+        ctx.fillStyle = lid;
+        ctx.beginPath(); ctx.ellipse(ex, ey - r * 0.08, r * 0.23, r * 0.17, 0, Math.PI, Math.PI * 2); ctx.fill();
+        ctx.fillRect(ex - r * 0.23, ey - r * 0.1, r * 0.46, r * 0.04);
+      }
+      if (k.eye === "sharp") {
+        ctx.strokeStyle = pupil;
+        ctx.lineWidth = Math.max(1.2, r * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.13, y - r * 0.2);
+        ctx.lineTo(x + s * r * 0.55, y - r * 0.33);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(255,120,150,0.45)";
+      ctx.beginPath(); ctx.ellipse(x + s * r * 0.6, y + r * 0.28, r * 0.13, r * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  if (k.eye !== "smile" && !noMouth) {
+    ctx.strokeStyle = pupil;
+    ctx.lineWidth = Math.max(1.2, r * 0.08);
+    ctx.beginPath(); ctx.arc(x, y + r * 0.3, r * 0.16, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  }
+}
+
+// 頭の飾り（前側）
+function drawFrontAcc(k, x, y, r) {
+  const c = EL[k.el];
+  switch (k.acc) {
+    case "bowlcut": {
+      // マッシュルームカット
+      ctx.fillStyle = "#2b211c";
+      ctx.beginPath();
+      ctx.moveTo(x - r * 1.06, y + r * 0.1);
+      ctx.lineTo(x - r * 1.06, y - r * 0.3);
+      ctx.ellipse(x, y - r * 0.3, r * 1.06, r * 0.9, 0, Math.PI, 0);
+      ctx.lineTo(x + r * 1.06, y + r * 0.1);
+      ctx.lineTo(x + r * 0.82, y - r * 0.18);
+      for (let i = 0; i <= 8; i++) {
+        ctx.lineTo(x + r * 0.82 - i * (r * 1.64 / 8), y - r * 0.3 + (i % 2 ? r * 0.07 : 0));
+      }
+      ctx.lineTo(x - r * 0.82, y - r * 0.18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.85, r * 0.35, r * 0.12, -0.3, 0, Math.PI * 2); ctx.fill();
+      // 丸メガネ
+      ctx.strokeStyle = "#5a4636";
+      ctx.lineWidth = Math.max(1.2, r * 0.07);
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(x + s * r * 0.36, y, r * 0.25, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(x - r * 0.11, y - r * 0.02); ctx.lineTo(x + r * 0.11, y - r * 0.02); ctx.stroke();
+      break;
+    }
+    case "halo":
+      ctx.strokeStyle = "#ffe66b";
+      ctx.lineWidth = r * 0.13;
+      ctx.beginPath(); ctx.ellipse(x, y - r * 1.15, r * 0.5, r * 0.16, 0, 0, Math.PI * 2); ctx.stroke();
+      break;
+    case "star":
+      starPath(x + r * 0.15, y - r * 1.05, r * 0.42);
+      ctx.fillStyle = "#ffe066";
+      ctx.fill();
+      ctx.strokeStyle = "#a87400";
+      ctx.lineWidth = Math.max(1, r * 0.06);
+      ctx.stroke();
+      break;
+    case "bow":
+      ctx.fillStyle = "#ff6fa8";
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + r * 0.5, y - r * 0.85);
+        ctx.lineTo(x + r * 0.5 + s * r * 0.45, y - r * 0.85 - r * 0.28);
+        ctx.lineTo(x + r * 0.5 + s * r * 0.45, y - r * 0.85 + r * 0.28);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#ffd0e4";
+      ctx.beginPath(); ctx.arc(x + r * 0.5, y - r * 0.85, r * 0.12, 0, Math.PI * 2); ctx.fill();
+      break;
+    case "hat":
+      ctx.fillStyle = "#2a1846";
+      ctx.beginPath(); ctx.ellipse(x, y - r * 0.75, r * 0.85, r * 0.18, -0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.5, y - r * 0.8);
+      ctx.quadraticCurveTo(x + r * 0.1, y - r * 1.4, x + r * 0.55, y - r * 1.85);
+      ctx.lineTo(x + r * 0.5, y - r * 0.85);
+      ctx.fill();
+      ctx.fillStyle = c.c;
+      ctx.fillRect(x - r * 0.48, y - r * 0.95, r * 0.98, r * 0.12);
+      break;
+  }
+}
+
+// ★6の冠（cx, cy が中心、r は持ち主の大きさ）
+function drawCrown(cx, cy, r, rot) {
+  {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.fillStyle = "#ffd23f";
+    ctx.strokeStyle = "#8a6a00";
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    const cw = r * 0.55, ch = r * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(-cw / 2, ch / 2); ctx.lineTo(-cw / 2, -ch / 2); ctx.lineTo(-cw / 4, 0);
+    ctx.lineTo(0, -ch / 2 - ch * 0.2); ctx.lineTo(cw / 4, 0); ctx.lineTo(cw / 2, -ch / 2); ctx.lineTo(cw / 2, ch / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ★6: 回転するオーラ
+function drawAura(k, x, y, r) {
+  if (k.rar < 6) return;
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = `hsl(${(frameNo * 3) % 360},90%,70%)`;
+  ctx.lineWidth = Math.max(2, r * 0.1);
+  ctx.setLineDash([r * 0.3, r * 0.2]);
+  ctx.lineDashOffset = -frameNo * 0.8;
+  ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+// ★5以上: 天使の翼
+function drawAngelWings(k, x, y, r) {
+  if (k.rar < 5) return;
+  ctx.fillStyle = k.rar >= 6 ? "rgba(255,240,200,0.92)" : "rgba(255,255,255,0.85)";
+  for (const s of [-1, 1]) {
+    for (let j = 0; j < 3; j++) {
+      ctx.beginPath();
+      ctx.ellipse(x + s * r * (0.95 + j * 0.12), y - r * (0.15 - j * 0.22), r * (0.55 - j * 0.1), r * 0.18, s * (0.5 - j * 0.35), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+const SKIN = "#ffdcc4", SKIN_D = "#f0b896";
+const HAIR = { fire: "#c2381a", water: "#1d5aa8", wood: "#2f7a36", light: "#e3b93c", dark: "#3b2452" };
+
+function shade(x, y, r, c1, c2) {
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  return g;
+}
+
+// 人型・獣・鳥・竜・魚（すべてオリジナルデザイン）
+function drawCreature(k, x, y, r) {
+  ctx.save();
+  drawAura(k, x, y, r);
+  const winged = k.shape === "bird" || k.shape === "dragon";
+  if (!winged) drawAngelWings(k, x, y + r * (k.shape === "human" ? 0.45 : 0.1), k.shape === "human" ? r * 0.85 : r);
+  switch (k.shape) {
+    case "human":  drawHuman(k, x, y, r); break;
+    case "beast":  drawBeast(k, x, y, r); break;
+    case "bird":   drawBird(k, x, y, r); break;
+    case "dragon": drawDragon(k, x, y, r); break;
+    case "fish":   drawFish(k, x, y, r); break;
+  }
+  if (k.rar >= 6) {
+    if (k.shape === "human") drawCrown(x + r * 0.32, y - r * 0.98, r, 0.35);
+    else drawCrown(x - r * 0.45, y - r * 0.92, r, -0.4);
+  }
+  ctx.restore();
+}
+
+function drawHuman(k, x, y, r) {
+  const c = EL[k.el], hair = HAIR[k.el];
+  const hx = x, hy = y - r * 0.28, hr = r * 0.6;
+  // マント（騎士）
+  if (k.acc === "helmet") {
+    ctx.fillStyle = c.d;
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.45, y + r * 0.15); ctx.lineTo(x + r * 0.45, y + r * 0.15);
+    ctx.lineTo(x + r * 0.7, y + r * 1.0); ctx.lineTo(x - r * 0.7, y + r * 1.0);
+    ctx.fill();
+  }
+  // 後ろ髪
+  ctx.fillStyle = hair;
+  if (k.acc === "long") {
+    roundRect(hx - hr * 1.05, hy - hr * 0.3, hr * 2.1, hr * 2.0, hr * 0.5);
+    ctx.fill();
+  } else if (k.acc === "twin") {
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); ctx.ellipse(hx + s * hr * 1.15, hy + hr * 0.5, hr * 0.32, hr * 0.85, s * -0.25, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // 足
+  ctx.fillStyle = "#3a2f2a";
+  for (const s of [-1, 1]) { roundRect(x + s * r * 0.22 - r * 0.13, y + r * 0.72, r * 0.26, r * 0.3, r * 0.08); ctx.fill(); }
+  // 胴体（服）
+  ctx.fillStyle = shade(x, y + r * 0.5, r * 0.6, c.l, c.c);
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.32, y + r * 0.2); ctx.lineTo(x + r * 0.32, y + r * 0.2);
+  ctx.lineTo(x + r * 0.48, y + r * 0.82); ctx.lineTo(x - r * 0.48, y + r * 0.82);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = c.d;
+  ctx.fillRect(x - r * 0.46, y + r * 0.55, r * 0.92, r * 0.09);
+  // 手と武器
+  ctx.fillStyle = SKIN;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * r * 0.5, y + r * 0.52, r * 0.12, 0, Math.PI * 2); ctx.fill(); }
+  if (k.acc === "helmet" || k.acc === "spiky") {
+    // 剣
+    ctx.save();
+    ctx.translate(x + r * 0.55, y + r * 0.5);
+    ctx.rotate(-0.5);
+    ctx.fillStyle = "#e6ecf5";
+    ctx.fillRect(-r * 0.05, -r * 0.85, r * 0.1, r * 0.8);
+    ctx.fillStyle = "#c9a227";
+    ctx.fillRect(-r * 0.18, -r * 0.08, r * 0.36, r * 0.08);
+    ctx.restore();
+  } else if (k.acc === "mage" || k.acc === "long") {
+    // 杖
+    ctx.strokeStyle = "#7a5230";
+    ctx.lineWidth = Math.max(1.5, r * 0.08);
+    ctx.beginPath(); ctx.moveTo(x - r * 0.55, y + r * 0.95); ctx.lineTo(x - r * 0.55, y - r * 0.1); ctx.stroke();
+    ctx.fillStyle = c.l;
+    ctx.shadowColor = c.c;
+    ctx.shadowBlur = r * 0.5;
+    ctx.beginPath(); ctx.arc(x - r * 0.55, y - r * 0.15, r * 0.13, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // 顔
+  ctx.fillStyle = shade(hx, hy, hr, "#fff3ea", SKIN);
+  ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+  drawFace(k, hx, hy + hr * 0.12, hr * 0.92, SKIN);
+  // 前髪・かぶりもの
+  switch (k.acc) {
+    case "spiky":
+      ctx.fillStyle = hair;
+      ctx.beginPath();
+      ctx.moveTo(hx - hr * 1.0, hy);
+      for (let i = 0; i <= 6; i++) {
+        const a = Math.PI + i * Math.PI / 6;
+        const rr = i % 2 ? hr * 1.45 : hr * 1.0;
+        ctx.lineTo(hx + Math.cos(a) * rr, hy - hr * 0.1 + Math.sin(a) * rr);
+      }
+      ctx.lineTo(hx + hr * 1.0, hy);
+      ctx.lineTo(hx + hr * 0.6, hy - hr * 0.35);
+      ctx.lineTo(hx + hr * 0.2, hy - hr * 0.2);
+      ctx.lineTo(hx - hr * 0.2, hy - hr * 0.4);
+      ctx.lineTo(hx - hr * 0.6, hy - hr * 0.2);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case "long":
+    case "twin":
+      ctx.fillStyle = hair;
+      ctx.beginPath();
+      ctx.arc(hx, hy - hr * 0.05, hr * 1.04, Math.PI * 1.02, Math.PI * 1.98);
+      ctx.quadraticCurveTo(hx + hr * 0.5, hy - hr * 0.55, hx, hy - hr * 0.3);
+      ctx.quadraticCurveTo(hx - hr * 0.5, hy - hr * 0.55, hx - hr * 1.02, hy - hr * 0.1);
+      ctx.fill();
+      if (k.acc === "twin") {
+        ctx.fillStyle = "#ff6fa8";
+        for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(hx + s * hr * 0.95, hy - hr * 0.3, hr * 0.16, 0, Math.PI * 2); ctx.fill(); }
+      } else {
+        // エルフ耳
+        ctx.fillStyle = SKIN_D;
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(hx + s * hr * 0.9, hy - hr * 0.05);
+          ctx.lineTo(hx + s * hr * 1.45, hy - hr * 0.45);
+          ctx.lineTo(hx + s * hr * 0.95, hy + hr * 0.25);
+          ctx.fill();
+        }
+      }
+      break;
+    case "helmet":
+      ctx.fillStyle = shade(hx, hy - hr * 0.4, hr, "#ffffff", "#9aa6b8");
+      ctx.beginPath(); ctx.arc(hx, hy - hr * 0.05, hr * 1.06, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#7d889a";
+      ctx.fillRect(hx - hr * 1.06, hy - hr * 0.12, hr * 2.12, hr * 0.16);
+      ctx.fillStyle = c.c;
+      ctx.beginPath();
+      ctx.moveTo(hx - hr * 0.1, hy - hr * 1.05);
+      ctx.quadraticCurveTo(hx + hr * 0.6, hy - hr * 1.6, hx + hr * 1.0, hy - hr * 0.9);
+      ctx.quadraticCurveTo(hx + hr * 0.5, hy - hr * 1.1, hx + hr * 0.1, hy - hr * 0.95);
+      ctx.fill();
+      break;
+    case "headband": {
+      // 丸みのある茶色の短髪（ハチマキなし）
+      ctx.fillStyle = "#7a4a26";
+      ctx.beginPath();
+      ctx.arc(hx, hy - hr * 0.05, hr * 1.05, Math.PI * 1.0, Math.PI * 2.0);
+      ctx.quadraticCurveTo(hx + hr * 0.7, hy - hr * 0.2, hx + hr * 0.35, hy - hr * 0.42);
+      ctx.quadraticCurveTo(hx, hy - hr * 0.25, hx - hr * 0.35, hy - hr * 0.45);
+      ctx.quadraticCurveTo(hx - hr * 0.7, hy - hr * 0.2, hx - hr * 1.05, hy - hr * 0.05);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath(); ctx.ellipse(hx - hr * 0.35, hy - hr * 0.75, hr * 0.35, hr * 0.12, -0.3, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case "hood":
+      // 忍者ずきん（目元以外を覆う）
+      ctx.fillStyle = "#2a2838";
+      ctx.beginPath(); ctx.arc(hx, hy, hr * 1.06, Math.PI * 0.98, Math.PI * 2.02); ctx.fill();
+      ctx.fillRect(hx - hr * 1.06, hy + hr * 0.3, hr * 2.12, hr * 0.5);
+      ctx.beginPath(); ctx.arc(hx, hy + hr * 0.3, hr * 1.06, 0, Math.PI); ctx.fill();
+      ctx.fillStyle = c.c;
+      ctx.fillRect(hx - hr * 1.06, hy - hr * 0.42, hr * 2.12, hr * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(hx + hr * 0.9, hy - hr * 0.4);
+      ctx.lineTo(hx + hr * 1.6, hy - hr * 0.6);
+      ctx.lineTo(hx + hr * 1.5, hy - hr * 0.2);
+      ctx.fill();
+      break;
+    case "mage":
+      ctx.fillStyle = hair;
+      ctx.beginPath(); ctx.arc(hx, hy - hr * 0.05, hr * 1.04, Math.PI * 1.05, Math.PI * 1.95); ctx.lineTo(hx, hy - hr * 0.35); ctx.fill();
+      ctx.fillStyle = c.d;
+      ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.7, hr * 1.4, hr * 0.28, -0.08, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(hx - hr * 0.75, hy - hr * 0.75);
+      ctx.quadraticCurveTo(hx + hr * 0.1, hy - hr * 1.6, hx + hr * 0.9, hy - hr * 2.1);
+      ctx.lineTo(hx + hr * 0.75, hy - hr * 0.8);
+      ctx.fill();
+      ctx.fillStyle = c.l;
+      starPath(hx + hr * 0.2, hy - hr * 1.05, hr * 0.2);
+      ctx.fill();
+      break;
+  }
+}
+
+function drawBeast(k, x, y, r) {
+  const c = EL[k.el];
+  const fur = k.el === "light" ? "#fff8e0" : c.c, furL = k.el === "light" ? "#ffffff" : c.l;
+  // しっぽ
+  const wag = Math.sin(frameNo * 0.12) * 0.15;
+  ctx.save();
+  ctx.translate(x + r * 0.55, y + r * 0.55);
+  ctx.rotate(-0.7 + wag);
+  ctx.fillStyle = fur;
+  ctx.beginPath(); ctx.ellipse(0, -r * 0.45, r * (k.acc === "bear" ? 0.2 : 0.3), r * (k.acc === "bear" ? 0.2 : 0.6), 0, 0, Math.PI * 2); ctx.fill();
+  if (k.acc === "fox") {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.ellipse(0, -r * 0.9, r * 0.17, r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  // 体
+  ctx.fillStyle = shade(x, y + r * 0.5, r * 0.6, furL, fur);
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.55, r * 0.58, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.62, r * 0.3, r * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+  // 前足
+  ctx.fillStyle = fur;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + s * r * 0.3, y + r * 0.92, r * 0.16, r * 0.1, 0, 0, Math.PI * 2); ctx.fill(); }
+  // 耳
+  const hx = x, hy = y - r * 0.15, hr = r * 0.66;
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = fur;
+    if (k.acc === "bear") {
+      ctx.beginPath(); ctx.arc(hx + s * hr * 0.72, hy - hr * 0.72, hr * 0.32, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffc9a8";
+      ctx.beginPath(); ctx.arc(hx + s * hr * 0.72, hy - hr * 0.72, hr * 0.16, 0, Math.PI * 2); ctx.fill();
+    } else {
+      const tall = k.acc === "wolf" ? 1.55 : 1.4;
+      ctx.beginPath();
+      ctx.moveTo(hx + s * hr * 0.25, hy - hr * 0.75);
+      ctx.lineTo(hx + s * hr * 0.75, hy - hr * tall);
+      ctx.lineTo(hx + s * hr * 0.92, hy - hr * 0.4);
+      ctx.fill();
+      ctx.fillStyle = k.el === "dark" ? "#6a4a8a" : "#ffd0dc";
+      ctx.beginPath();
+      ctx.moveTo(hx + s * hr * 0.42, hy - hr * 0.7);
+      ctx.lineTo(hx + s * hr * 0.72, hy - hr * (tall - 0.25));
+      ctx.lineTo(hx + s * hr * 0.8, hy - hr * 0.5);
+      ctx.fill();
+    }
+  }
+  // 頭
+  ctx.fillStyle = shade(hx, hy, hr, furL, fur);
+  ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+  // マズル
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.beginPath(); ctx.ellipse(hx, hy + hr * 0.42, hr * 0.42, hr * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#2a1c1c";
+  ctx.beginPath(); ctx.ellipse(hx, hy + hr * 0.3, hr * 0.12, hr * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  drawFace(k, hx, hy - hr * 0.08, hr * 0.85, fur, true);
+  ctx.strokeStyle = "#2a1c1c";
+  ctx.lineWidth = Math.max(1, hr * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(hx, hy + hr * 0.36);
+  ctx.quadraticCurveTo(hx - hr * 0.1, hy + hr * 0.52, hx - hr * 0.2, hy + hr * 0.45);
+  ctx.moveTo(hx, hy + hr * 0.36);
+  ctx.quadraticCurveTo(hx + hr * 0.1, hy + hr * 0.52, hx + hr * 0.2, hy + hr * 0.45);
+  ctx.stroke();
+  // 額の模様
+  ctx.fillStyle = c.d;
+  ctx.beginPath();
+  ctx.moveTo(hx, hy - hr * 0.95); ctx.lineTo(hx + hr * 0.12, hy - hr * 0.62); ctx.lineTo(hx - hr * 0.12, hy - hr * 0.62);
+  ctx.fill();
+}
+
+function drawBird(k, x, y, r) {
+  const c = EL[k.el];
+  const flap = Math.sin(frameNo * 0.18) * 0.35;
+  const wingCol = k.rar >= 5 ? "#ffe9a8" : c.d;
+  // 翼
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(x + s * r * 0.55, y + r * 0.05);
+    ctx.rotate(s * (-0.5 + flap));
+    ctx.fillStyle = wingCol;
+    ctx.beginPath(); ctx.ellipse(s * r * 0.4, 0, r * 0.55, r * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = c.c;
+    ctx.beginPath(); ctx.ellipse(s * r * 0.25, r * 0.05, r * 0.35, r * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  // 尾羽
+  ctx.fillStyle = c.d;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath(); ctx.ellipse(x + i * r * 0.2, y + r * 0.85, r * 0.12, r * 0.3, i * 0.4, 0, Math.PI * 2); ctx.fill();
+  }
+  // 冠羽
+  ctx.fillStyle = k.acc === "crest" ? c.c : c.d;
+  if (k.acc === "crest") {
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath(); ctx.ellipse(x + i * r * 0.18, y - r * 0.85, r * 0.1, r * 0.35, i * 0.35, 0, Math.PI * 2); ctx.fill();
+    }
+  } else {
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + s * r * 0.25, y - r * 0.6);
+      ctx.lineTo(x + s * r * 0.55, y - r * 1.05);
+      ctx.lineTo(x + s * r * 0.55, y - r * 0.5);
+      ctx.fill();
+    }
+  }
+  // 体
+  ctx.fillStyle = shade(x, y, r * 0.82, c.l, c.c);
+  ctx.beginPath(); ctx.arc(x, y + r * 0.05, r * 0.82, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.4, r * 0.45, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+  drawFace(k, x, y - r * 0.12, r * 0.78, c.c, true);
+  // くちばし
+  ctx.fillStyle = "#ffb02e";
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.16, y + r * 0.08); ctx.lineTo(x + r * 0.16, y + r * 0.08); ctx.lineTo(x, y + r * 0.3);
+  ctx.fill();
+  // 足
+  ctx.strokeStyle = "#ffb02e";
+  ctx.lineWidth = Math.max(1, r * 0.07);
+  for (const s of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(x + s * r * 0.25, y + r * 0.82); ctx.lineTo(x + s * r * 0.25, y + r * 1.0); ctx.stroke();
+  }
+}
+
+function drawDragon(k, x, y, r) {
+  const c = EL[k.el];
+  const wingCol = k.rar >= 5 ? "#ffe9a8" : c.d;
+  const flap = Math.sin(frameNo * 0.1) * 0.15;
+  // コウモリ型の翼
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(x + s * r * 0.45, y - r * 0.1);
+    ctx.rotate(s * flap);
+    ctx.fillStyle = wingCol;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(s * r * 0.75, -r * 0.75);
+    ctx.lineTo(s * r * 1.05, -r * 0.2);
+    ctx.quadraticCurveTo(s * r * 0.85, -r * 0.05, s * r * 0.8, r * 0.2);
+    ctx.quadraticCurveTo(s * r * 0.6, r * 0.05, s * r * 0.5, r * 0.35);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  // しっぽ
+  ctx.fillStyle = c.c;
+  ctx.beginPath();
+  ctx.moveTo(x + r * 0.3, y + r * 0.6);
+  ctx.quadraticCurveTo(x + r * 1.0, y + r * 0.9, x + r * 1.05, y + r * 0.35);
+  ctx.lineTo(x + r * 0.85, y + r * 0.55);
+  ctx.quadraticCurveTo(x + r * 0.7, y + r * 0.55, x + r * 0.4, y + r * 0.35);
+  ctx.fill();
+  ctx.fillStyle = c.d;
+  ctx.beginPath();
+  ctx.moveTo(x + r * 1.05, y + r * 0.35); ctx.lineTo(x + r * 1.2, y + r * 0.2); ctx.lineTo(x + r * 0.95, y + r * 0.22);
+  ctx.fill();
+  // 角
+  ctx.fillStyle = "#f3e9d2";
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + s * r * 0.3, y - r * 0.6);
+    ctx.quadraticCurveTo(x + s * r * 0.55, y - r * 1.1, x + s * r * 0.35, y - r * 1.25);
+    ctx.quadraticCurveTo(x + s * r * 0.75, y - r * 0.95, x + s * r * 0.55, y - r * 0.45);
+    ctx.fill();
+  }
+  // 体
+  ctx.fillStyle = shade(x, y, r * 0.85, c.l, c.c);
+  ctx.beginPath(); ctx.arc(x, y + r * 0.05, r * 0.85, 0, Math.PI * 2); ctx.fill();
+  // おなか（しま模様）
+  ctx.fillStyle = "#fff1c8";
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.5, r * 0.42, r * 0.36, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(160,110,40,0.4)";
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(x - r * 0.3, y + r * (0.35 + i * 0.13)); ctx.lineTo(x + r * 0.3, y + r * (0.35 + i * 0.13)); ctx.stroke();
+  }
+  // 鼻先
+  ctx.fillStyle = c.l;
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.12, r * 0.36, r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = c.d;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * r * 0.11, y + r * 0.1, r * 0.04, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = c.d;
+  ctx.lineWidth = Math.max(1, r * 0.05);
+  ctx.beginPath(); ctx.arc(x, y + r * 0.16, r * 0.18, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+  drawFace(k, x, y - r * 0.32, r * 0.72, c.c, true);
+}
+
+function drawFish(k, x, y, r) {
+  const c = EL[k.el];
+  const sway = Math.sin(frameNo * 0.15) * 0.25;
+  // 尾びれ
+  ctx.save();
+  ctx.translate(x + r * 0.75, y);
+  ctx.rotate(sway);
+  ctx.fillStyle = c.d;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(r * 0.3, -r * 0.2, r * 0.45, -r * 0.6);
+  ctx.quadraticCurveTo(r * 0.3, 0, r * 0.45, r * 0.6);
+  ctx.quadraticCurveTo(r * 0.3, r * 0.2, 0, 0);
+  ctx.fill();
+  ctx.restore();
+  // 背びれ
+  ctx.fillStyle = c.d;
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.35, y - r * 0.55);
+  ctx.quadraticCurveTo(x, y - r * 1.15, x + r * 0.45, y - r * 0.5);
+  ctx.fill();
+  // ちょうちん（アンコウ風）
+  if (k.acc === "angler") {
+    ctx.strokeStyle = c.d;
+    ctx.lineWidth = Math.max(1.2, r * 0.06);
+    ctx.beginPath(); ctx.moveTo(x - r * 0.4, y - r * 0.6); ctx.quadraticCurveTo(x - r * 0.6, y - r * 1.2, x - r * 1.0, y - r * 0.95); ctx.stroke();
+    ctx.fillStyle = "#fff6a8";
+    ctx.shadowColor = "#fff6a8";
+    ctx.shadowBlur = r * 0.6;
+    ctx.beginPath(); ctx.arc(x - r * 1.0, y - r * 0.92, r * 0.14 + Math.sin(frameNo * 0.2) * r * 0.03, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // 体
+  ctx.fillStyle = shade(x - r * 0.2, y, r * 0.9, c.l, c.c);
+  ctx.beginPath(); ctx.ellipse(x, y, r * 0.9, r * 0.68, 0, 0, Math.PI * 2); ctx.fill();
+  // うろこ
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  for (let i = 0; i < 3; i++) {
+    for (let j = -1; j <= 1; j++) {
+      ctx.beginPath(); ctx.arc(x + r * (0.05 + i * 0.22), y + j * r * 0.24, r * 0.12, -0.5 * Math.PI, 0.5 * Math.PI); ctx.stroke();
+    }
+  }
+  // 胸びれ
+  ctx.fillStyle = c.l;
+  ctx.beginPath(); ctx.ellipse(x - r * 0.05, y + r * 0.28, r * 0.22, r * 0.1, 0.6 + sway, 0, Math.PI * 2); ctx.fill();
+  // 目と口（横向き）
+  const ex = x - r * 0.45, ey = y - r * 0.12;
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(ex, ey, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#1b1b2a";
+  ctx.beginPath(); ctx.arc(ex - r * 0.03, ey + r * 0.02, r * 0.13, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(ex - r * 0.07, ey - r * 0.04, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  if (k.eye === "sleepy") {
+    ctx.fillStyle = c.c;
+    ctx.beginPath(); ctx.arc(ex, ey, r * 0.24, Math.PI, Math.PI * 2); ctx.fill();
+  }
+  ctx.strokeStyle = "#1b1b2a";
+  ctx.lineWidth = Math.max(1, r * 0.05);
+  ctx.beginPath(); ctx.arc(x - r * 0.78, y + r * 0.2, r * 0.1, -0.3 * Math.PI, 0.5 * Math.PI); ctx.stroke();
+  ctx.fillStyle = "rgba(255,120,150,0.45)";
+  ctx.beginPath(); ctx.ellipse(x - r * 0.3, y + r * 0.2, r * 0.1, r * 0.06, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// キャラアイコン（左上 x,y・サイズ s）
+function drawIcon(fi, x, y, s, opt = {}) {
+  const f = FAM[fi], u = save.box[fi], rar = u ? u.rar : f.rar;
+  ctx.save();
+  const g = ctx.createLinearGradient(0, y, 0, y + s);
+  g.addColorStop(0, u || !opt.silhouette ? EL[f.el].d : "#22263a");
+  g.addColorStop(1, "#0b0e22");
+  ctx.fillStyle = g;
+  roundRect(x, y, s, s, s * 0.15);
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = u || !opt.silhouette ? rarityStroke(rar, x, y, s, s) : "#3a3f55";
+  ctx.stroke();
+  if (!u && opt.silhouette) {
+    txt("?", x + s / 2, y + s / 2, s * 0.45, "#5a6080", "center", "900");
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  roundRect(x, y, s, s, s * 0.15);
+  ctx.clip();
+  drawChar(u ? look(fi) : { shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar, evo: false }, x + s / 2, y + s * 0.56, s * 0.25);
+  ctx.restore();
+  drawStars(rar, x + s / 2, y + s - 6, s * 0.065);
+  if (opt.lv && u) {
+    ctx.textAlign = "left";
+    outlinedText(`Lv${u.lv}`, x + 3, y + 8, "#fff", 9);
+  }
+  ctx.restore();
+}
+
+function drawEnemy(e) {
+  const c = EL[e.el], r = e.r;
+  const x = e.x, y = e.y + Math.sin(frameNo * 0.05 + e.wob) * 1.5;
+  ctx.save();
+  if (e.boss) {
+    ctx.fillStyle = c.d;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + s * r * 0.6, y - r * 0.2);
+      ctx.lineTo(x + s * r * 1.65, y - r * 0.9);
+      ctx.lineTo(x + s * r * 1.45, y - r * 0.2);
+      ctx.lineTo(x + s * r * 1.7, y + r * 0.25);
+      ctx.lineTo(x + s * r * 0.7, y + r * 0.4);
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = e.boss ? "#f0e6d0" : c.d;
+  const hl = e.boss ? 1.55 : 1.3;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + s * r * 0.25, y - r * 0.8);
+    ctx.lineTo(x + s * r * 0.65, y - r * hl);
+    ctx.lineTo(x + s * r * 0.7, y - r * 0.55);
+    ctx.fill();
+  }
+  ctx.shadowColor = c.c;
+  ctx.shadowBlur = e.boss ? 18 : 8;
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.1, x, y, r);
+  g.addColorStop(0, c.c);
+  g.addColorStop(1, c.d);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = "#fff8d6";
+    ctx.beginPath(); ctx.ellipse(x + s * r * 0.34, y - r * 0.1, r * 0.2, r * 0.15, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = e.boss ? "#ff2a2a" : "#1a0a0a";
+    ctx.beginPath(); ctx.arc(x + s * r * 0.32, y - r * 0.08, r * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#140808";
+    ctx.lineWidth = Math.max(2, r * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(x + s * r * 0.12, y - r * 0.24);
+    ctx.lineTo(x + s * r * 0.55, y - r * 0.36);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#1a0a0a";
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.35, r * 0.32, r * 0.13, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#fff";
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + s * r * 0.18, y + r * 0.25);
+    ctx.lineTo(x + s * r * 0.1, y + r * 0.42);
+    ctx.lineTo(x + s * r * 0.02, y + r * 0.25);
+    ctx.fill();
+  }
+  if (e.flash > 0) {
+    ctx.globalAlpha = e.flash / 10;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  if (e.weak !== null) {
+    const w = weakPos(e);
+    const pulse = 1 + Math.sin(frameNo * 0.2) * 0.15;
+    ctx.strokeStyle = "#ffef5c";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(w.x, w.y, w.r * pulse, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "rgba(255,239,92,0.35)";
+    ctx.beginPath(); ctx.arc(w.x, w.y, w.r * 0.55 * pulse, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(w.x - w.r * 1.3, w.y); ctx.lineTo(w.x + w.r * 1.3, w.y);
+    ctx.moveTo(w.x, w.y - w.r * 1.3); ctx.lineTo(w.x, w.y + w.r * 1.3);
+    ctx.stroke();
+  }
+  if (!e.boss) {
+    const bw = r * 2, bx = x - r, by = y + r + 5, ratio = e.hp / e.maxHp;
+    ctx.fillStyle = "#000b";
+    ctx.fillRect(bx, by, bw, 5);
+    ctx.fillStyle = ratio > 0.5 ? "#7ee07e" : ratio > 0.25 ? "#ffd35c" : "#ff6b6b";
+    ctx.fillRect(bx, by, bw * ratio, 5);
+  }
+  const cx = x - r * 0.8, cy = y - r * 0.8;
+  ctx.fillStyle = e.cd <= 1 ? "#ff3b4e" : "#fff";
+  ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  txt(String(e.cd), cx, cy + 1, 13, e.cd <= 1 ? "#fff" : "#111", "center", "900");
+  drawElemIcon(e.el, x + r * 0.8, y + r * 0.75, 8);
+  ctx.restore();
+}
+
+function drawElemIcon(el, x, y, r) {
+  ctx.fillStyle = EL[el].c;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  txt(EL[el].n, x, y + 1, Math.round(r * 1.2), "#fff", "center", "900");
+}
+
+function drawHeart(x, y, s) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s / 10, s / 10);
+  ctx.fillStyle = "#ff5c8a";
+  ctx.shadowColor = "#ff5c8a";
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(0, 8);
+  ctx.bezierCurveTo(-12, 0, -9, -11, 0, -4);
+  ctx.bezierCurveTo(9, -11, 12, 0, 0, 8);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ---- 描画: バトル -------------------------------------------------------
+function drawField() {
+  const bg = quest.bg;
+  const g = ctx.createLinearGradient(0, TOP, 0, FB);
+  g.addColorStop(0, bg[0]);
+  g.addColorStop(1, bg[1]);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, TOP, W, FB - TOP);
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 30) { ctx.beginPath(); ctx.moveTo(x, TOP); ctx.lineTo(x, FB); ctx.stroke(); }
+  for (let y = TOP; y <= FB; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, TOP + 1, W - 2, FB - TOP - 2);
+}
+
+function drawRocks() {
+  for (const o of rocks) {
+    const g = ctx.createRadialGradient(o.x - 4, o.y - 4, 2, o.x, o.y, o.r);
+    g.addColorStop(0, "#b8bfd8");
+    g.addColorStop(1, "#4a5170");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawFxUnder() {
+  for (const f of fx) {
+    if (f.kind !== "wave") continue;
+    ctx.save();
+    const c = EL[f.el];
+    const g = ctx.createLinearGradient(0, f.y - 30, 0, f.y + 60);
+    g.addColorStop(0, c.l);
+    g.addColorStop(0.3, c.c + "99");
+    g.addColorStop(1, c.c + "00");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(0, f.y + 60);
+    for (let x = 0; x <= W; x += 20) ctx.lineTo(x, f.y + Math.sin(x * 0.06 + frameNo * 0.3) * 8);
+    ctx.lineTo(W, f.y + 60);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawFx() {
+  for (const f of fx) {
+    const t = f.life / f.max;
+    ctx.save();
+    if (f.kind === "ring") {
+      ctx.globalAlpha = t;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = f.w * t + 1;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r0 + (f.r1 - f.r0) * (1 - t), 0, Math.PI * 2); ctx.stroke();
+    } else if (f.kind === "line") {
+      ctx.globalAlpha = t;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = f.w * t + 2;
+      ctx.shadowColor = f.color;
+      ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = (f.w * t + 2) * 0.35;
+      ctx.stroke();
+    } else if (f.kind === "smile") {
+      // 画面いっぱいの丸メガネと笑顔
+      const cx = W / 2, cy = (TOP + FB) / 2 - 20, grow = 0.7 + (1 - t) * 0.5;
+      if (t > 0.85) {
+        ctx.fillStyle = `rgba(255,240,170,${(t - 0.85) / 0.15 * 0.8})`;
+        ctx.fillRect(0, TOP, W, FB - TOP);
+      }
+      ctx.globalAlpha = Math.min(1, t * 1.5) * 0.85;
+      ctx.strokeStyle = "#ffe066";
+      ctx.shadowColor = "#ffd23f";
+      ctx.shadowBlur = 24;
+      ctx.lineWidth = 10 * grow;
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(cx + s * 70 * grow, cy, 52 * grow, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(cx - 18 * grow, cy - 4); ctx.lineTo(cx + 18 * grow, cy - 4); ctx.stroke();
+      ctx.lineWidth = 12 * grow;
+      ctx.beginPath(); ctx.arc(cx, cy + 70 * grow, 80 * grow, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    } else if (f.kind === "bolt") {
+      // ジグザグの雷
+      ctx.globalAlpha = t;
+      ctx.strokeStyle = f.color;
+      ctx.shadowColor = f.color;
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(f.x1, f.y1);
+      const n = 6, nx = -(f.y2 - f.y1), ny = f.x2 - f.x1, nl = Math.hypot(nx, ny) || 1;
+      for (let i = 1; i < n; i++) {
+        const o = (i % 2 ? 1 : -1) * 9;
+        ctx.lineTo(f.x1 + (f.x2 - f.x1) * i / n + nx / nl * o, f.y1 + (f.y2 - f.y1) * i / n + ny / nl * o);
+      }
+      ctx.lineTo(f.x2, f.y2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawAllies() {
+  const shooter = shot ? shot.ally : null;
+  for (let i = 0; i < allies.length; i++) {
+    const a = allies[i];
+    if (a === shooter) continue;
+    ctx.save();
+    if (i === cur && state === "aim") {
+      ctx.strokeStyle = ssArmed ? EL[a.el].l : "#ffffff";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 5]);
+      ctx.lineDashOffset = -frameNo * 0.6;
+      ctx.beginPath(); ctx.arc(a.x, a.y, R + 7, 0, Math.PI * 2); ctx.stroke();
+      if (ssArmed) {
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.35 + Math.sin(frameNo * 0.2) * 0.15;
+        ctx.fillStyle = EL[a.el].c;
+        ctx.beginPath(); ctx.arc(a.x, a.y, R + 12, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+    if (a.buff) {
+      // 能力アップ中は属性色の光がゆらめく
+      ctx.save();
+      ctx.globalAlpha = 0.35 + Math.sin(frameNo * 0.25) * 0.15;
+      ctx.fillStyle = EL[a.el].c;
+      ctx.beginPath(); ctx.arc(a.x, a.y, R + 9 + Math.sin(frameNo * 0.3) * 2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    if (a.glow > 0) {
+      ctx.save();
+      ctx.globalAlpha = a.glow / 20;
+      ctx.fillStyle = EL[a.el].l;
+      ctx.beginPath(); ctx.arc(a.x, a.y, R + 8, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    const hx = a.hurt > 0 ? Math.sin(a.hurt * 2) * 3 : 0;
+    drawChar(a.look, a.x + hx, a.y, R);
+    if (a.hurt > 0) {
+      ctx.save();
+      ctx.globalAlpha = a.hurt / 16 * 0.6;
+      ctx.fillStyle = "#ff3b4e";
+      ctx.beginPath(); ctx.arc(a.x + hx, a.y, R, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+  if (shooter) {
+    ctx.save();
+    shot.trail.forEach((p, k) => {
+      ctx.globalAlpha = (k / shot.trail.length) * 0.5;
+      ctx.fillStyle = EL[shooter.el].c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, R * (k / shot.trail.length), 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+    if (shot.atkMul > 1) {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = EL[shooter.el].c;
+      ctx.beginPath(); ctx.arc(shooter.x, shooter.y, R + 8 + Math.sin(frameNo) * 2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    drawChar(shooter.look, shooter.x, shooter.y, R);
+  }
+}
+
+function drawBolts() {
+  for (const b of bolts) {
+    ctx.save();
+    ctx.fillStyle = b.color;
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = b.size > 6 ? 18 : 10;
+    if (b.beam) {
+      // レーザー状の弾（進行方向に細長く）
+      ctx.strokeStyle = "#bfffd0";
+      ctx.lineCap = "round";
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(b.x - b.vx * 3, b.y - b.vy * 3); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else if (b.star) {
+      ctx.fillStyle = `hsl(${(frameNo * 6 + b.x) % 360},95%,72%)`;
+      starPath(b.x, b.y, b.size * 1.5);
+      ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = p.life / p.max;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawTexts() {
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const t of texts) {
+    ctx.globalAlpha = Math.min(1, t.life / 14);
+    outlinedText(t.text, t.x, t.y, t.color, t.size);
+  }
+  ctx.restore();
+}
+
+// 予測線（壁と岩のみ考慮）
+function drawAim() {
+  if (!dragging || state !== "aim") return;
+  const aim = computeAim(dragStart, dragNow);
+  if (!aim) return;
+  const a = allies[cur];
+  const p = { x: a.x, y: a.y, vx: aim.dx * 6, vy: aim.dy * 6 };
+  ctx.save();
+  const n = 55;
+  for (let i = 0; i < n; i++) {
+    p.x += p.vx; p.y += p.vy;
+    walls(p);
+    for (const o of rocks) bounce(p, o.x, o.y, o.r);
+    if (i % 3 === 0) {
+      ctx.globalAlpha = 0.9 * (1 - i / n);
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  const ang = Math.atan2(aim.dy, aim.dx);
+  ctx.translate(a.x, a.y);
+  ctx.rotate(ang);
+  ctx.fillStyle = ssArmed ? EL[a.el].l : "#ffd35c";
+  ctx.beginPath();
+  ctx.moveTo(R + 26, 0);
+  ctx.lineTo(R + 8, -10);
+  ctx.lineTo(R + 8, 10);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawHud() {
+  ctx.fillStyle = "#0b0e22";
+  ctx.fillRect(0, 0, W, TOP);
+  ctx.save();
+  txt(quest.name, 10, 13, 12, "#cfd6ff");
+  txt(`WAVE ${waveIdx + 1}/${quest.waves.length}`, 10, 29, 13, "#ffd35c", "left", "900");
+  txt(`TURN ${turn}`, W / 2, TOP / 2, 16, "#fff", "center", "900");
+  ctx.restore();
+  button(W - 62, 8, 54, 24, "やめる", () => go("quests"), { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+
+  const b = enemies.find(e => e.boss && !e.dead);
+  if (b) {
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(8, TOP + 6, W - 16, 22);
+    txt(b.name, 14, TOP + 13, 11, "#fff");
+    txt(`${b.hp.toLocaleString()} / ${b.maxHp.toLocaleString()}`, W - 14, TOP + 13, 11, "#fff", "right");
+    ctx.fillStyle = "#300";
+    ctx.fillRect(14, TOP + 20, W - 28, 5);
+    ctx.fillStyle = "#ff3b4e";
+    ctx.fillRect(14, TOP + 20, (W - 28) * (b.hp / b.maxHp), 5);
+    ctx.restore();
+  }
+
+  if (state === "shoot" && hitCount > 0) {
+    ctx.save();
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    outlinedText(`${hitCount}`, W - 46, TOP + 50, "#ffef5c", 28);
+    outlinedText("HIT", W - 12, TOP + 54, "#fff", 14);
+    ctx.restore();
+  }
+}
+
+function drawPanel() {
+  ctx.fillStyle = "#0e1230";
+  ctx.fillRect(0, FB, W, H - FB);
+  const ratio = hp / maxHp;
+  ctx.fillStyle = "#000";
+  roundRect(10, FB + 8, W - 20, 14, 7);
+  ctx.fill();
+  const g = ctx.createLinearGradient(0, FB + 8, 0, FB + 22);
+  const hc = ratio > 0.5 ? ["#9dff8a", "#38c43c"] : ratio > 0.2 ? ["#ffe58a", "#e0a020"] : ["#ff9a9a", "#d02a2a"];
+  g.addColorStop(0, hc[0]);
+  g.addColorStop(1, hc[1]);
+  ctx.fillStyle = g;
+  if (ratio > 0) { roundRect(10, FB + 8, Math.max(14, (W - 20) * ratio), 14, 7); ctx.fill(); }
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(`HP ${hp.toLocaleString()} / ${maxHp.toLocaleString()}`, W / 2, FB + 15.5, "#fff", 11);
+  ctx.restore();
+
+  const sw = W / allies.length;
+  for (let i = 0; i < allies.length; i++) {
+    const a = allies[i], x = sw * (i + 0.5), y = FB + 52;
+    ctx.save();
+    if (i === cur) {
+      ctx.fillStyle = "rgba(255,211,92,0.18)";
+      roundRect(x - 40, FB + 28, 80, 58, 10);
+      ctx.fill();
+      ctx.strokeStyle = "#ffd35c";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    drawChar(a.look, x - 12, y + 2, 14);
+    const ready = a.ssLeft === 0;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.beginPath(); ctx.arc(x - 12, y + 2, 21, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = ready ? EL[a.el].l : "#7f8bd0";
+    ctx.beginPath();
+    ctx.arc(x - 12, y + 2, 21, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - a.ssLeft / a.ssTurns));
+    ctx.stroke();
+    txt(a.buff ? `強化 ${a.buff}T` : a.type === "reflect" ? "反射" : "貫通", x + 13, y - 12, 10, a.buff ? "#bfffd0" : "#e8ecff");
+    if (ready) {
+      ctx.globalAlpha = 0.7 + Math.sin(frameNo * 0.15) * 0.3;
+      ctx.textAlign = "left";
+      outlinedText("SS", x + 13, y + 4, EL[a.el].l, 15);
+      ctx.globalAlpha = 1;
+    } else {
+      txt(`あと${a.ssLeft}`, x + 13, y + 4, 11, "#9aa3d8");
+    }
+    ctx.restore();
+    button(x - 40, FB + 28, 80, 58, "", () => {
+      if (state === "aim" && i === cur && a.ssLeft === 0) ssArmed = !ssArmed;
+    }, { hidden: true });
+  }
+
+  if (state === "aim") {
+    const a = allies[cur];
+    let msg = `${a.name}のターン　引っ張って離すと発射`;
+    if (ssArmed) msg = `SS「${a.ssName}」: ${a.ssDesc}`;
+    else if (a.ssLeft === 0) msg = `SS使用可能! 下のアイコンをタップ`;
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, FB - 22, W, 20);
+    txt(msg, W / 2, FB - 12, 12, ssArmed ? EL[a.el].l : "#dfe4ff", "center");
+  }
+}
+
+function drawBanner() {
+  if (!banner) return;
+  const t = banner.life / banner.max;
+  const inT = Math.min(1, (1 - t) * 6);
+  const alpha = Math.min(1, t * 4);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const y = (TOP + FB) / 2 - 20;
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(0, y - 34, W, 68);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const x = W / 2 + (1 - inT) * 200;
+  outlinedText(banner.text, x, y - 6, banner.color, 30);
+  if (banner.sub) outlinedText(banner.sub, x, y + 22, "#fff", 13);
+  ctx.restore();
+}
+
+function drawResult() {
+  ctx.save();
+  ctx.fillStyle = "rgba(5,7,15,0.82)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  if (state === "clear") {
+    const r = lastResult;
+    outlinedText("QUEST CLEAR!", W / 2, 110, "#ffd35c", 34, "#5a2200");
+    txt(`クリアターン: ${r.turn}`, W / 2, 158, 17, "#fff", "center");
+    ctx.textAlign = "center";
+    outlinedText(r.rank, W / 2, 215, r.rank === "S" ? "#ffef5c" : r.rank === "A" ? "#ff9ad5" : "#9ad5ff", 64);
+    let net = "";
+    if (onlineRanking()) net = r.netRank === undefined ? "  ランキング送信中…" : r.netRank === null ? "  (ランキング送信失敗)" : `  全国 ${r.netRank}位!`;
+    txt((r.isBest ? "ベスト記録更新!" : `ベスト ${r.best}ターン`) + net, W / 2, 262, 13, "#cfd6ff", "center");
+    // 報酬
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    roundRect(40, 285, W - 80, r.drop ? 150 : 100, 12);
+    ctx.fill();
+    txt("獲得報酬", W / 2, 302, 13, "#ffd35c", "center");
+    coinIcon(110, 328, 8);
+    txt(`${r.coin.toLocaleString()}`, 124, 328, 14, "#fff");
+    crystalIcon(r.crEl, 220, 328, 9);
+    txt(`${EL[r.crEl].n}の結晶 ×${r.crN}`, 234, 328, 13, "#fff");
+    if (r.gem) { gemIcon(110, 356, 9); txt(`${r.gem} (初回クリア)`, 124, 356, 13, "#fff"); }
+    txt(`EXP +${r.exp}`, 234, 356, 13, "#ffd35c");
+    if (r.drop) {
+      drawIcon(r.drop.fi, 70, 372, 52);
+      txt(`${FAM[r.drop.fi].name} をゲット!`, 132, 390, 13, "#fff");
+      txt(r.drop.kind === "new" ? "NEW!" : r.drop.kind === "awk" ? "覚醒+1" : `コイン+${r.drop.coins}`, 132, 410, 12, "#ffd35c");
+    }
+  } else {
+    outlinedText("全滅…", W / 2, 220, "#ff6b6b", 40);
+    txt(`WAVE ${waveIdx + 1} / ${quest.waves.length}  ・  ${turn}ターン`, W / 2, 270, 14, "#cfd6ff", "center");
+    txt("BOXでキャラを強化・進化しよう!", W / 2, 300, 13, "#ffd35c", "center");
+  }
+  ctx.restore();
+  // ストーリー・塔は「次へ」で続けて遊べる
+  let next = null;
+  if (state === "clear" && quest.kind === "story") {
+    const n = Number(questIdx.slice(1)) + 1;
+    if (n < STORY_COUNT) next = "s" + n;
+  } else if (state === "clear" && quest.kind === "tower") {
+    next = "t" + (quest.floor + 1);
+  }
+  if (next) {
+    button(60, 444, W - 120, 46, quest.kind === "tower" ? `${quest.floor + 1}階へ` : "次のステージへ", () => startQuest(next),
+      { size: 16, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
+  }
+  const y0 = next ? 498 : 456;
+  button(60, y0, W - 120, next ? 40 : 48, state === "clear" ? "もう一度" : "リトライ", () => startQuest(questIdx));
+  button(60, y0 + (next ? 48 : 60), W - 120, next ? 40 : 48, "クエスト選択", () => go("quests"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+
+function drawBattle() {
+  ctx.save();
+  if (shake) ctx.translate(rand(-shake, shake), rand(-shake, shake));
+  drawField();
+  drawRocks();
+  for (const h of hearts) drawHeart(h.x, h.y + Math.sin(frameNo * 0.1) * 2, 11);
+  drawFxUnder();
+  for (const e of enemies) drawEnemy(e);
+  drawAllies();
+  drawBolts();
+  drawFx();
+  drawParticles();
+  drawTexts();
+  drawAim();
+  ctx.restore();
+
+  drawHud();
+  drawPanel();
+  drawBanner();
+  if (state === "clear" || state === "over") drawResult();
+}
+
+// ---- 描画: メニュー画面 ---------------------------------------------------
+function drawMenuBg(c1 = "#2a1d5c", c2 = "#090b1c") {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 40; i++) {
+    const sx = (i * 97) % W, sy = (i * 53 + frameNo * 0.3 * (1 + i % 3)) % H;
+    ctx.fillStyle = `rgba(255,255,255,${0.15 + (i % 5) * 0.08})`;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+}
+
+function drawTopBar() {
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillRect(0, 0, W, 40);
+  ctx.save();
+  for (const [x, w] of [[8, 112], [128, 130]]) {
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    roundRect(x, 8, w, 24, 12);
+    ctx.fill();
+  }
+  gemIcon(22, 20, 8);
+  txt(save.gems.toLocaleString(), 36, 20, 13, "#fff");
+  coinIcon(142, 20, 8);
+  txt(save.coins.toLocaleString(), 156, 20, 13, "#fff");
+  ctx.restore();
+}
+
+const NAV = [["home", "ホーム"], ["quests", "クエスト"], ["gacha", "ガチャ"], ["box", "BOX"], ["party", "編成"], ["ranking", "ランク"]];
+function drawNav() {
+  ctx.fillStyle = "#0b0e22";
+  ctx.fillRect(0, NAV_Y, W, H - NAV_Y);
+  ctx.fillStyle = "rgba(255,255,255,0.15)";
+  ctx.fillRect(0, NAV_Y, W, 1);
+  const w = W / NAV.length;
+  NAV.forEach(([s, label], i) => {
+    const active = state === s || (s === "box" && state === "detail") || (s === "home" && (state === "gifts" || state === "transfer" || state === "missions"));
+    if (active) {
+      ctx.fillStyle = "rgba(255,211,92,0.15)";
+      ctx.fillRect(i * w, NAV_Y, w, H - NAV_Y);
+      ctx.fillStyle = "#ffd35c";
+      ctx.fillRect(i * w + 10, NAV_Y, w - 20, 3);
+    }
+    txt(label, i * w + w / 2, NAV_Y + 28, 13, active ? "#ffd35c" : "#9aa3d8", "center");
+    button(i * w, NAV_Y, w, H - NAV_Y, "", () => go(s), { hidden: true });
+  });
+}
+
+function header(title, sub) {
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  outlinedText(title, 14, 62, "#fff", 20);
+  if (sub) txt(sub, W - 14, 62, 12, "#cfd6ff", "right");
+  ctx.restore();
+}
+
+function drawHome() {
+  drawMenuBg();
+  drawTopBar();
+  button(W - 92, 8, 84, 24, "共有・QR", () => { shareOpen = true; },
+    { size: 11, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  // プレゼント（未受け取りの数をバッジ表示）
+  const gn = unclaimed().length;
+  button(12, 96, 78, 40, "プレゼント", () => go("gifts"), { size: 12, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
+  button(12, 144, 78, 32, "引き継ぎ", () => go("transfer"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  // ミッション（受け取れる数をバッジ表示）
+  const mn = missionBadge();
+  button(W - 90, 96, 78, 40, "ミッション", () => go("missions"), { size: 12, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  if (mn) {
+    ctx.fillStyle = "#ff3b4e";
+    ctx.beginPath(); ctx.arc(W - 16, 98, 10, 0, Math.PI * 2); ctx.fill();
+    txt(String(mn), W - 16, 99, 12, "#fff", "center", "900");
+  }
+  // プレイヤーランク
+  txt(`ランク ${save.rank}`, W - 51, 152, 12, "#ffd35c", "center", "900");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(W - 88, 162, 74, 5);
+  ctx.fillStyle = "#ffd35c";
+  ctx.fillRect(W - 88, 162, 74 * Math.min(1, save.exp / expNeed(save.rank)), 5);
+  if (gn) {
+    ctx.fillStyle = "#ff3b4e";
+    ctx.beginPath(); ctx.arc(86, 98, 10, 0, Math.PI * 2); ctx.fill();
+    txt(String(gn), 86, 99, 12, "#fff", "center", "900");
+  }
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("モンスター・フリック", W / 2, 72, "#ffd35c", 24, "#5a2200");
+  ctx.restore();
+  const fi = save.party[0];
+  const u = save.box[fi];
+  const y = 200 + Math.sin(frameNo * 0.05) * 6;
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = EL[FAM[fi].el].c;
+  ctx.beginPath(); ctx.arc(W / 2, 200, 82 + Math.sin(frameNo * 0.08) * 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  drawChar(look(fi), W / 2, y, 52);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(displayName(fi), W / 2, 300, "#fff", 18);
+  ctx.restore();
+  drawStars(u.rar, W / 2, 324, 8);
+  txt(`リーダー  Lv${u.lv}`, W / 2, 344, 12, "#cfd6ff", "center");
+  button(W / 2 - 60, 160, 120, 90, "", () => { detailFi = fi; go("detail"); }, { hidden: true });
+
+  const owns = Object.keys(save.box).length;
+  txt(`図鑑 ${owns} / ${FAM.length}`, W / 2, 364, 12, "#9aa3d8", "center");
+
+  if (save.daily !== today()) {
+    button(40, 382, W - 80, 40, "デイリーボーナス受け取り", () => {
+      save.daily = today();
+      save.gems += 50;
+      save.coins += 1000;
+      persist();
+      burst(W / 2, 400, "#5ef0ff", 40, 5);
+      showToast("ジェム50・コイン1000 を受け取りました");
+    }, { size: 14, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a", sub: "ジェム50 + コイン1000" });
+  }
+  button(30, 436, 145, 120, "クエスト", () => go("quests"), { size: 20, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", sub: "冒険に出よう" });
+  button(185, 436, 145, 120, "ガチャ", () => go("gacha"), { size: 20, c1: "#c58aff", c2: "#6a2ad6", fg: "#fff", sub: "仲間を増やそう" });
+  drawParticles();
+  drawNav();
+}
+
+let questTab = "story", chapterView = null;
+
+function drawQuests() {
+  drawMenuBg("#14203a", "#070b16");
+  drawTopBar();
+  header("クエスト", "");
+  const tabs = [["story", "ストーリー"], ["special", "スペシャル"], ["tower", "無限の塔"]];
+  const tw = (W - 28) / tabs.length;
+  tabs.forEach(([k, label], i) => {
+    const x = 14 + i * tw, active = questTab === k;
+    ctx.fillStyle = active ? "#ffd35c" : "rgba(255,255,255,0.08)";
+    roundRect(x + 2, 78, tw - 4, 30, 9);
+    ctx.fill();
+    txt(label, x + tw / 2, 93, 13, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, 78, tw, 30, "", () => { questTab = k; }, { hidden: true });
+  });
+  if (questTab === "story") drawStoryList();
+  else if (questTab === "special") drawSpecialList();
+  else drawTowerPanel();
+  drawNav();
+}
+
+// ストーリー: 章ごとに10ステージ
+function drawStoryList() {
+  const prog = storyProgress();
+  const maxCh = Math.min(CHAPTERS.length - 1, Math.floor(prog / STAGES_PER_CHAPTER));
+  if (chapterView === null || chapterView > maxCh) chapterView = maxCh;
+  const ch = chapterView, [chName, m] = CHAPTERS[ch];
+  button(14, 116, 40, 30, "◀", () => { chapterView = Math.max(0, ch - 1); }, { size: 14, c1: "#4a5280", c2: "#2b3158", fg: "#fff", disabled: ch === 0 });
+  button(W - 54, 116, 40, 30, "▶", () => {
+    if (ch < maxCh) chapterView = ch + 1; else showToast("この章をクリアすると次の章へ進めます");
+  }, { size: 14, c1: "#4a5280", c2: "#2b3158", fg: "#fff", disabled: ch >= maxCh });
+  drawElemIcon(m, W / 2 - 76, 131, 9);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(`第${ch + 1}章 ${chName}`, W / 2 + 6, 131, "#fff", 16);
+  ctx.restore();
+  txt(`全${STORY_COUNT}ステージ中 ${prog}クリア`, W / 2, 158, 11, "#9aa3d8", "center", "normal");
+  const cw = (W - 36) / 2;
+  for (let k = 0; k < STAGES_PER_CHAPTER; k++) {
+    const n = ch * STAGES_PER_CHAPTER + k, q = storyStage(n);
+    const x = 14 + (k % 2) * (cw + 8), y = 172 + Math.floor(k / 2) * 80;
+    const unlocked = storyUnlocked(n), cleared = !!save.cleared[q.id];
+    button(x, y, cw, 72, "", () => {
+      if (!unlocked) { showToast("前のステージをクリアしよう"); return; }
+      startQuest(q.id);
+    }, { c1: unlocked ? (q.boss ? "#5a1f2a" : q.bg[0]) : "#2a2d3a", c2: unlocked ? "#151a33" : "#15171f" });
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    outlinedText(`${ch + 1}-${k + 1}`, x + 10, y + 16, unlocked ? "#fff" : "#777", 15);
+    if (q.boss) outlinedText(k === STAGES_PER_CHAPTER - 1 ? "BOSS" : "中ボス", x + 52, y + 16, "#ff6b8b", 11);
+    ctx.textAlign = "right";
+    outlinedText("★".repeat(q.diff), x + cw - 8, y + 16, "#ffd35c", 9);
+    ctx.restore();
+    if (!unlocked) { txt("LOCK", x + 10, y + 44, 12, "#777"); continue; }
+    if (cleared) txt(`CLEAR  ベスト${save.best[q.id]}T`, x + 10, y + 40, 11, "#7dffa0");
+    else { gemIcon(x + 16, y + 40, 6); txt(`初回 ${q.gem}`, x + 26, y + 40, 11, "#5ef0ff"); }
+    coinIcon(x + 16, y + 58, 5);
+    txt(`${q.coin}`, x + 25, y + 58, 10, "#fff", "left", "normal");
+    crystalIcon(q.crEl, x + 82, y + 58, 6);
+    txt(`×${q.crN}`, x + 91, y + 58, 10, "#fff", "left", "normal");
+  }
+}
+
+// スペシャル（高難度・ランキング対象）
+function drawSpecialList() {
+  txt("ランキング対象の高難度クエスト", W / 2, 124, 11, "#9aa3d8", "center", "normal");
+  QUESTS.forEach((q, i) => {
+    const y = 138 + i * 72, unlocked = questUnlocked(i);
+    button(14, y, W - 28, 66, "", () => {
+      if (!unlocked) { showToast("前のクエストをクリアしよう"); return; }
+      startQuest(i);
+    }, { c1: unlocked ? q.bg[0] : "#2a2d3a", c2: unlocked ? "#151a33" : "#15171f" });
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    outlinedText(q.name, 28, y + 18, unlocked ? "#fff" : "#777", 16);
+    ctx.textAlign = "right";
+    outlinedText("★".repeat(q.diff), W - 28, y + 18, "#ffd35c", 11);
+    ctx.restore();
+    if (!unlocked) { txt("LOCK  前のクエストをクリアで解放", 28, y + 44, 12, "#9aa3b8"); return; }
+    txt(q.sub, 28, y + 38, 11, "#cfd6ff");
+    txt(save.cleared[i] ? `CLEAR  ベスト${save.best[i]}T` : `初回ジェム${q.gem}`, 28, y + 54, 11, save.cleared[i] ? "#7dffa0" : "#5ef0ff");
+    coinIcon(W - 150, y + 54, 6);
+    txt(`${q.coin}`, W - 140, y + 54, 11, "#fff");
+    if (q.crEl) crystalIcon(q.crEl, W - 82, y + 54, 7);
+    else EL_KEYS.forEach((k, j) => crystalIcon(k, W - 96 + j * 7, y + 54, 5));
+    txt(`×${q.crN}〜`, W - 70, y + 54, 11, "#fff");
+  });
+}
+
+// 無限の塔（どこまでも登れる。新しい階をクリアするたびにジェム）
+function drawTowerPanel() {
+  const best = save.towerMax || 0, next = best + 1, q = towerFloor(next);
+  // 塔のイラスト
+  ctx.save();
+  const tx = W / 2, base = 380;
+  for (let i = 0; i < 6; i++) {
+    const w = 120 - i * 14, y = base - i * 36;
+    ctx.fillStyle = i % 2 ? "#3a3470" : "#4a4290";
+    ctx.fillRect(tx - w / 2, y - 34, w, 34);
+    ctx.fillStyle = "#ffd35c";
+    ctx.globalAlpha = 0.6 + Math.sin(frameNo * 0.08 + i) * 0.3;
+    ctx.fillRect(tx - 6, y - 24, 12, 14);
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = "#ff6b8b";
+  ctx.beginPath(); ctx.moveTo(tx, base - 6 * 36 - 34); ctx.lineTo(tx - 30, base - 5 * 36 - 34); ctx.lineTo(tx + 30, base - 5 * 36 - 34); ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(`最高到達 ${best}階`, W / 2, 132, "#ffd35c", 20);
+  ctx.restore();
+  txt("上の階ほど敵が強くなる、終わりのない塔", W / 2, 400, 12, "#cfd6ff", "center", "normal");
+  gemIcon(W / 2 - 92, 424, 8);
+  txt(`${next}階のクリア報酬: ジェム${q.gem}・コイン${q.coin}`, W / 2 + 8, 424, 12, "#5ef0ff", "center");
+  txt("10階ごとにボス＆ボーナスジェム+30", W / 2, 446, 11, "#ff9ad5", "center", "normal");
+  button(40, 466, W - 80, 56, `${next}階に挑戦`, () => startQuest(q.id),
+    { size: 18, sub: `${"★".repeat(q.diff)}  ${q.sub}`, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
+  if (best > 0) {
+    button(40, 528, W - 80, 36, `${best}階に再挑戦（報酬はコインのみ）`, () => startQuest("t" + best),
+      { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  }
+}
+
+function drawGacha() {
+  drawMenuBg("#3a1a5c", "#0c0618");
+  drawTopBar();
+  header("ガチャ", "");
+  // ガチャが複数ある時だけ切り替えタブを出す
+  const keys = Object.keys(BANNERS), tw = (W - 120) / keys.length;
+  if (keys.length > 1) keys.forEach((k, i) => {
+    const x = 106 + i * tw, active = gachaBanner === k;
+    ctx.fillStyle = active ? BANNERS[k].c1 : "rgba(255,255,255,0.1)";
+    roundRect(x + 2, 49, tw - 4, 26, 8);
+    ctx.fill();
+    txt(BANNERS[k].name, x + tw / 2, 62, 11, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, 49, tw, 26, "", () => { gachaBanner = k; }, { hidden: true });
+  });
+  if (!BANNERS[gachaBanner]) gachaBanner = keys[0];
+  const B = BANNERS[gachaBanner];
+  // バナー
+  ctx.save();
+  const g = ctx.createLinearGradient(0, 80, 0, 330);
+  g.addColorStop(0, B.c1);
+  g.addColorStop(0.5, B.c2);
+  g.addColorStop(1, "#1a1050");
+  ctx.fillStyle = g;
+  roundRect(14, 82, W - 28, 250, 16);
+  ctx.fill();
+  ctx.strokeStyle = "#ffd35c";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.clip();
+  for (let i = 0; i < 12; i++) {
+    const a = frameNo * 0.01 + i * Math.PI / 6;
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.beginPath();
+    ctx.moveTo(W / 2, 220);
+    ctx.lineTo(W / 2 + Math.cos(a) * 400, 220 + Math.sin(a) * 400);
+    ctx.lineTo(W / 2 + Math.cos(a + 0.2) * 400, 220 + Math.sin(a + 0.2) * 400);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(B.name, W / 2, 110, "#fff", 22, "#3a0a5c");
+  ctx.restore();
+  const lims = B.limited.map(fi => FAM[fi]);
+  txt(`★6限定 ${lims.map(f => f.name).join("・")} 出現中!`, W / 2, 136, 13, "#ffe066", "center");
+  // ★6限定キャラを中央に大きく並べる
+  lims.forEach((lf, i) => {
+    const lx = W / 2 + (i - (lims.length - 1) / 2) * 76;
+    const ly = 205 + Math.sin(frameNo * 0.05 + i) * 4;
+    drawChar({ shape: lf.shape, el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, lx, ly, 26);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText(lf.name, lx, ly + 48, `hsl(${(frameNo * 4 + i * 90) % 360},90%,72%)`, 13);
+    ctx.restore();
+  });
+  const fives = FAM.filter(f => f.rar === 5);
+  fives.forEach((f, i) => {
+    const side = i < 3 ? -1 : 1, k = i % 3;
+    const x = W / 2 + side * (k === 1 ? 138 : 112), y = 172 + k * 52 + Math.sin(frameNo * 0.05 + i) * 3;
+    drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: 5, evo: false }, x, y, 13);
+    txt(f.name, x, y + 22, 9, "#fff", "center");
+  });
+  const pct = v => Math.round(v * 100);
+  const r6 = rate6Total(gachaBanner);
+  txt(`提供割合  ★6: ${pct(r6)}%（各${pct(RATE6)}%）  ★5: ${pct(RATE5)}%  ★4: ${pct(RATE4)}%  ★3: ${pct(1 - r6 - RATE5 - RATE4)}%`, W / 2, 350, 11, "#cfd6ff", "center");
+  txt("持っているキャラが出ると「覚醒」(最大5) で能力アップ", W / 2, 368, 11, "#cfd6ff", "center");
+  button(24, 392, W - 48, 64, "1回ガチャ", () => pullGacha(1),
+    { size: 18, sub: `ジェム ${GACHA_1}`, disabled: save.gems < GACHA_1 });
+  button(24, 468, W - 48, 72, "10連ガチャ", () => pullGacha(10),
+    { size: 20, sub: `ジェム ${GACHA_10}  ★4以上1体確定`, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff", disabled: save.gems < GACHA_10 });
+  drawNav();
+}
+
+function drawGachaAnim() {
+  ctx.fillStyle = "#06040f";
+  ctx.fillRect(0, 0, W, H);
+  const r = gacha.res[gacha.i], f = FAM[r.fi], rar = f.rar;
+  const cy = 300, t = gacha.t;
+  // 光線
+  ctx.save();
+  const rays = rar >= 5 ? 16 : 8;
+  for (let i = 0; i < rays; i++) {
+    const a = frameNo * 0.01 + i * Math.PI * 2 / rays;
+    ctx.fillStyle = rar >= 5 ? `hsla(${(i * 40 + frameNo * 2) % 360},90%,65%,0.18)` : `rgba(255,255,255,${rar >= 4 ? 0.08 : 0.04})`;
+    ctx.beginPath();
+    ctx.moveTo(W / 2, cy);
+    ctx.lineTo(W / 2 + Math.cos(a) * 500, cy + Math.sin(a) * 500);
+    ctx.lineTo(W / 2 + Math.cos(a + 0.12) * 500, cy + Math.sin(a + 0.12) * 500);
+    ctx.fill();
+  }
+  ctx.restore();
+  if (!gacha.opened) {
+    // タマゴが落ちてきて揺れる（色でレア度を予告）
+    const y = Math.min(cy, -60 + t * 14) - (t > 26 && t < 34 ? Math.sin((t - 26) / 8 * Math.PI) * 20 : 0);
+    const rot = t > 34 ? Math.sin(t * 0.5) * 0.18 : 0;
+    const col = rar >= 5 ? `hsl(${(frameNo * 4) % 360},90%,62%)` : rar >= 4 ? "#d8e0f0" : "#d39a5a";
+    ctx.save();
+    ctx.translate(W / 2, y + 50);
+    ctx.rotate(rot);
+    ctx.translate(0, -50);
+    ctx.shadowColor = col;
+    ctx.shadowBlur = rar >= 4 ? 30 : 12;
+    const eg = ctx.createRadialGradient(-14, -20, 4, 0, 0, 60);
+    eg.addColorStop(0, "#ffffff");
+    eg.addColorStop(1, col);
+    ctx.fillStyle = eg;
+    ctx.beginPath(); ctx.ellipse(0, 0, 40, 52, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // 模様（星と水玉）
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    starPath(-12, -18, 9); ctx.fill();
+    for (const [px, py, pr] of [[16, -6, 6], [-18, 16, 5], [12, 26, 7]]) {
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+    }
+    // ひび
+    if (t > 34) {
+      ctx.strokeStyle = "rgba(40,20,0,0.6)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-30, 2); ctx.lineTo(-16, -6); ctx.lineTo(-4, 4); ctx.lineTo(8, -6); ctx.lineTo(20, 3); ctx.lineTo(32, -4);
+      ctx.stroke();
+    }
+    ctx.restore();
+    if (t > 30) txt("タップで孵化!", W / 2, 420, 15, `rgba(255,255,255,${0.6 + Math.sin(frameNo * 0.15) * 0.4})`, "center");
+  } else {
+    if (t < 20) {
+      ctx.fillStyle = `rgba(255,255,255,${1 - t / 20})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    const s = Math.min(1, t / 12);
+    drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar, evo: false }, W / 2, cy, 64 * s);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText(f.name, W / 2, 420, "#fff", 26);
+    ctx.restore();
+    drawStars(rar, W / 2, 452, 11);
+    drawElemIcon(f.el, W / 2 - 40, 482, 10);
+    txt(f.type === "reflect" ? "反射" : "貫通", W / 2 - 24, 482, 13, "#cfd6ff");
+    txt(COMBO[f.combo].name, W / 2 + 16, 482, 13, "#cfd6ff");
+    const tag = r.kind === "new" ? "NEW!" : r.kind === "awk" ? "覚醒+1!" : `コイン+${r.coins}`;
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText(tag, W / 2, 200, r.kind === "new" ? "#ff5c8a" : "#ffd35c", 24);
+    ctx.restore();
+    if (t > 15) txt("タップで次へ", W / 2, 540, 13, "rgba(255,255,255,0.7)", "center");
+  }
+  drawParticles();
+  txt(`${gacha.i + 1} / ${gacha.res.length}`, 16, 24, 13, "#9aa3d8");
+  button(0, 0, W, H, "", gachaTap, { hidden: true });
+  if (gacha.res.length > 1) button(W - 84, 10, 72, 30, "スキップ", () => go("gachaResult"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+
+function drawGachaResult() {
+  drawMenuBg("#3a1a5c", "#0c0618");
+  drawTopBar();
+  header("ガチャ結果", "");
+  const res = gacha.res, cols = 5, s = 60, gap = 8;
+  const x0 = (W - (cols * s + (cols - 1) * gap)) / 2;
+  res.forEach((r, i) => {
+    const x = x0 + (i % cols) * (s + gap), y = 100 + Math.floor(i / cols) * (s + 34);
+    drawIcon(r.fi, x, y, s);
+    const tag = r.kind === "new" ? "NEW" : r.kind === "awk" ? "覚醒+1" : `+${r.coins}`;
+    txt(tag, x + s / 2, y + s + 12, 11, r.kind === "new" ? "#ff5c8a" : "#ffd35c", "center");
+  });
+  const best = Math.max(...res.map(r => FAM[r.fi].rar));
+  if (best >= 5) {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText("★5 ゲット!!", W / 2, 330, `hsl(${(frameNo * 4) % 360},90%,70%)`, 26);
+    ctx.restore();
+  }
+  button(40, 380, W - 80, 52, "もう一度10連", () => pullGacha(10, gacha.banner),
+    { size: 16, sub: `ジェム ${GACHA_10}`, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff", disabled: save.gems < GACHA_10 });
+  button(40, 444, W - 80, 44, "BOXを見る", () => go("box"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(40, 500, W - 80, 44, "ガチャに戻る", () => go("gacha"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  drawNav();
+}
+
+// 図鑑グリッド（属性タブ＋ページ送り。未所持はシルエット）
+let gridEl = "all", gridPage = 0;
+const GRID_PAGE = 30;
+function drawGrid(y0, onTap, opt = {}) {
+  const cols = 6, s = 52, gap = 6;
+  const x0 = (W - (cols * s + (cols - 1) * gap)) / 2;
+  const tabs = ["all", ...EL_KEYS], tw = (W - 28) / tabs.length;
+  tabs.forEach((t, i) => {
+    const tx = 14 + i * tw, active = gridEl === t;
+    ctx.fillStyle = active ? (t === "all" ? "#ffd35c" : EL[t].c) : "rgba(255,255,255,0.08)";
+    roundRect(tx + 2, y0, tw - 4, 26, 8);
+    ctx.fill();
+    txt(t === "all" ? "全て" : EL[t].n, tx + tw / 2, y0 + 13, 12, active ? "#1a1030" : "#cfd6ff", "center");
+    button(tx, y0, tw, 26, "", () => { gridEl = t; gridPage = 0; }, { hidden: true });
+  });
+  const all = ORDER.filter(fi => gridEl === "all" || FAM[fi].el === gridEl);
+  const pages = Math.max(1, Math.ceil(all.length / GRID_PAGE));
+  if (gridPage >= pages) gridPage = pages - 1;
+  const gy = y0 + 34;
+  if (pages > 1) {
+    const py = gy + 5 * (s + gap) + 2;
+    button(x0, py, 70, 26, "◀ 前", () => { gridPage = (gridPage + pages - 1) % pages; }, { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+    button(W - x0 - 70, py, 70, 26, "次 ▶", () => { gridPage = (gridPage + 1) % pages; }, { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+    txt(`${gridPage + 1} / ${pages}`, W / 2, py + 13, 13, "#fff", "center");
+  }
+  const list = all.slice(gridPage * GRID_PAGE, (gridPage + 1) * GRID_PAGE).map(fi => FAM[fi]);
+  list.forEach((f, i) => {
+    const x = x0 + (i % cols) * (s + gap), y = gy + Math.floor(i / cols) * (s + gap);
+    drawIcon(f.idx, x, y, s, { silhouette: true, lv: true });
+    if (opt.mark && opt.mark(f.idx)) {
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      roundRect(x, y, s, s, s * 0.15);
+      ctx.fill();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      outlinedText(opt.mark(f.idx), x + s / 2, y + s / 2, "#ffd35c", 14);
+      ctx.restore();
+    }
+    button(x, y, s, s, "", () => onTap(f.idx), { hidden: true });
+  });
+}
+
+function drawBox() {
+  drawMenuBg("#14203a", "#070b16");
+  drawTopBar();
+  header("BOX", `図鑑 ${Object.keys(save.box).length} / ${FAM.length}`);
+  drawGrid(80, fi => {
+    if (!owned(fi)) { showToast("未入手のキャラです。ガチャやクエストで手に入れよう"); return; }
+    detailFi = fi;
+    go("detail");
+  });
+  // 結晶
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  roundRect(14, 442, W - 28, 58, 12);
+  ctx.fill();
+  txt("進化の結晶", 26, 456, 12, "#cfd6ff");
+  EL_KEYS.forEach((k, i) => {
+    const x = 34 + i * 64;
+    crystalIcon(k, x, 480, 10);
+    txt(`×${save.cr[k]}`, x + 14, 480, 13, "#fff");
+  });
+  txt("キャラをタップで強化・進化", W / 2, 518, 12, "#9aa3d8", "center");
+  drawNav();
+}
+
+function drawParty() {
+  drawMenuBg("#14203a", "#070b16");
+  drawTopBar();
+  header("編成", "タップで入れ替え（4体まで）");
+  const s = 66, gap = 14, x0 = (W - (4 * s + 3 * gap)) / 2;
+  for (let i = 0; i < 4; i++) {
+    const x = x0 + i * (s + gap), y = 86, fi = save.party[i];
+    if (fi !== undefined) {
+      drawIcon(fi, x, y, s, { lv: true });
+      button(x, y, s, s, "", () => {
+        if (save.party.length <= 1) { showToast("1体以上必要です"); return; }
+        save.party.splice(i, 1);
+        persist();
+      }, { hidden: true });
+    } else {
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 2;
+      roundRect(x, y, s, s, 10);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      txt("空き", x + s / 2, y + s / 2, 12, "#9aa3d8", "center");
+    }
+    txt(i === 0 ? "リーダー" : `${i + 1}番手`, x + s / 2, y + s + 12, 11, i === 0 ? "#ffd35c" : "#cfd6ff", "center");
+  }
+  const total = save.party.reduce((t, fi) => t + unitStats(fi).hp, 0);
+  txt(`合計HP ${total.toLocaleString()}`, W / 2, 182, 13, "#7dffa0", "center");
+  drawGrid(196, fi => {
+    if (!owned(fi)) { showToast("未入手のキャラです"); return; }
+    const k = save.party.indexOf(fi);
+    if (k >= 0) {
+      if (save.party.length <= 1) { showToast("1体以上必要です"); return; }
+      save.party.splice(k, 1);
+    } else if (save.party.length >= 4) {
+      showToast("4体まで。上の枠をタップして外そう");
+      return;
+    } else {
+      save.party.push(fi);
+    }
+    persist();
+  }, { mark: fi => { const k = save.party.indexOf(fi); return k >= 0 ? (k === 0 ? "L" : String(k + 1)) : ""; } });
+  drawNav();
+}
+
+function drawDetail() {
+  const fi = detailFi, f = FAM[fi], u = save.box[fi], st = unitStats(fi), c = EL[f.el];
+  drawMenuBg(c.d, "#070b16");
+  drawTopBar();
+  button(10, 48, 64, 28, "← 戻る", () => go("box"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = typeof rarityStroke(u.rar, 0, 0, W, H) === "string" ? RCOL[u.rar] : `hsl(${(frameNo * 2) % 360},90%,65%)`;
+  ctx.beginPath(); ctx.arc(W / 2, 150, 70 + Math.sin(frameNo * 0.08) * 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  drawChar(look(fi), W / 2, 150 + Math.sin(frameNo * 0.05) * 4, 46);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(displayName(fi), W / 2, 228, "#fff", 20);
+  ctx.restore();
+  drawStars(u.rar, W / 2, 252, 8);
+  drawElemIcon(f.el, W / 2 - 84, 274, 9);
+  txt(`${SHAPE_NAME[f.shape]} / ${f.type === "reflect" ? "反射" : "貫通"}タイプ`, W / 2 - 70, 274, 12, "#cfd6ff");
+  txt(`覚醒 ${u.awk}/${MAX_AWK}`, W / 2 + 46, 274, 12, "#ffd35c");
+
+  // ステータス
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  roundRect(14, 292, W - 28, 150, 12);
+  ctx.fill();
+  const cap = MAXLV[u.rar];
+  txt(`Lv ${u.lv} / ${cap}`, 28, 310, 15, u.lv >= cap ? "#ffd35c" : "#fff", "left", "900");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(140, 306, W - 168, 8);
+  ctx.fillStyle = "#5ef0ff";
+  ctx.fillRect(140, 306, (W - 168) * (u.lv / cap), 8);
+  txt(`ATK ${st.atk.toLocaleString()}`, 28, 334, 13, "#ffb199");
+  txt(`HP ${st.hp.toLocaleString()}`, 140, 334, 13, "#9dff8a");
+  txt(`SPD ${st.spd.toFixed(1)}`, 252, 334, 13, "#a6d4ff");
+  txt(`友情コンボ: ${COMBO[f.combo].name}（${COMBO[f.combo].desc}）`, 28, 360, 12, "#fff");
+  txt(`SS: ${ssName(fi)}（${ssTurns(fi)}ターン）`, 28, 382, 12, "#fff");
+  txt(SS[f.ss].desc, 40, 400, 11, "#cfd6ff");
+  if (u.rar < 6) {
+    txt(`進化: Lv${cap} + ${c.n}の結晶×${EVO_CR[u.rar]} + コイン${EVO_COIN[u.rar].toLocaleString()}`, 28, 422, 11, "#ffd35c");
+  } else {
+    txt("最終進化（★6）", 28, 422, 11, "#ff8ae6");
+  }
+  crystalIcon(f.el, W - 70, 422, 7);
+  txt(`×${save.cr[f.el]}`, W - 60, 422, 11, "#fff");
+
+  // ボタン
+  const full = u.lv >= cap;
+  button(14, 454, (W - 38) / 2, 56, "強化 +1", () => levelUp(fi, false),
+    { size: 15, sub: full ? "上限" : `コイン ${lvCost(u.lv)}`, disabled: full || save.coins < lvCost(u.lv), c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  const mc = full ? 0 : maxCost(fi);
+  button(24 + (W - 38) / 2, 454, (W - 38) / 2, 56, "まとめて強化", () => levelUp(fi, true),
+    { size: 15, sub: full ? "上限" : `最大まで ${mc.toLocaleString()}`, disabled: full || save.coins < lvCost(u.lv), c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  if (u.rar < 6) {
+    const can = full && save.cr[f.el] >= EVO_CR[u.rar] && save.coins >= EVO_COIN[u.rar];
+    button(14, 518, W - 28, 56, `進化  ★${u.rar} → ★${u.rar + 1}`, () => evolve(fi),
+      { size: 17, sub: `→ ${EL[f.el].p[u.rar - 3]}${f.name}`, disabled: !can, c1: "#ffe066", c2: "#ff9a1f" });
+  }
+  drawParticles();
+  drawTexts();
+  drawBanner();
+}
+
+// ---- プレゼント（管理者が gifts.json で全員に配布。admin.html で作成） ----------------
+let gifts = [];
+async function loadGifts() {
+  try {
+    const res = await fetch("gifts.json?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    const now = Date.now();
+    gifts = (Array.isArray(data.gifts) ? data.gifts : []).filter(g => g && g.id && g.title
+      && (!g.from || now >= new Date(g.from + "T00:00:00").getTime())
+      && (!g.until || now <= new Date(g.until + "T23:59:59").getTime()));
+  } catch (e) { /* オフライン等 */ }
+}
+const unclaimed = () => gifts.filter(g => !(save.claimed || []).includes(g.id));
+const giftNum = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+
+function claimGift(g) {
+  save.claimed = save.claimed || [];
+  if (save.claimed.includes(g.id)) return;
+  save.gems += giftNum(g.gems, 100000);
+  save.coins += giftNum(g.coins, 100000);
+  const cr = giftNum(g.crystals, 999);
+  for (const k of EL_KEYS) save.cr[k] += cr;
+  save.claimed.push(g.id);
+  persist();
+}
+
+function giftText(g) {
+  const parts = [];
+  if (giftNum(g.gems, 100000)) parts.push(`ジェム${giftNum(g.gems, 100000)}`);
+  if (giftNum(g.coins, 100000)) parts.push(`コイン${giftNum(g.coins, 100000)}`);
+  if (giftNum(g.crystals, 999)) parts.push(`結晶 各${giftNum(g.crystals, 999)}`);
+  return parts.join(" + ");
+}
+
+function drawGifts() {
+  drawMenuBg("#3a1a4a", "#0c0618");
+  drawTopBar();
+  header("プレゼント", "");
+  const list = unclaimed();
+  if (!list.length) {
+    txt("受け取れるプレゼントはありません", W / 2, 240, 14, "#cfd6ff", "center");
+    txt("運営からのお知らせを待っていてね", W / 2, 266, 12, "#9aa3d8", "center");
+  }
+  list.slice(0, 5).forEach((g, i) => {
+    const y = 84 + i * 82;
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    roundRect(14, y, W - 28, 74, 12);
+    ctx.fill();
+    gemIcon(36, y + 22, 10);
+    txt(String(g.title).slice(0, 20), 54, y + 18, 15, "#ffd35c");
+    txt(String(g.message || "").slice(0, 26), 28, y + 40, 11, "#cfd6ff", "left", "normal");
+    txt(giftText(g), 28, y + 58, 12, "#5ef0ff");
+    if (g.until) txt(`〜${g.until}`, W - 106, y + 18, 10, "#9aa3d8", "right", "normal");
+    button(W - 96, y + 22, 72, 32, "受け取る", () => {
+      claimGift(g);
+      burst(W / 2, y + 37, "#5ef0ff", 30, 5);
+      showToast(`${giftText(g) || "プレゼント"} を受け取りました`);
+    }, { size: 13 });
+  });
+  if (list.length > 1) {
+    button(40, 500, W - 80, 48, "まとめて受け取る", () => {
+      for (const g of list) claimGift(g);
+      burst(W / 2, 520, "#5ef0ff", 50, 6);
+      showToast(`${list.length}個のプレゼントを受け取りました`);
+    }, { size: 16, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
+  }
+  drawParticles();
+  drawNav();
+}
+
+// ---- ミッション画面 ---------------------------------------------------------
+let missionTab = "daily";
+
+function progressRow(y, title, cur, goal, gem, ready, done, onClaim) {
+  ctx.fillStyle = ready ? "rgba(255,211,92,0.16)" : "rgba(255,255,255,0.07)";
+  roundRect(14, y, W - 28, 42, 10);
+  ctx.fill();
+  txt(title, 24, y + 13, 12, done && !ready ? "#7f88b8" : "#fff");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(24, y + 26, 170, 6);
+  ctx.fillStyle = ready ? "#ffd35c" : "#5ef0ff";
+  ctx.fillRect(24, y + 26, 170 * Math.min(1, cur / goal), 6);
+  txt(`${Math.min(cur, goal).toLocaleString()}/${goal.toLocaleString()}`, 200, y + 29, 10, "#cfd6ff", "left", "normal");
+  if (ready) {
+    button(W - 98, y + 6, 76, 30, `+${gem}`, onClaim, { size: 13 });
+    gemIcon(W - 86, y + 21, 6);
+  } else if (done) {
+    txt("受取済", W - 60, y + 21, 12, "#7f88b8", "center");
+  } else {
+    gemIcon(W - 78, y + 21, 6);
+    txt(`${gem}`, W - 68, y + 21, 12, "#5ef0ff");
+  }
+}
+
+function drawMissions() {
+  drawMenuBg("#102a3a", "#06101a");
+  drawTopBar();
+  header("ミッション", "");
+  const total = missionBadge();
+  button(W - 132, 48, 120, 26, "まとめて受け取る", () => {
+    const g = claimEverything();
+    persist();
+    if (g) { burst(W / 2, 300, "#5ef0ff", 50, 6); showToast(`ジェム${g}を受け取りました!`); }
+    else showToast("受け取れるミッションはありません");
+  }, { size: 12, disabled: !total });
+  const tabs = [["daily", "デイリー"], ["ach", "実績（何回でも）"]];
+  const tw = (W - 28) / 2;
+  tabs.forEach(([k, label], i) => {
+    const x = 14 + i * tw, active = missionTab === k;
+    ctx.fillStyle = active ? "#ffd35c" : "rgba(255,255,255,0.08)";
+    roundRect(x + 2, 82, tw - 4, 28, 9);
+    ctx.fill();
+    txt(label, x + tw / 2, 96, 13, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, 82, tw, 28, "", () => { missionTab = k; }, { hidden: true });
+  });
+  const claimed = g => { if (g) { persist(); burst(W / 2, 300, "#5ef0ff", 30, 5); showToast(`ジェム${g}を受け取りました!`); } };
+
+  if (missionTab === "daily") {
+    const d = dailyState();
+    txt("毎日0時にリセット", W / 2, 124, 11, "#9aa3d8", "center", "normal");
+    DAILY.forEach((m, i) => {
+      progressRow(136 + i * 48, m.name, d.prog[m.key] || 0, m.goal, m.gem, dailyReady(m), d.claimed.includes(m.key),
+        () => claimed(claimDaily(m)));
+    });
+    const doneCount = DAILY.filter(m => d.claimed.includes(m.key)).length;
+    progressRow(136 + DAILY.length * 48 + 8, "デイリーを全部達成", doneCount, DAILY.length, DAILY_ALL_GEM,
+      dailyAllReady(), d.all, () => claimed(claimDailyAll()));
+    txt(`プレイヤーランク ${save.rank}（ランクアップごとにジェム10、10ランクごとに+50）`, W / 2, 448, 10, "#ffd35c", "center", "normal");
+    txt(`次のランクまで EXP ${expNeed(save.rank) - save.exp}`, W / 2, 466, 11, "#cfd6ff", "center", "normal");
+  } else {
+    txt("目標を達成するたびに、何回でもジェムがもらえます", W / 2, 124, 11, "#9aa3d8", "center", "normal");
+    ACH.forEach((a, i) => {
+      const v = statValue(a.key), tier = save.ach[a.key] || 0, ready = achReady(a);
+      // 受け取り済みの段の次が目標
+      const goal = (tier + Math.max(1, ready)) * a.step;
+      progressRow(134 + i * 45, `${a.name}（${tier + 1}段目）`, v, goal, a.gem * Math.max(1, ready), ready > 0, false,
+        () => claimed(claimAch(a)));
+    });
+  }
+  drawParticles();
+  drawNav();
+}
+
+// ---- データ引き継ぎコード ---------------------------------------------------
+// 形式: MF1Z-<圧縮データ(base64url)>-<チェック用の値>（圧縮できない環境では MF1-）
+function codeCheck(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h.toString(36);
+}
+function toB64url(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function fromB64url(s) {
+  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function pipeBytes(bytes, stream) {
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+}
+async function encodeSave() {
+  let bytes = new TextEncoder().encode(JSON.stringify(save)), tag = "MF1";
+  if (window.CompressionStream) {
+    bytes = await pipeBytes(bytes, new CompressionStream("deflate-raw"));
+    tag = "MF1Z";
+  }
+  const body = toB64url(bytes);
+  return `${tag}-${body}-${codeCheck(body)}`;
+}
+async function decodeSave(code) {
+  const m = code.replace(/\s+/g, "").match(/^(MF1Z?)-([A-Za-z0-9_-]+)-([a-z0-9]+)$/);
+  if (!m) throw new Error("引き継ぎコードの形ではありません");
+  if (codeCheck(m[2]) !== m[3]) throw new Error("コードが途中で切れているか、間違っています");
+  let bytes = fromB64url(m[2]);
+  if (m[1] === "MF1Z") {
+    if (!window.DecompressionStream) throw new Error("このブラウザでは読み込めません。新しいブラウザで試してください");
+    bytes = await pipeBytes(bytes, new DecompressionStream("deflate-raw"));
+  }
+  const s = JSON.parse(new TextDecoder().decode(bytes));
+  if (!s || !s.box || !s.party) throw new Error("セーブデータが入っていません");
+  return normalizeSave(s);
+}
+
+function openCodeBox(title, text, readOnly, note, mainLabel, onMain) {
+  const box = document.getElementById("codeBox"), area = document.getElementById("codeText");
+  document.getElementById("codeTitle").textContent = title;
+  area.value = text;
+  area.readOnly = readOnly;
+  area.placeholder = readOnly ? "" : "ここに引き継ぎコードを貼り付け";
+  setCodeNote(note);
+  const main = document.getElementById("codeMain");
+  main.textContent = mainLabel;
+  main.onclick = onMain;
+  document.getElementById("codeClose").onclick = () => { box.hidden = true; };
+  box.hidden = false;
+  if (!readOnly) setTimeout(() => area.focus(), 50);
+}
+function setCodeNote(text, err = false) {
+  const n = document.getElementById("codeNote");
+  n.textContent = text;
+  n.className = err ? "err" : "";
+}
+
+async function showExportCode() {
+  const code = await encodeSave();
+  openCodeBox("あなたの引き継ぎコード", code, true,
+    "新しい端末で「コードを入力」に貼り付けてね。他の人には教えないでね",
+    "コピーする", async () => {
+      try {
+        await navigator.clipboard.writeText(code);
+        setCodeNote("コピーしました! メモ帳やLINEの自分あてに保存しておくと安心です");
+      } catch (e) {
+        const area = document.getElementById("codeText");
+        area.focus();
+        area.select();
+        setCodeNote("コピーできなかったので、選択された文字を長押ししてコピーしてね", true);
+      }
+    });
+}
+
+function showImportCode() {
+  let pending = null;
+  openCodeBox("引き継ぎコードを入力", "", false, "前の端末で発行したコードを貼り付けてね", "確認する", async () => {
+    const main = document.getElementById("codeMain");
+    if (pending) {
+      // 2回目の押下で上書き
+      save = pending;
+      persist();
+      document.getElementById("codeBox").hidden = true;
+      go("home");
+      showToast("データを引き継ぎました!");
+      return;
+    }
+    try {
+      const s = await decodeSave(document.getElementById("codeText").value);
+      const chars = Object.keys(s.box).length, clears = Object.keys(s.cleared).length;
+      setCodeNote(`ジェム${s.gems.toLocaleString()}・キャラ${chars}体・クリア${clears}個のデータです。今のデータは上書きされます`, false);
+      pending = s;
+      main.textContent = "上書きして引き継ぐ";
+    } catch (e) {
+      setCodeNote(e.message || "読み込めませんでした", true);
+    }
+  });
+  document.getElementById("codeText").oninput = () => {
+    pending = null;
+    document.getElementById("codeMain").textContent = "確認する";
+  };
+}
+
+function drawTransfer() {
+  drawMenuBg("#14203a", "#070b16");
+  drawTopBar();
+  header("データ引き継ぎ", "");
+  const lines = [
+    "機種変更や、別のブラウザで遊ぶときに使います。",
+    "iPhoneで「ホーム画面に追加」したアプリは",
+    "Safariとデータが別なので、このコードで移してね。",
+  ];
+  lines.forEach((l, i) => txt(l, W / 2, 104 + i * 20, 12, "#cfd6ff", "center", "normal"));
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  roundRect(20, 176, W - 40, 150, 14);
+  ctx.fill();
+  txt("今の端末のデータを持っていく", W / 2, 198, 13, "#ffd35c", "center");
+  button(40, 214, W - 80, 52, "コードを発行", () => { showExportCode(); }, { size: 16, sub: "表示されたコードを保存してね", c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  txt(`ジェム${save.gems.toLocaleString()}・キャラ${Object.keys(save.box).length}体`, W / 2, 298, 12, "#9aa3d8", "center", "normal");
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  roundRect(20, 342, W - 40, 130, 14);
+  ctx.fill();
+  txt("前の端末のデータをこの端末に入れる", W / 2, 364, 13, "#ffd35c", "center");
+  button(40, 380, W - 80, 52, "コードを入力", () => showImportCode(), { size: 16, sub: "今のデータは上書きされます" });
+  txt("※ コードを知っている人は同じデータを作れます", W / 2, 452, 11, "#ff9a9a", "center", "normal");
+  drawNav();
+}
+
+// ---- 共有・ホーム画面に追加 -------------------------------------------------
+const SHARE_URL = "https://potof47.github.io/47asobi/";
+const qrImg = new Image();
+qrImg.src = "qr.png";
+let shareOpen = false, installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+window.addEventListener("appinstalled", () => { installEvt = null; showToast("ホーム画面に追加しました!"); });
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+async function shareLink() {
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "モンスター・フリック", text: "引っ張って弾いて敵を倒すゲーム!", url: SHARE_URL });
+      return;
+    }
+    await navigator.clipboard.writeText(SHARE_URL);
+    showToast("URLをコピーしました");
+  } catch (e) { /* 共有をキャンセルした */ }
+}
+
+async function installApp() {
+  if (installEvt) {
+    installEvt.prompt();
+    const r = await installEvt.userChoice;
+    installEvt = null;
+    if (r.outcome === "accepted") showToast("ホーム画面に追加しました!");
+    return;
+  }
+  showToast(isIOS() ? "Safariの共有ボタン →「ホーム画面に追加」" : "ブラウザのメニュー →「ホーム画面に追加」");
+}
+
+function drawShare() {
+  button(0, 0, W, H, "", () => {}, { hidden: true });   // 後ろの画面を押せないように
+  ctx.fillStyle = "rgba(5,7,15,0.88)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#1b1f3e";
+  roundRect(20, 40, W - 40, 560, 16);
+  ctx.fill();
+  ctx.strokeStyle = "#ffd35c";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("友だちに教える", W / 2, 68, "#ffd35c", 18);
+  ctx.restore();
+  if (qrImg.complete && qrImg.naturalWidth) {
+    const w = 210, h = w * qrImg.naturalHeight / qrImg.naturalWidth;
+    ctx.drawImage(qrImg, (W - w) / 2, 88, w, h);
+  }
+  txt(SHARE_URL, W / 2, 372, 11, "#cfd6ff", "center", "normal");
+  button(40, 388, W - 80, 44, "リンクを共有", shareLink, { size: 15 });
+  if (isStandalone()) {
+    txt("ホーム画面から起動中です", W / 2, 462, 13, "#7dffa0", "center");
+  } else {
+    button(40, 442, W - 80, 44, "ホーム画面に追加", installApp, { size: 15, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  }
+  txt(isIOS() ? "iPhone: Safariの共有ボタン →「ホーム画面に追加」" : "追加するとアプリのようにアイコンから遊べます", W / 2, 502, 11, "#9aa3d8", "center", "normal");
+  button(40, 524, W - 80, 44, "閉じる", () => { shareOpen = false; }, { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+
+// ---- ランキング ---------------------------------------------------------
+// オンラインランキング（Supabase）。url と key（anon public キー）を入れると全国ランキングになる。
+// 空のままなら「この端末の記録」だけを表示する。設定方法は README を参照。
+const RANKING = { url: "", key: "" }; // 無制限版では常に無効
+const onlineRanking = () => !!(RANKING.url && RANKING.key);
+let rankQuest = 0, rankCache = {};   // { [クエスト番号]: { status: "loading"|"ok"|"error", rows } }
+
+function localRecords(q) { return (save.records && save.records[q]) || []; }
+function addLocalRecord(q, turns, leader) {
+  save.records = save.records || {};
+  const list = save.records[q] = save.records[q] || [];
+  list.push({ name: save.name || "あなた", turns, leader, at: Date.now() });
+  list.sort((a, b) => a.turns - b.turns || a.at - b.at);
+  list.length = Math.min(list.length, 10);
+}
+
+function rankHeaders(extra = {}) {
+  return { apikey: RANKING.key, Authorization: `Bearer ${RANKING.key}`, ...extra };
+}
+async function fetchRanking(q) {
+  if (!onlineRanking()) return;
+  rankCache[q] = { status: "loading", rows: [] };
+  try {
+    const res = await fetch(`${RANKING.url}/rest/v1/scores?select=name,turns,leader,created_at&quest=eq.${q}&order=turns.asc,created_at.asc&limit=15`,
+      { headers: rankHeaders() });
+    if (!res.ok) throw new Error(String(res.status));
+    rankCache[q] = { status: "ok", rows: await res.json() };
+  } catch (e) {
+    rankCache[q] = { status: "error", rows: [] };
+  }
+}
+// 送信して順位（自分より少ないターンの記録数 + 1）を返す。失敗時は null
+async function submitScore(q, turns, leader) {
+  if (!onlineRanking() || !save.name) return null;
+  try {
+    const res = await fetch(`${RANKING.url}/rest/v1/scores`, {
+      method: "POST",
+      headers: rankHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }),
+      body: JSON.stringify({ name: save.name, quest: q, turns, leader }),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    delete rankCache[q];
+    const cnt = await fetch(`${RANKING.url}/rest/v1/scores?select=id&quest=eq.${q}&turns=lt.${turns}`,
+      { headers: rankHeaders({ Prefer: "count=exact", Range: "0-0" }) });
+    const total = Number((cnt.headers.get("content-range") || "").split("/")[1]);
+    return Number.isFinite(total) ? total + 1 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function askName() {
+  return new Promise(resolve => {
+    const box = document.getElementById("nameBox"), input = document.getElementById("nameInput");
+    input.value = save.name || "";
+    box.hidden = false;
+    setTimeout(() => input.focus(), 50);
+    document.getElementById("nameForm").onsubmit = e => {
+      e.preventDefault();
+      const v = input.value.trim().slice(0, 12);
+      if (!v) return;
+      save.name = v;
+      persist();
+      box.hidden = true;
+      resolve(v);
+    };
+  });
+}
+
+function drawRanking() {
+  drawMenuBg("#2a1a3a", "#08060f");
+  drawTopBar();
+  header("ランキング", "");
+  button(W - 140, 48, 128, 26, save.name ? `名前: ${save.name}` : "名前を決める", () => askName(),
+    { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  // クエスト選択（3列×2段）
+  const tw = (W - 28) / 3;
+  QUESTS.forEach((q, i) => {
+    const x = 14 + (i % 3) * tw, y = 84 + Math.floor(i / 3) * 30, active = rankQuest === i;
+    ctx.fillStyle = active ? "#ffd35c" : "rgba(255,255,255,0.08)";
+    roundRect(x + 2, y, tw - 4, 26, 8);
+    ctx.fill();
+    txt(q.name, x + tw / 2, y + 13, 11, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, y, tw, 26, "", () => { rankQuest = i; }, { hidden: true });
+  });
+  const q = QUESTS[rankQuest];
+  txt(onlineRanking() ? "全国ランキング TOP15（少ないターン順）" : "この端末の記録（少ないターン順）", 16, 160, 12, "#ffd35c");
+  txt(`S: ${q.par}T以内`, W - 16, 160, 11, "#9aa3d8", "right");
+
+  let rows;
+  if (onlineRanking()) {
+    const cache = rankCache[rankQuest];
+    if (!cache) { fetchRanking(rankQuest); rows = []; }
+    else rows = cache.rows.map(r => ({ name: r.name, turns: r.turns, leader: r.leader }));
+    if (cache && cache.status === "loading") txt("読み込み中…", W / 2, 240, 13, "#cfd6ff", "center");
+    if (cache && cache.status === "error") {
+      txt("ランキングを読み込めませんでした", W / 2, 230, 13, "#ff9a9a", "center");
+      button(W / 2 - 60, 250, 120, 34, "再読み込み", () => fetchRanking(rankQuest), { size: 13 });
+    }
+  } else {
+    rows = localRecords(rankQuest);
+  }
+  if (rows.length === 0 && (!onlineRanking() || (rankCache[rankQuest] && rankCache[rankQuest].status === "ok"))) {
+    txt("まだ記録がありません。クリアして記録を残そう!", W / 2, 240, 13, "#cfd6ff", "center");
+  }
+  rows.slice(0, 15).forEach((r, i) => {
+    const y = 178 + i * 26;
+    const mine = r.name === (save.name || "あなた");
+    ctx.fillStyle = mine ? "rgba(255,211,92,0.16)" : i % 2 ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.07)";
+    roundRect(12, y, W - 24, 23, 6);
+    ctx.fill();
+    const medal = ["#ffd23f", "#d8e0f0", "#d39a5a"][i];
+    if (medal) {
+      ctx.fillStyle = medal;
+      ctx.beginPath(); ctx.arc(30, y + 11.5, 9, 0, Math.PI * 2); ctx.fill();
+      txt(String(i + 1), 30, y + 12, 11, "#1a1030", "center", "900");
+    } else {
+      txt(String(i + 1), 30, y + 12, 12, "#cfd6ff", "center");
+    }
+    txt(r.name, 48, y + 12, 13, "#fff");
+    txt(r.leader || "", 176, y + 12, 10, "#9aa3d8", "left", "normal");
+    txt(`${r.turns}T`, W - 22, y + 12, 14, "#ffd35c", "right", "900");
+  });
+  drawNav();
+}
+
+function drawToast() {
+  if (!toast) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, toast.life / 15);
+  ctx.font = "bold 13px system-ui, sans-serif";
+  const w = Math.min(W - 20, ctx.measureText(toast.text).width + 32);
+  ctx.fillStyle = "rgba(0,0,0,0.85)";
+  roundRect((W - w) / 2, H / 2 - 22, w, 44, 12);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  txt(toast.text, W / 2, H / 2, 13, "#fff", "center");
+  ctx.restore();
+}
+
+function draw() {
+  ui = [];
+  switch (state) {
+    case "home": drawHome(); break;
+    case "quests": drawQuests(); break;
+    case "gacha": drawGacha(); break;
+    case "gachaAnim": drawGachaAnim(); break;
+    case "gachaResult": drawGachaResult(); break;
+    case "box": drawBox(); break;
+    case "party": drawParty(); break;
+    case "detail": drawDetail(); break;
+    case "ranking": drawRanking(); break;
+    case "gifts": drawGifts(); break;
+    case "transfer": drawTransfer(); break;
+    case "missions": drawMissions(); break;
+    default: drawBattle();
+  }
+  if (shareOpen) drawShare();
+  drawToast();
+}
+
+// ---- 初期化・メインループ ----------------------------------------------
+function resize() {
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = W * s + "px";
+  canvas.style.height = H * s + "px";
+  canvas.width = Math.round(W * s * dpr);
+  canvas.height = Math.round(H * s * dpr);
+  ctx.setTransform(s * dpr, 0, 0, s * dpr, 0, 0);
+}
+window.addEventListener("resize", resize);
+
+const STEP = 1000 / 60;
+let acc = 0, last = performance.now();
+function frame(t) {
+  acc += Math.min(t - last, 100);
+  last = t;
+  while (acc >= STEP) { update(); acc -= STEP; }
+  draw();
+  requestAnimationFrame(frame);
+}
+
+loadSave();
+refillItems();
+loadGifts();
+resize();
+// オフライン対応・ホーム画面に追加のためのサービスワーカー
+if ("serviceWorker" in navigator) {
+  Promise.resolve().catch(() => { /* 対応していない環境 */ });
+}
+requestAnimationFrame(t => { last = t; frame(t); });
+</script>
+</body>
+</html>
