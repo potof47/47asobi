@@ -2,8 +2,22 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>モンスター・フリック</title>
+<!-- ホーム画面に追加（PWA） -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2a1d5c">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="モンフリ">
+<!-- SNSでシェアした時のカード -->
+<meta property="og:title" content="モンスター・フリック">
+<meta property="og:description" content="引っ張って弾いて敵を倒す、ひっぱりハンティングゲーム">
+<meta property="og:image" content="https://potof47.github.io/47asobi/icon-512.png">
+<meta property="og:url" content="https://potof47.github.io/47asobi/">
 <style>
   html, body {
     margin: 0;
@@ -24,10 +38,56 @@
     border-radius: 12px;
     box-shadow: 0 0 40px rgba(90, 120, 255, 0.25);
   }
+  /* ランキング用の名前入力 */
+  #nameBox {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10;
+  }
+  #nameBox[hidden] { display: none; }
+  #nameForm {
+    width: min(300px, 86vw);
+    padding: 18px;
+    border: 2px solid #ffd35c;
+    border-radius: 14px;
+    background: #1b1f3e;
+    color: #fff;
+    font: bold 15px system-ui, sans-serif;
+    text-align: center;
+  }
+  #nameForm input {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 12px 0;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+  }
+  #nameForm button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(#ffcf4a, #ff8f1f);
+    color: #3a1c00;
+    font: bold 16px system-ui, sans-serif;
+  }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="nameBox" hidden>
+  <form id="nameForm">
+    <div>ランキングに表示する名前</div>
+    <input id="nameInput" maxlength="12" autocomplete="off" placeholder="12文字まで">
+    <button type="submit">決定</button>
+  </form>
+</div>
 <script>
 "use strict";
 
@@ -342,7 +402,7 @@ let ui = [];           // 当たり判定付きボタン（毎フレーム描画
 let dragging = false, dragStart = null, dragNow = null;
 
 function showToast(text) { toast = { text, life: 90 }; }
-function go(s) { state = s; particles = []; texts = []; banner = null; }
+function go(s) { state = s; particles = []; texts = []; banner = null; shareOpen = false; }
 
 // ---- バトル開始 ---------------------------------------------------------
 function makeAlly(fi, x, y) {
@@ -748,7 +808,17 @@ function finishQuest() {
   save.cr[crEl] += crN;
   save.cleared[questIdx] = true;
   persist();
-  lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop };
+  lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, netRank: undefined };
+  // ランキングに記録
+  const leader = displayName(save.party[0]);
+  addLocalRecord(questIdx, turn, leader);
+  persist();
+  if (onlineRanking()) {
+    const res = lastResult, q = questIdx, t = turn;
+    (save.name ? Promise.resolve() : askName())
+      .then(() => submitScore(q, t, leader))
+      .then(r => { res.netRank = r; });
+  }
   state = "clear";
 }
 
@@ -2282,7 +2352,9 @@ function drawResult() {
     txt(`クリアターン: ${r.turn}`, W / 2, 158, 17, "#fff", "center");
     ctx.textAlign = "center";
     outlinedText(r.rank, W / 2, 215, r.rank === "S" ? "#ffef5c" : r.rank === "A" ? "#ff9ad5" : "#9ad5ff", 64);
-    txt(r.isBest ? "ベスト記録更新!" : `ベスト ${r.best}ターン`, W / 2, 262, 13, "#cfd6ff", "center");
+    let net = "";
+    if (onlineRanking()) net = r.netRank === undefined ? "  ランキング送信中…" : r.netRank === null ? "  (ランキング送信失敗)" : `  全国 ${r.netRank}位!`;
+    txt((r.isBest ? "ベスト記録更新!" : `ベスト ${r.best}ターン`) + net, W / 2, 262, 13, "#cfd6ff", "center");
     // 報酬
     ctx.fillStyle = "rgba(255,255,255,0.08)";
     roundRect(40, 285, W - 80, r.drop ? 150 : 100, 12);
@@ -2360,7 +2432,7 @@ function drawTopBar() {
   ctx.restore();
 }
 
-const NAV = [["home", "ホーム"], ["quests", "クエスト"], ["gacha", "ガチャ"], ["box", "BOX"], ["party", "編成"]];
+const NAV = [["home", "ホーム"], ["quests", "クエスト"], ["gacha", "ガチャ"], ["box", "BOX"], ["party", "編成"], ["ranking", "ランク"]];
 function drawNav() {
   ctx.fillStyle = "#0b0e22";
   ctx.fillRect(0, NAV_Y, W, H - NAV_Y);
@@ -2392,6 +2464,8 @@ function header(title, sub) {
 function drawHome() {
   drawMenuBg();
   drawTopBar();
+  button(W - 92, 8, 84, 24, "共有・QR", () => { shareOpen = true; },
+    { size: 11, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -2806,6 +2880,194 @@ function drawDetail() {
   drawBanner();
 }
 
+// ---- 共有・ホーム画面に追加 -------------------------------------------------
+const SHARE_URL = "https://potof47.github.io/47asobi/";
+const qrImg = new Image();
+qrImg.src = "qr.png";
+let shareOpen = false, installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+window.addEventListener("appinstalled", () => { installEvt = null; showToast("ホーム画面に追加しました!"); });
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+async function shareLink() {
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "モンスター・フリック", text: "引っ張って弾いて敵を倒すゲーム!", url: SHARE_URL });
+      return;
+    }
+    await navigator.clipboard.writeText(SHARE_URL);
+    showToast("URLをコピーしました");
+  } catch (e) { /* 共有をキャンセルした */ }
+}
+
+async function installApp() {
+  if (installEvt) {
+    installEvt.prompt();
+    const r = await installEvt.userChoice;
+    installEvt = null;
+    if (r.outcome === "accepted") showToast("ホーム画面に追加しました!");
+    return;
+  }
+  showToast(isIOS() ? "Safariの共有ボタン →「ホーム画面に追加」" : "ブラウザのメニュー →「ホーム画面に追加」");
+}
+
+function drawShare() {
+  button(0, 0, W, H, "", () => {}, { hidden: true });   // 後ろの画面を押せないように
+  ctx.fillStyle = "rgba(5,7,15,0.88)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#1b1f3e";
+  roundRect(20, 40, W - 40, 560, 16);
+  ctx.fill();
+  ctx.strokeStyle = "#ffd35c";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("友だちに教える", W / 2, 68, "#ffd35c", 18);
+  ctx.restore();
+  if (qrImg.complete && qrImg.naturalWidth) {
+    const w = 210, h = w * qrImg.naturalHeight / qrImg.naturalWidth;
+    ctx.drawImage(qrImg, (W - w) / 2, 88, w, h);
+  }
+  txt(SHARE_URL, W / 2, 372, 11, "#cfd6ff", "center", "normal");
+  button(40, 388, W - 80, 44, "リンクを共有", shareLink, { size: 15 });
+  if (isStandalone()) {
+    txt("ホーム画面から起動中です", W / 2, 462, 13, "#7dffa0", "center");
+  } else {
+    button(40, 442, W - 80, 44, "ホーム画面に追加", installApp, { size: 15, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  }
+  txt(isIOS() ? "iPhone: Safariの共有ボタン →「ホーム画面に追加」" : "追加するとアプリのようにアイコンから遊べます", W / 2, 502, 11, "#9aa3d8", "center", "normal");
+  button(40, 524, W - 80, 44, "閉じる", () => { shareOpen = false; }, { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+
+// ---- ランキング ---------------------------------------------------------
+// オンラインランキング（Supabase）。url と key（anon public キー）を入れると全国ランキングになる。
+// 空のままなら「この端末の記録」だけを表示する。設定方法は README を参照。
+const RANKING = { url: "", key: "" };
+const onlineRanking = () => !!(RANKING.url && RANKING.key);
+let rankQuest = 0, rankCache = {};   // { [クエスト番号]: { status: "loading"|"ok"|"error", rows } }
+
+function localRecords(q) { return (save.records && save.records[q]) || []; }
+function addLocalRecord(q, turns, leader) {
+  save.records = save.records || {};
+  const list = save.records[q] = save.records[q] || [];
+  list.push({ name: save.name || "あなた", turns, leader, at: Date.now() });
+  list.sort((a, b) => a.turns - b.turns || a.at - b.at);
+  list.length = Math.min(list.length, 10);
+}
+
+function rankHeaders(extra = {}) {
+  return { apikey: RANKING.key, Authorization: `Bearer ${RANKING.key}`, ...extra };
+}
+async function fetchRanking(q) {
+  if (!onlineRanking()) return;
+  rankCache[q] = { status: "loading", rows: [] };
+  try {
+    const res = await fetch(`${RANKING.url}/rest/v1/scores?select=name,turns,leader,created_at&quest=eq.${q}&order=turns.asc,created_at.asc&limit=15`,
+      { headers: rankHeaders() });
+    if (!res.ok) throw new Error(String(res.status));
+    rankCache[q] = { status: "ok", rows: await res.json() };
+  } catch (e) {
+    rankCache[q] = { status: "error", rows: [] };
+  }
+}
+// 送信して順位（自分より少ないターンの記録数 + 1）を返す。失敗時は null
+async function submitScore(q, turns, leader) {
+  if (!onlineRanking() || !save.name) return null;
+  try {
+    const res = await fetch(`${RANKING.url}/rest/v1/scores`, {
+      method: "POST",
+      headers: rankHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }),
+      body: JSON.stringify({ name: save.name, quest: q, turns, leader }),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    delete rankCache[q];
+    const cnt = await fetch(`${RANKING.url}/rest/v1/scores?select=id&quest=eq.${q}&turns=lt.${turns}`,
+      { headers: rankHeaders({ Prefer: "count=exact", Range: "0-0" }) });
+    const total = Number((cnt.headers.get("content-range") || "").split("/")[1]);
+    return Number.isFinite(total) ? total + 1 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function askName() {
+  return new Promise(resolve => {
+    const box = document.getElementById("nameBox"), input = document.getElementById("nameInput");
+    input.value = save.name || "";
+    box.hidden = false;
+    setTimeout(() => input.focus(), 50);
+    document.getElementById("nameForm").onsubmit = e => {
+      e.preventDefault();
+      const v = input.value.trim().slice(0, 12);
+      if (!v) return;
+      save.name = v;
+      persist();
+      box.hidden = true;
+      resolve(v);
+    };
+  });
+}
+
+function drawRanking() {
+  drawMenuBg("#2a1a3a", "#08060f");
+  drawTopBar();
+  header("ランキング", "");
+  button(W - 140, 48, 128, 26, save.name ? `名前: ${save.name}` : "名前を決める", () => askName(),
+    { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  // クエスト選択（3列×2段）
+  const tw = (W - 28) / 3;
+  QUESTS.forEach((q, i) => {
+    const x = 14 + (i % 3) * tw, y = 84 + Math.floor(i / 3) * 30, active = rankQuest === i;
+    ctx.fillStyle = active ? "#ffd35c" : "rgba(255,255,255,0.08)";
+    roundRect(x + 2, y, tw - 4, 26, 8);
+    ctx.fill();
+    txt(q.name, x + tw / 2, y + 13, 11, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, y, tw, 26, "", () => { rankQuest = i; }, { hidden: true });
+  });
+  const q = QUESTS[rankQuest];
+  txt(onlineRanking() ? "全国ランキング TOP15（少ないターン順）" : "この端末の記録（少ないターン順）", 16, 160, 12, "#ffd35c");
+  txt(`S: ${q.par}T以内`, W - 16, 160, 11, "#9aa3d8", "right");
+
+  let rows;
+  if (onlineRanking()) {
+    const cache = rankCache[rankQuest];
+    if (!cache) { fetchRanking(rankQuest); rows = []; }
+    else rows = cache.rows.map(r => ({ name: r.name, turns: r.turns, leader: r.leader }));
+    if (cache && cache.status === "loading") txt("読み込み中…", W / 2, 240, 13, "#cfd6ff", "center");
+    if (cache && cache.status === "error") {
+      txt("ランキングを読み込めませんでした", W / 2, 230, 13, "#ff9a9a", "center");
+      button(W / 2 - 60, 250, 120, 34, "再読み込み", () => fetchRanking(rankQuest), { size: 13 });
+    }
+  } else {
+    rows = localRecords(rankQuest);
+  }
+  if (rows.length === 0 && (!onlineRanking() || (rankCache[rankQuest] && rankCache[rankQuest].status === "ok"))) {
+    txt("まだ記録がありません。クリアして記録を残そう!", W / 2, 240, 13, "#cfd6ff", "center");
+  }
+  rows.slice(0, 15).forEach((r, i) => {
+    const y = 178 + i * 26;
+    const mine = r.name === (save.name || "あなた");
+    ctx.fillStyle = mine ? "rgba(255,211,92,0.16)" : i % 2 ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.07)";
+    roundRect(12, y, W - 24, 23, 6);
+    ctx.fill();
+    const medal = ["#ffd23f", "#d8e0f0", "#d39a5a"][i];
+    if (medal) {
+      ctx.fillStyle = medal;
+      ctx.beginPath(); ctx.arc(30, y + 11.5, 9, 0, Math.PI * 2); ctx.fill();
+      txt(String(i + 1), 30, y + 12, 11, "#1a1030", "center", "900");
+    } else {
+      txt(String(i + 1), 30, y + 12, 12, "#cfd6ff", "center");
+    }
+    txt(r.name, 48, y + 12, 13, "#fff");
+    txt(r.leader || "", 176, y + 12, 10, "#9aa3d8", "left", "normal");
+    txt(`${r.turns}T`, W - 22, y + 12, 14, "#ffd35c", "right", "900");
+  });
+  drawNav();
+}
+
 function drawToast() {
   if (!toast) return;
   ctx.save();
@@ -2833,8 +3095,10 @@ function draw() {
     case "box": drawBox(); break;
     case "party": drawParty(); break;
     case "detail": drawDetail(); break;
+    case "ranking": drawRanking(); break;
     default: drawBattle();
   }
+  if (shareOpen) drawShare();
   drawToast();
 }
 
@@ -2862,6 +3126,10 @@ function frame(t) {
 
 loadSave();
 resize();
+// オフライン対応・ホーム画面に追加のためのサービスワーカー
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => { /* 対応していない環境 */ });
+}
 requestAnimationFrame(t => { last = t; frame(t); });
 </script>
 </body>

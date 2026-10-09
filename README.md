@@ -36,6 +36,46 @@
 - **弱点**（黄色い照準）に当てると3倍ダメージ。ボスの弱点は毎ターン移動します。
 - クリアターン数でランク(S/A/B)が決まり、報酬が増えます。
 
+## 友だちに教える・ホーム画面に追加
+
+- ホーム画面右上の「共有・QR」で、QRコード・リンク共有・「ホーム画面に追加」ボタンが出ます。
+- `qr.png` … ゲームのURLのQRコード（印刷や配布用）。
+- ホーム画面に追加すると、アプリのようにアイコンから全画面で起動できます。一度開けばオフラインでも遊べます。
+  - Android（Chrome）… 「ホーム画面に追加」ボタン、またはメニュー →「ホーム画面に追加」
+  - iPhone（Safari）… 共有ボタン →「ホーム画面に追加」
+- 関連ファイル: `manifest.json`（アプリ情報）、`sw.js`（オフライン対応）、`icon-192.png` / `icon-512.png`（アイコン）
+
+## ランキング
+
+下のメニューの「ランク」で、クエストごとのクリアターン数ランキングを見られます。
+
+- 何も設定しなければ「この端末の記録」（自分のクリア記録トップ10）だけが表示されます。
+- 全員で競う「全国ランキング」にするには、無料の [Supabase](https://supabase.com/) を使います。
+
+### 全国ランキングの設定（1回だけ）
+
+1. Supabase でアカウントを作り、新しいプロジェクトを作成します。
+2. 「SQL Editor」で次のSQLを実行します。
+
+   ```sql
+   create table scores (
+     id bigint generated always as identity primary key,
+     name text not null check (char_length(name) between 1 and 12),
+     quest int not null check (quest between 0 and 9),
+     turns int not null check (turns between 1 and 999),
+     leader text check (char_length(leader) <= 30),
+     created_at timestamptz default now()
+   );
+   alter table scores enable row level security;
+   create policy "誰でも見られる" on scores for select using (true);
+   create policy "誰でも登録できる" on scores for insert with check (true);
+   ```
+
+3. 「Project Settings → API」にある **Project URL** と **anon public** キーを、`index.html` の
+   `const RANKING = { url: "", key: "" };` に入れます（anon キーは公開して大丈夫な鍵です）。
+
+注意: ブラウザだけで動くゲームなので、詳しい人ならスコアをごまかして送ることもできます。
+
 ## データ
 
 進行状況はブラウザの localStorage に保存されます（キー `mflick-save-v1`）。
