@@ -33,22 +33,24 @@
 
 // ---- 定数 -------------------------------------------------------------
 const W = 360, H = 640;      // 論理解像度
-const TOP = 40, FB = 550;    // フィールドの上端・下端（下はパネル）
+const TOP = 40, FB = 550;    // バトルフィールドの上端・下端（下はパネル）
+const NAV_Y = H - 56;        // メニュー画面の下部ナビ
 const R = 17;                // 味方キャラの半径
 const FRICTION = 0.989;      // 摩擦（毎フレーム減速）
 const STOP = 0.45;           // これ未満で停止
 const SUB = 3;               // 衝突判定のサブステップ数
 const MIN_DRAG = 14;         // 発射に必要な引っ張り距離
-const START_POS = [[70, 505], [143, 505], [217, 505], [290, 505]];
 
 // ---- 属性 -------------------------------------------------------------
+// p: 進化後の名前の接頭語（★4 / ★5 / ★6）、w: ストライクショット名の接頭語
 const EL = {
-  fire:  { n: "火", c: "#ff5b3a", l: "#ffb199", d: "#8a1f0e" },
-  water: { n: "水", c: "#3aa0ff", l: "#a6d4ff", d: "#0d3f7a" },
-  wood:  { n: "木", c: "#46c46a", l: "#aef0bf", d: "#165a2a" },
-  light: { n: "光", c: "#ffd23f", l: "#fff3b8", d: "#8a6a00" },
-  dark:  { n: "闇", c: "#9b5cff", l: "#d6bcff", d: "#3a1670" },
+  fire:  { n: "火", c: "#ff5b3a", l: "#ffb199", d: "#8a1f0e", p: ["炎獣", "紅蓮", "煉獄神"], w: "紅蓮" },
+  water: { n: "水", c: "#3aa0ff", l: "#a6d4ff", d: "#0d3f7a", p: ["水精", "蒼海", "深淵神"], w: "激流" },
+  wood:  { n: "木", c: "#46c46a", l: "#aef0bf", d: "#165a2a", p: ["森精", "翠樹", "大樹神"], w: "翠緑" },
+  light: { n: "光", c: "#ffd23f", l: "#fff3b8", d: "#8a6a00", p: ["聖", "光輝", "天光神"], w: "聖光" },
+  dark:  { n: "闇", c: "#9b5cff", l: "#d6bcff", d: "#3a1670", p: ["影", "冥夜", "魔神"], w: "冥闇" },
 };
+const EL_KEYS = Object.keys(EL);
 // 有利属性: 火→木→水→火、光⇄闇
 const ADV = { fire: "wood", wood: "water", water: "fire", light: "dark", dark: "light" };
 function elemMult(atk, def) {
@@ -58,23 +60,135 @@ function elemMult(atk, def) {
 }
 
 // ---- キャラクター ---------------------------------------------------------
-// type: reflect(反射) / pierce(貫通)
-// combo: 友情コンボ（他のキャラに触れると発動）
-// ss: ストライクショット（ターン経過で使用可能）
-const CHARS = [
-  { id: "blaze",  name: "ブレイズ", el: "fire",  type: "reflect", atk: 2400, hp: 16000, spd: 15,
-    combo: "blast",  comboName: "爆発",       comboPow: 4200,
-    ss: "burst",  ssName: "紅蓮突破",     ssTurns: 7,  ssDesc: "攻撃力3倍＆スピードアップ" },
-  { id: "marine", name: "マリン",   el: "water", type: "pierce",  atk: 2600, hp: 17000, spd: 14,
-    combo: "laser",  comboName: "十字レーザー", comboPow: 3600,
-    ss: "wave",   ssName: "タイダルウェイブ", ssTurns: 9,  ssDesc: "大波で敵全体に大ダメージ" },
-  { id: "thorn",  name: "ソーン",   el: "wood",  type: "reflect", atk: 2200, hp: 18000, spd: 14.5,
-    combo: "homing", comboName: "ホーミング8", comboPow: 1100,
-    ss: "needle", ssName: "ニードルレイン", ssTurns: 8,  ssDesc: "移動中に追尾弾を連射" },
-  { id: "lux",    name: "ルクス",   el: "light", type: "pierce",  atk: 2500, hp: 15000, spd: 15.5,
-    combo: "heal",   comboName: "ヒール",     comboPow: 2600,
-    ss: "judge",  ssName: "ジャッジメント", ssTurns: 10, ssDesc: "発射方向に極太レーザー" },
-];
+// 友情コンボ（他のキャラに触れると発動）
+const COMBO = {
+  blast:   { name: "爆発" },
+  laser:   { name: "十字レーザー" },
+  homing:  { name: "ホーミング8" },
+  heal:    { name: "ヒール" },
+  thunder: { name: "チェインサンダー" },
+};
+// ストライクショット（ターン経過で使用可能）
+const SS = {
+  burst:  { name: "突撃",     turns: 7,  desc: "攻撃力3倍＆スピードアップ" },
+  wave:   { name: "大波動",   turns: 9,  desc: "大波で敵全体に大ダメージ" },
+  needle: { name: "レイン",   turns: 8,  desc: "移動中に追尾弾を連射" },
+  judge:  { name: "レーザー", turns: 10, desc: "発射方向に極太レーザー" },
+  meteor: { name: "メテオ",   turns: 11, desc: "隕石8発を敵に落とす" },
+};
+
+// 名前, 属性, 初期レア度, タイプ(reflect 反射 / pierce 貫通), 頭の飾り, 目, 友情コンボ, SS
+const FAM = [
+  ["ヒノコ",   "fire",  3, "pierce",  "spikes",  "round",   "homing",  "needle"],
+  ["ボルカ",   "fire",  3, "reflect", "horns",   "sharp",   "thunder", "burst"],
+  ["ブレイズ", "fire",  4, "reflect", "flame",   "round",   "blast",   "burst"],
+  ["フレア",   "fire",  4, "pierce",  "bow",     "sparkle", "laser",   "judge"],
+  ["ヒバナ",   "fire",  4, "reflect", "ears",    "round",   "heal",    "wave"],
+  ["エンラ",   "fire",  5, "reflect", "horns",   "sharp",   "blast",   "meteor"],
+  ["シズク",   "water", 3, "reflect", "bow",     "sleepy",  "heal",    "needle"],
+  ["アクアン", "water", 3, "pierce",  "antenna", "round",   "homing",  "burst"],
+  ["マリン",   "water", 4, "pierce",  "fin",     "round",   "laser",   "wave"],
+  ["ナミ",     "water", 4, "reflect", "bunny",   "sparkle", "thunder", "judge"],
+  ["セイラ",   "water", 4, "pierce",  "ears",    "round",   "blast",   "wave"],
+  ["ルリハ",   "water", 5, "reflect", "star",    "sharp",   "laser",   "meteor"],
+  ["モリノ",   "wood",  3, "pierce",  "leaf",    "sleepy",  "heal",    "burst"],
+  ["ツタマル", "wood",  3, "reflect", "spikes",  "round",   "blast",   "needle"],
+  ["ソーン",   "wood",  4, "reflect", "leaf",    "round",   "homing",  "needle"],
+  ["フローラ", "wood",  4, "pierce",  "bow",     "sparkle", "heal",    "judge"],
+  ["コケット", "wood",  4, "reflect", "ears",    "sleepy",  "laser",   "wave"],
+  ["ジュカ",   "wood",  5, "reflect", "antenna", "sharp",   "thunder", "meteor"],
+  ["ピカリ",   "light", 3, "reflect", "star",    "round",   "thunder", "burst"],
+  ["ハロ",     "light", 3, "pierce",  "halo",    "sleepy",  "laser",   "needle"],
+  ["ルクス",   "light", 4, "pierce",  "halo",    "round",   "heal",    "judge"],
+  ["ソレイユ", "light", 4, "reflect", "spikes",  "sharp",   "blast",   "wave"],
+  ["ルミナ",   "light", 4, "pierce",  "bunny",   "round",   "homing",  "judge"],
+  ["セラフィ", "light", 5, "pierce",  "halo",    "sparkle", "laser",   "meteor"],
+  ["カゲボウ", "dark",  3, "pierce",  "hat",     "sleepy",  "homing",  "needle"],
+  ["ヤミネコ", "dark",  3, "reflect", "ears",    "sharp",   "thunder", "burst"],
+  ["ノクス",   "dark",  4, "reflect", "horns",   "sharp",   "blast",   "burst"],
+  ["ルナリア", "dark",  4, "pierce",  "bunny",   "sparkle", "heal",    "wave"],
+  ["グリム",   "dark",  4, "reflect", "spikes",  "mono",    "thunder", "judge"],
+  ["ヘクセ",   "dark",  5, "pierce",  "hat",     "sharp",   "homing",  "meteor"],
+].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7] }));
+const STARTERS = [2, 8, 14, 20];   // ブレイズ・マリン・ソーン・ルクス
+
+const RBASE = {
+  3: { atk: 1600, hp: 11000, spd: 13.5 },
+  4: { atk: 2000, hp: 14000, spd: 14 },
+  5: { atk: 2450, hp: 17000, spd: 14.8 },
+  6: { atk: 3000, hp: 21000, spd: 15.5 },
+};
+const MAXLV = { 3: 30, 4: 50, 5: 70, 6: 99 };
+const MAX_AWK = 5;                                  // 覚醒（ガチャで被ると上がる）
+const EVO_CR = { 3: 5, 4: 12, 5: 25 };              // 進化に必要な結晶
+const EVO_COIN = { 3: 2000, 4: 6000, 5: 15000 };    // 進化に必要なコイン
+const RCOL = { 3: "#d39a5a", 4: "#d8e0f0", 5: "#ffd23f", 6: "#ff8ae6" };
+const lvCost = lv => 20 + lv * 8;
+
+// ---- ガチャ -----------------------------------------------------------
+const GACHA_1 = 50, GACHA_10 = 450;
+const RATE5 = 0.06, RATE4 = 0.30;
+
+// ---- セーブデータ -------------------------------------------------------
+const SAVE_KEY = "mflick-save-v1";
+let save = null;
+
+function newSave() {
+  const box = {};
+  for (const fi of STARTERS) box[fi] = { rar: FAM[fi].rar, lv: 1, awk: 0 };
+  const cr = {};
+  for (const k of EL_KEYS) cr[k] = 0;
+  return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "" };
+}
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s && s.box && s.party) { save = s; return; }
+  } catch (e) { /* 読み込めない環境 */ }
+  save = newSave();
+}
+function persist() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* 保存できない環境 */ }
+}
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+// ---- ユニット計算 -------------------------------------------------------
+const owned = fi => !!save.box[fi];
+function unitRar(fi) { return save.box[fi] ? save.box[fi].rar : FAM[fi].rar; }
+function displayName(fi) {
+  const f = FAM[fi], rar = unitRar(fi);
+  return rar > f.rar ? EL[f.el].p[rar - 4] + f.name : f.name;
+}
+function look(fi) {
+  const f = FAM[fi];
+  return { el: f.el, acc: f.acc, eye: f.eye, rar: unitRar(fi), evo: unitRar(fi) > f.rar };
+}
+function unitStats(fi) {
+  const f = FAM[fi], u = save.box[fi] || { rar: f.rar, lv: 1, awk: 0 }, b = RBASE[u.rar];
+  const v = 1 + (((fi * 37) % 11) - 5) / 100;           // キャラごとの個性
+  const lvm = 1 + (u.lv - 1) * 0.012, am = 1 + u.awk * 0.04;
+  const tm = f.type === "pierce" ? [1.05, 0.95] : [1, 1];
+  return {
+    atk: Math.round(b.atk * v * tm[0] * lvm * am),
+    hp: Math.round(b.hp * (2 - v) * tm[1] * lvm * am),
+    spd: b.spd + (fi % 3) * 0.4,
+  };
+}
+function ssTurns(fi) { return Math.max(4, SS[FAM[fi].ss].turns - (unitRar(fi) - FAM[fi].rar)); }
+function ssName(fi) { return EL[FAM[fi].el].w + "の" + SS[FAM[fi].ss].name; }
+
+// キャラ入手（新規 or 覚醒 or コイン変換）
+function acquire(fi) {
+  const u = save.box[fi];
+  if (!u) { save.box[fi] = { rar: FAM[fi].rar, lv: 1, awk: 0 }; return { fi, kind: "new" }; }
+  if (u.awk < MAX_AWK) { u.awk++; return { fi, kind: "awk" }; }
+  const c = 500 * FAM[fi].rar;
+  save.coins += c;
+  return { fi, kind: "coin", coins: c };
+}
 
 // ---- クエスト ---------------------------------------------------------
 let uid = 1;
@@ -92,97 +206,118 @@ const boss = (x, y, el, hp, atk, cd, name, o = {}) =>
 const rock = (x, y, r = 13) => ({ x, y, r });
 const UP = -Math.PI / 2, DOWN = Math.PI / 2;
 
+// ステージ構成のひな形（m: メイン属性, s: サブ属性）
+const LAYOUTS = {
+  A: (m, s, b) => [
+    () => ({ enemies: [
+      mob(90, 150, m, 15000, 2000, 3), mob(270, 150, m, 15000, 2000, 3),
+      mob(180, 260, s, 20000, 2500, 2, { weak: DOWN }),
+    ] }),
+    () => ({ enemies: [
+      mob(70, 120, m, 22000, 2500, 3), mob(290, 120, m, 22000, 2500, 3),
+      mob(130, 290, s, 26000, 3000, 2, { weak: DOWN }), mob(230, 290, m, 26000, 3000, 2, { weak: DOWN }),
+    ], rocks: [rock(180, 190), rock(50, 380), rock(310, 380)] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 175, m, 180000, 9000, 3, b[0]),
+      mob(65, 330, m, 20000, 2500, 2), mob(295, 330, s, 20000, 2500, 2),
+    ] }),
+  ],
+  B: (m, s, b) => [
+    () => ({ enemies: [
+      mob(70, 140, m, 26000, 3000, 2), mob(180, 110, m, 30000, 3500, 3, { weak: UP }),
+      mob(290, 140, m, 26000, 3000, 2), mob(180, 300, s, 30000, 3500, 3, { weak: DOWN }),
+    ] }),
+    () => ({ enemies: [
+      mob(90, 120, m, 34000, 3500, 3, { weak: DOWN }), mob(270, 120, m, 34000, 3500, 3, { weak: DOWN }),
+      mob(60, 300, s, 30000, 4000, 2), mob(300, 300, s, 30000, 4000, 2),
+      mob(180, 230, m, 40000, 4500, 4, { r: 28, weak: 0, roam: true }),
+    ], rocks: [rock(180, 120), rock(130, 360), rock(230, 360)] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 165, m, 320000, 12000, 3, b[0]),
+      mob(60, 290, m, 30000, 4000, 2), mob(300, 290, m, 30000, 4000, 2),
+      mob(180, 330, s, 36000, 4500, 3, { weak: DOWN }),
+    ], rocks: [rock(110, 240), rock(250, 240)] }),
+  ],
+  C: (m, s, b) => [
+    () => ({ enemies: [
+      mob(80, 130, m, 38000, 4000, 2, { weak: DOWN }), mob(280, 130, m, 38000, 4000, 2, { weak: DOWN }),
+      mob(180, 220, m, 46000, 5000, 3, { r: 28, weak: UP }),
+      mob(80, 320, s, 36000, 4000, 3), mob(280, 320, s, 36000, 4000, 3),
+    ] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 160, m, 300000, 13000, 3, b[0]),
+      mob(60, 320, m, 36000, 4500, 2), mob(300, 320, m, 36000, 4500, 2),
+    ], rocks: [rock(120, 260), rock(240, 260), rock(180, 360)] }),
+    () => ({ boss: true, enemies: [
+      boss(180, 200, m, 480000, 16000, 2, b[1], { r: 54 }),
+      mob(60, 110, s, 40000, 5000, 3, { weak: DOWN }), mob(300, 110, s, 40000, 5000, 3, { weak: DOWN }),
+    ], rocks: [rock(70, 380), rock(290, 380)] }),
+  ],
+};
+
+// mul: 敵のHP・攻撃力の倍率。crEl: 報酬の結晶の属性（null はランダム）
 const QUESTS = [
-  {
-    name: "はじまりの森", sub: "木属性中心 / 火属性が有利", par: 12,
-    bg: ["#173322", "#0a170f"],
-    waves: [
-      () => ({ enemies: [
-        mob(90, 150, "wood", 15000, 2000, 3), mob(270, 150, "wood", 15000, 2000, 3),
-        mob(180, 260, "water", 20000, 2500, 2, { weak: DOWN }),
-      ] }),
-      () => ({ enemies: [
-        mob(70, 120, "wood", 22000, 2500, 3), mob(290, 120, "wood", 22000, 2500, 3),
-        mob(130, 290, "water", 26000, 3000, 2, { weak: DOWN }), mob(230, 290, "wood", 26000, 3000, 2, { weak: DOWN }),
-      ], rocks: [rock(180, 190), rock(50, 380), rock(310, 380)] }),
-      () => ({ boss: true, enemies: [
-        boss(180, 175, "wood", 180000, 9000, 3, "森の番人グロウガ"),
-        mob(65, 330, "wood", 20000, 2500, 2), mob(295, 330, "water", 20000, 2500, 2),
-      ] }),
-    ],
-  },
-  {
-    name: "蒼の海溝", sub: "水属性中心 / 木属性が有利", par: 16,
-    bg: ["#0f2440", "#060d1c"],
-    waves: [
-      () => ({ enemies: [
-        mob(70, 140, "water", 26000, 3000, 2), mob(180, 110, "water", 30000, 3500, 3, { weak: UP }),
-        mob(290, 140, "water", 26000, 3000, 2), mob(180, 300, "fire", 30000, 3500, 3, { weak: DOWN }),
-      ] }),
-      () => ({ enemies: [
-        mob(90, 120, "water", 34000, 3500, 3, { weak: DOWN }), mob(270, 120, "water", 34000, 3500, 3, { weak: DOWN }),
-        mob(60, 300, "fire", 30000, 4000, 2), mob(300, 300, "fire", 30000, 4000, 2),
-        mob(180, 230, "water", 40000, 4500, 4, { r: 28, weak: 0, roam: true }),
-      ], rocks: [rock(180, 120), rock(130, 360), rock(230, 360)] }),
-      () => ({ boss: true, enemies: [
-        boss(180, 165, "water", 320000, 12000, 3, "深淵の主ヴォルタク"),
-        mob(60, 290, "water", 30000, 4000, 2), mob(300, 290, "water", 30000, 4000, 2),
-        mob(180, 330, "fire", 36000, 4500, 3, { weak: DOWN }),
-      ], rocks: [rock(110, 240), rock(250, 240)] }),
-    ],
-  },
-  {
-    name: "冥府の塔", sub: "闇属性中心 / 光属性が有利", par: 20,
-    bg: ["#24133a", "#0c0616"],
-    waves: [
-      () => ({ enemies: [
-        mob(80, 130, "dark", 38000, 4000, 2, { weak: DOWN }), mob(280, 130, "dark", 38000, 4000, 2, { weak: DOWN }),
-        mob(180, 220, "dark", 46000, 5000, 3, { r: 28, weak: UP }),
-        mob(80, 320, "light", 36000, 4000, 3), mob(280, 320, "light", 36000, 4000, 3),
-      ] }),
-      () => ({ boss: true, enemies: [
-        boss(180, 160, "dark", 300000, 13000, 3, "冥王ノクスガルド (I)"),
-        mob(60, 320, "dark", 36000, 4500, 2), mob(300, 320, "dark", 36000, 4500, 2),
-      ], rocks: [rock(120, 260), rock(240, 260), rock(180, 360)] }),
-      () => ({ boss: true, enemies: [
-        boss(180, 200, "dark", 480000, 16000, 2, "冥王ノクスガルド (II)", { r: 54 }),
-        mob(60, 110, "light", 40000, 5000, 3, { weak: DOWN }), mob(300, 110, "light", 40000, 5000, 3, { weak: DOWN }),
-      ], rocks: [rock(70, 380), rock(290, 380)] }),
-    ],
-  },
+  { name: "はじまりの森", sub: "木属性中心 / 火属性が有利", diff: 1, mul: 0.8, par: 12,
+    bg: ["#173322", "#0a170f"], coin: 800, gem: 50, crEl: "wood", crN: 3,
+    waves: LAYOUTS.A("wood", "water", ["森の番人グロウガ"]) },
+  { name: "灼熱の火山", sub: "火属性中心 / 水属性が有利", diff: 2, mul: 1.15, par: 12,
+    bg: ["#3a1a12", "#160806"], coin: 1200, gem: 50, crEl: "fire", crN: 3,
+    waves: LAYOUTS.A("fire", "wood", ["溶岩竜バルガロス"]) },
+  { name: "蒼の海溝", sub: "水属性中心 / 木属性が有利", diff: 3, mul: 1.0, par: 16,
+    bg: ["#0f2440", "#060d1c"], coin: 1800, gem: 80, crEl: "water", crN: 4,
+    waves: LAYOUTS.B("water", "fire", ["深淵の主ヴォルタク"]) },
+  { name: "光の神殿", sub: "光属性中心 / 闇属性が有利", diff: 4, mul: 1.35, par: 16,
+    bg: ["#3a3416", "#141006"], coin: 2600, gem: 80, crEl: "light", crN: 4,
+    waves: LAYOUTS.B("light", "wood", ["天秤の守護者アストレイ"]) },
+  { name: "冥府の塔", sub: "闇属性中心 / 光属性が有利", diff: 5, mul: 1.3, par: 20,
+    bg: ["#24133a", "#0c0616"], coin: 3500, gem: 100, crEl: "dark", crN: 5,
+    waves: LAYOUTS.C("dark", "light", ["冥王ノクスガルド (I)", "冥王ノクスガルド (II)"]) },
+  { name: "極・混沌の玉座", sub: "超高難度 / 光属性が有利", diff: 6, mul: 2.3, par: 20,
+    bg: ["#2a0a14", "#0a0206"], coin: 6000, gem: 150, crEl: null, crN: 6,
+    waves: LAYOUTS.C("dark", "fire", ["混沌帝カオスレイ (I)", "混沌帝カオスレイ (II)"]) },
 ];
+const questUnlocked = i => i === 0 || !!save.cleared[i - 1];
 
 // ---- 状態 -------------------------------------------------------------
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
-let state = "title";   // title | aim | shoot | enemy | wave | clear | over
+// home | quests | gacha | gachaAnim | gachaResult | box | detail | party
+// | aim | shoot | enemy | wave | clear | over
+let state = "home";
+const BATTLE = new Set(["aim", "shoot", "enemy", "wave", "clear", "over"]);
 let questIdx = 0, quest = null, waveIdx = 0;
 let allies = [], enemies = [], rocks = [], hearts = [];
 let hp = 0, maxHp = 0, turn = 1, cur = 0, ssArmed = false;
 let shot = null, hitCount = 0;
 let bolts = [], fx = [], particles = [], texts = [], events = [];
-let banner = null, shake = 0, frameNo = 0;
+let banner = null, shake = 0, frameNo = 0, toast = null;
 let lastResult = null;
+let gacha = null, detailFi = 0;
 let ui = [];           // 当たり判定付きボタン（毎フレーム描画時に登録）
 
 let dragging = false, dragStart = null, dragNow = null;
 
-function bestKey(i) { return "mflick-best-" + i; }
-function loadBest(i) {
-  try { const v = localStorage.getItem(bestKey(i)); return v ? Number(v) : null; } catch (e) { return null; }
-}
-function saveBest(i, t) {
-  try { localStorage.setItem(bestKey(i), String(t)); } catch (e) { /* 保存できない環境 */ }
+function showToast(text) { toast = { text, life: 90 }; }
+function go(s) { state = s; particles = []; texts = []; banner = null; }
+
+// ---- バトル開始 ---------------------------------------------------------
+function makeAlly(fi, x, y) {
+  const f = FAM[fi], s = unitStats(fi), t = ssTurns(fi);
+  return {
+    fi, name: displayName(fi), el: f.el, type: f.type, atk: s.atk, hp: s.hp, spd: s.spd,
+    combo: f.combo, comboName: COMBO[f.combo].name,
+    ss: f.ss, ssName: ssName(fi), ssTurns: t, ssDesc: SS[f.ss].desc, ssLeft: t,
+    look: look(fi), x, y, vx: 0, vy: 0, hurt: 0, glow: 0,
+  };
 }
 
 function startQuest(i) {
   questIdx = i;
   quest = QUESTS[i];
   waveIdx = 0;
-  allies = CHARS.map((c, k) => ({
-    ...c, x: START_POS[k][0], y: START_POS[k][1], vx: 0, vy: 0, ssLeft: c.ssTurns, hurt: 0, glow: 0,
-  }));
+  const n = save.party.length;
+  allies = save.party.map((fi, k) => makeAlly(fi, W / (n + 1) * (k + 1), 505));
   maxHp = hp = allies.reduce((s, a) => s + a.hp, 0);
   turn = 1;
   cur = 0;
@@ -195,6 +330,10 @@ function startQuest(i) {
 
 function loadWave() {
   const w = quest.waves[waveIdx]();
+  for (const e of w.enemies) {
+    e.hp = e.maxHp = Math.round(e.hp * quest.mul);
+    e.atk = Math.round(e.atk * quest.mul);
+  }
   enemies = w.enemies;
   rocks = w.rocks || [];
   hearts = [];
@@ -216,6 +355,7 @@ function burst(x, y, color, n, spd = 3) {
   }
 }
 const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const alive = () => enemies.filter(e => !e.dead);
 
 // ---- 物理 -------------------------------------------------------------
@@ -304,36 +444,55 @@ function healParty(v, x, y) {
   addText(x, y - 26, "+" + v.toLocaleString(), "#7dffa0", 15);
 }
 
+function addBolt(x, y, vx, vy, base, el, size = 4) {
+  bolts.push({ x, y, vx, vy, target: null, base, el, color: EL[el].l, size, life: 140 });
+}
+
 // ---- 友情コンボ ---------------------------------------------------------
 function triggerCombo(a) {
   a.glow = 20;
-  addText(a.x, a.y - 30, a.comboName, EL[a.el].l, 13);
+  const col = EL[a.el].l;
+  addText(a.x, a.y - 30, a.comboName, col, 13);
   switch (a.combo) {
     case "blast": {
       const rad = 95;
-      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 10, r1: rad, life: 22, max: 22, color: "#ff8a3c", w: 8 });
-      for (const e of alive()) if (Math.hypot(e.x - a.x, e.y - a.y) < rad + e.r) damageEnemy(e, a.comboPow, a.el, false);
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 10, r1: rad, life: 22, max: 22, color: EL[a.el].c, w: 8 });
+      for (const e of alive()) if (Math.hypot(e.x - a.x, e.y - a.y) < rad + e.r) damageEnemy(e, a.atk * 1.7, a.el, false);
       break;
     }
     case "laser": {
-      fx.push({ kind: "line", x1: 0, y1: a.y, x2: W, y2: a.y, w: 10, life: 18, max: 18, color: "#7cc8ff" });
-      fx.push({ kind: "line", x1: a.x, y1: TOP, x2: a.x, y2: FB, w: 10, life: 18, max: 18, color: "#7cc8ff" });
+      fx.push({ kind: "line", x1: 0, y1: a.y, x2: W, y2: a.y, w: 10, life: 18, max: 18, color: col });
+      fx.push({ kind: "line", x1: a.x, y1: TOP, x2: a.x, y2: FB, w: 10, life: 18, max: 18, color: col });
       for (const e of alive()) {
-        if (Math.abs(e.y - a.y) < e.r + 8 || Math.abs(e.x - a.x) < e.r + 8) damageEnemy(e, a.comboPow, a.el, false);
+        if (Math.abs(e.y - a.y) < e.r + 8 || Math.abs(e.x - a.x) < e.r + 8) damageEnemy(e, a.atk * 1.5, a.el, false);
       }
       break;
     }
     case "homing": {
       for (let i = 0; i < 8; i++) {
         const ang = (i / 8) * Math.PI * 2;
-        bolts.push({ x: a.x, y: a.y, vx: Math.cos(ang) * 5, vy: Math.sin(ang) * 5, target: null,
-          base: a.comboPow, el: a.el, color: "#8dff9c", life: 120 });
+        addBolt(a.x, a.y, Math.cos(ang) * 5, Math.sin(ang) * 5, a.atk * 0.45, a.el);
+      }
+      break;
+    }
+    case "thunder": {
+      // 近い敵へ順に連鎖する雷（最大4体）
+      let from = { x: a.x, y: a.y };
+      const hit = new Set();
+      for (let k = 0; k < 4; k++) {
+        const next = alive().filter(e => !hit.has(e))
+          .sort((p, q) => Math.hypot(p.x - from.x, p.y - from.y) - Math.hypot(q.x - from.x, q.y - from.y))[0];
+        if (!next) break;
+        hit.add(next);
+        fx.push({ kind: "bolt", x1: from.x, y1: from.y, x2: next.x, y2: next.y, life: 18, max: 18, color: col });
+        damageEnemy(next, a.atk * 1.1, a.el, false);
+        from = next;
       }
       break;
     }
     case "heal": {
       fx.push({ kind: "ring", x: a.x, y: a.y, r0: 8, r1: 60, life: 24, max: 24, color: "#9dffb0", w: 5 });
-      healParty(a.comboPow, a.x, a.y);
+      healParty(Math.round(a.hp * 0.15), a.x, a.y);
       break;
     }
   }
@@ -347,7 +506,7 @@ function judgeLaser(a, dx, dy) {
   if (dy > 0) t = Math.min(t, (FB - a.y) / dy);
   if (dy < 0) t = Math.min(t, (TOP - a.y) / dy);
   const x2 = a.x + dx * t, y2 = a.y + dy * t;
-  fx.push({ kind: "line", x1: a.x, y1: a.y, x2, y2, w: 30, life: 34, max: 34, color: "#ffe36b" });
+  fx.push({ kind: "line", x1: a.x, y1: a.y, x2, y2, w: 30, life: 34, max: 34, color: EL[a.el].l });
   for (const e of alive()) {
     if (segDist(e.x, e.y, a.x, a.y, x2, y2) < e.r + 14) damageEnemy(e, a.atk * 8, a.el, false);
   }
@@ -370,6 +529,9 @@ function fire(dx, dy) {
       case "wave":   fx.push({ kind: "wave", y: FB, life: 45, max: 45, hit: new Set(), base: a.atk * 3.5, el: a.el }); break;
       case "needle": shot.needle = 30; break;
       case "judge":  judgeLaser(a, dx, dy); break;
+      case "meteor":
+        for (let i = 0; i < 8; i++) addBolt(rand(30, W - 30), TOP - 20 - i * 25, 0, 6, a.atk * 2.2, a.el, 9);
+        break;
     }
   }
   a.vx = dx * sp;
@@ -413,13 +575,11 @@ function updateShot() {
     s.trail.push({ x: a.x, y: a.y });
     if (s.trail.length > 12) s.trail.shift();
 
-    // ニードルレイン
     if (s.needle > 0 && --s.needleT <= 0 && alive().length) {
       s.needle--;
       s.needleT = 4;
       const ang = Math.random() * Math.PI * 2;
-      bolts.push({ x: a.x, y: a.y, vx: Math.cos(ang) * 6, vy: Math.sin(ang) * 6, target: null,
-        base: a.atk * 0.8, el: a.el, color: "#c8ff6b", life: 120 });
+      addBolt(a.x, a.y, Math.cos(ang) * 6, Math.sin(ang) * 6, a.atk * 0.8, a.el);
     }
 
     if (Math.hypot(a.vx, a.vy) < STOP) {
@@ -459,7 +619,7 @@ function enemyAttack(e) {
     addText(e.x, e.y + e.r + 12, "全体攻撃", "#ff8b9b", 14);
     damageParty(e.atk, W / 2, FB - 10);
   } else {
-    const t = allies[Math.floor(Math.random() * allies.length)];
+    const t = pick(allies);
     fx.push({ kind: "line", x1: e.x, y1: e.y, x2: t.x, y2: t.y, w: 5, life: 16, max: 16, color: "#ff5b6b" });
     t.hurt = 16;
     burst(t.x, t.y, "#ff5b6b", 10);
@@ -499,13 +659,102 @@ function waveClear() {
   });
 }
 
+// クリア報酬
 function finishQuest() {
-  const best = loadBest(questIdx);
-  const isBest = best === null || turn < best;
-  if (isBest) saveBest(questIdx, turn);
-  const rank = turn <= quest.par ? "S" : turn <= quest.par * 1.4 ? "A" : "B";
-  lastResult = { turn, rank, best: isBest ? turn : best, isBest };
+  const q = quest, first = !save.cleared[questIdx];
+  const best = save.best[questIdx];
+  const isBest = best === undefined || turn < best;
+  if (isBest) save.best[questIdx] = turn;
+  const rank = turn <= q.par ? "S" : turn <= q.par * 1.4 ? "A" : "B";
+  const coin = Math.round(q.coin * (rank === "S" ? 1.5 : rank === "A" ? 1.2 : 1));
+  const crEl = q.crEl || pick(EL_KEYS);
+  const crN = q.crN + Math.floor(Math.random() * 3);
+  const gem = first ? q.gem : 0;
+  let drop = null;
+  if (Math.random() < 0.35) {
+    const pool = FAM.filter(f => f.rar === 3 && f.el === crEl);
+    drop = acquire(pick(pool.length ? pool : FAM.filter(f => f.rar === 3)).idx);
+  }
+  save.coins += coin;
+  save.gems += gem;
+  save.cr[crEl] += crN;
+  save.cleared[questIdx] = true;
+  persist();
+  lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop };
   state = "clear";
+}
+
+// ---- 育成 -------------------------------------------------------------
+function levelUp(fi, toMax) {
+  const u = save.box[fi], cap = MAXLV[u.rar];
+  if (u.lv >= cap) { showToast("レベルが上限です。進化させよう!"); return; }
+  let n = 0;
+  while (u.lv < cap && save.coins >= lvCost(u.lv)) {
+    save.coins -= lvCost(u.lv);
+    u.lv++;
+    n++;
+    if (!toMax) break;
+  }
+  if (!n) { showToast("コインが足りません"); return; }
+  burst(180, 170, "#ffe066", 20, 4);
+  addText(180, 120, `Lv UP! → ${u.lv}`, "#ffe066", 20);
+  persist();
+}
+function maxCost(fi) {
+  const u = save.box[fi], cap = MAXLV[u.rar];
+  let c = 0;
+  for (let lv = u.lv; lv < cap; lv++) c += lvCost(lv);
+  return c;
+}
+function evolve(fi) {
+  const u = save.box[fi], f = FAM[fi];
+  if (u.rar >= 6) return;
+  if (u.lv < MAXLV[u.rar]) { showToast(`Lv${MAXLV[u.rar]}にすると進化できます`); return; }
+  if (save.cr[f.el] < EVO_CR[u.rar]) { showToast(`${EL[f.el].n}の結晶が足りません`); return; }
+  if (save.coins < EVO_COIN[u.rar]) { showToast("コインが足りません"); return; }
+  save.cr[f.el] -= EVO_CR[u.rar];
+  save.coins -= EVO_COIN[u.rar];
+  u.rar++;
+  persist();
+  burst(180, 170, EL[f.el].l, 70, 6);
+  burst(180, 170, "#ffffff", 30, 4);
+  showBanner("進化成功!", `${displayName(fi)}  ★${u.rar}`, RCOL[u.rar]);
+}
+
+// ---- ガチャ -----------------------------------------------------------
+function rollOne(guarantee4) {
+  const r = Math.random();
+  let rar = r < RATE5 ? 5 : r < RATE5 + RATE4 ? 4 : 3;
+  if (guarantee4 && rar === 3) rar = 4;
+  return pick(FAM.filter(f => f.rar === rar)).idx;
+}
+function pullGacha(n) {
+  const cost = n === 10 ? GACHA_10 : GACHA_1;
+  if (save.gems < cost) { showToast("ジェムが足りません"); return; }
+  save.gems -= cost;
+  const res = [];
+  for (let i = 0; i < n; i++) {
+    const guarantee = n === 10 && i === 9 && !res.some(r => FAM[r.fi].rar >= 4);
+    res.push(acquire(rollOne(guarantee)));
+  }
+  persist();
+  gacha = { res, i: 0, t: 0, opened: false };
+  go("gachaAnim");
+}
+function gachaTap() {
+  if (!gacha.opened) {
+    if (gacha.t < 30) return;
+    gacha.opened = true;
+    gacha.t = 0;
+    const f = FAM[gacha.res[gacha.i].fi];
+    burst(W / 2, 300, RCOL[f.rar], f.rar >= 5 ? 80 : 40, 6);
+    return;
+  }
+  if (gacha.t < 15) return;
+  gacha.i++;
+  gacha.opened = false;
+  gacha.t = 0;
+  if (gacha.i >= gacha.res.length) go("gachaResult");
 }
 
 // ---- 更新ループ -------------------------------------------------------
@@ -513,7 +762,7 @@ function updateBolts() {
   for (const b of bolts) {
     if (!b.target || b.target.dead) {
       const list = alive();
-      b.target = list.length ? list[Math.floor(Math.random() * list.length)] : null;
+      b.target = list.length ? pick(list) : null;
     }
     b.life--;
     if (!b.target) { b.life = 0; continue; }
@@ -524,6 +773,7 @@ function updateBolts() {
     b.y += b.vy;
     if (d < b.target.r) {
       damageEnemy(b.target, b.base, b.el, false);
+      if (b.size > 6) burst(b.x, b.y, b.color, 14, 4);
       b.life = 0;
     }
   }
@@ -549,14 +799,16 @@ function update() {
   texts = texts.filter(t => t.life > 0);
   for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy *= 0.94; p.life--; }
   particles = particles.filter(p => p.life > 0);
-  for (const a of allies) { if (a.hurt > 0) a.hurt--; if (a.glow > 0) a.glow--; }
-  for (const e of enemies) if (e.flash > 0) e.flash--;
   if (banner && --banner.life <= 0) banner = null;
+  if (toast && --toast.life <= 0) toast = null;
   if (shake > 0) shake *= 0.85;
   if (shake < 0.3) shake = 0;
+  if (gacha) gacha.t++;
 
-  if (state === "title" || state === "clear" || state === "over") return;
+  if (!BATTLE.has(state) || state === "clear" || state === "over") return;
 
+  for (const a of allies) { if (a.hurt > 0) a.hurt--; if (a.glow > 0) a.glow--; }
+  for (const e of enemies) if (e.flash > 0) e.flash--;
   updateBolts();
   updateFx();
   if (state === "shoot") updateShot();
@@ -610,19 +862,25 @@ function button(x, y, w, h, label, onTap, opt = {}) {
   if (opt.hidden) return;
   ctx.save();
   const g = ctx.createLinearGradient(0, y, 0, y + h);
-  g.addColorStop(0, opt.c1 || "#ffcf4a");
-  g.addColorStop(1, opt.c2 || "#ff8f1f");
+  g.addColorStop(0, opt.disabled ? "#59607a" : opt.c1 || "#ffcf4a");
+  g.addColorStop(1, opt.disabled ? "#3a3f55" : opt.c2 || "#ff8f1f");
   ctx.fillStyle = g;
   roundRect(x, y, w, h, 10);
   ctx.fill();
   ctx.strokeStyle = "rgba(255,255,255,0.6)";
   ctx.lineWidth = 2;
   ctx.stroke();
-  ctx.fillStyle = opt.fg || "#3a1c00";
+  ctx.fillStyle = opt.disabled ? "#c4c8d8" : opt.fg || "#3a1c00";
   ctx.font = `bold ${opt.size || 16}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+  if (opt.sub) {
+    ctx.fillText(label, x + w / 2, y + h / 2 - 7);
+    ctx.font = `bold 11px system-ui, sans-serif`;
+    ctx.fillText(opt.sub, x + w / 2, y + h / 2 + 11);
+  } else {
+    ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+  }
   ctx.restore();
 }
 
@@ -645,43 +903,193 @@ function outlinedText(text, x, y, color, size, stroke = "#000") {
   ctx.fillText(text, x, y);
 }
 
-// 味方キャラ（オリジナルデザイン）
-function drawAlly(a, x, y, r) {
-  const c = EL[a.el];
+function txt(text, x, y, size, color, align = "left", weight = "bold") {
+  ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x, y);
+}
+
+function starPath(x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+
+function drawStars(n, x, y, s) {
+  const w = s * 1.9, sx = x - (n - 1) * w / 2;
   ctx.save();
-  // 頭の飾り（後ろ側）
-  if (a.id === "blaze") {
-    for (const [ox, h, col] of [[-0.42, 0.75, "#ff7a2e"], [0, 1.05, "#ff7a2e"], [0.42, 0.75, "#ff7a2e"], [0, 0.7, "#ffd34a"]]) {
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.moveTo(x + (ox - 0.3) * r, y - r * 0.55);
-      ctx.quadraticCurveTo(x + (ox - 0.1) * r, y - r * (0.6 + h * 0.6), x + ox * r, y - r * (0.55 + h));
-      ctx.quadraticCurveTo(x + (ox + 0.1) * r, y - r * (0.6 + h * 0.6), x + (ox + 0.3) * r, y - r * 0.55);
-      ctx.fill();
-    }
-  } else if (a.id === "marine") {
-    ctx.fillStyle = "#1f6fd6";
-    ctx.beginPath();
-    ctx.moveTo(x - r * 0.45, y - r * 0.75);
-    ctx.quadraticCurveTo(x + r * 0.05, y - r * 1.75, x + r * 0.55, y - r * 0.7);
+  for (let i = 0; i < n; i++) {
+    starPath(sx + i * w, y, s);
+    ctx.fillStyle = n >= 6 ? `hsl(${(frameNo * 3 + i * 50) % 360},90%,70%)` : "#ffd23f";
     ctx.fill();
-  } else if (a.id === "thorn") {
-    ctx.strokeStyle = "#2d7a3c";
-    ctx.lineWidth = r * 0.12;
-    ctx.beginPath(); ctx.moveTo(x, y - r * 0.9); ctx.lineTo(x, y - r * 1.25); ctx.stroke();
-    ctx.fillStyle = "#5fd36e";
+    ctx.strokeStyle = "#5a3a00";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function rarityStroke(rar, x, y, w, h) {
+  if (rar < 6) return RCOL[rar];
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  for (let i = 0; i <= 5; i++) g.addColorStop(i / 5, `hsl(${(frameNo * 2 + i * 60) % 360},90%,65%)`);
+  return g;
+}
+
+function gemIcon(x, y, s) {
+  ctx.save();
+  ctx.fillStyle = "#5ef0ff";
+  ctx.beginPath();
+  ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.8, y - s * 0.2); ctx.lineTo(x, y + s);
+  ctx.lineTo(x - s * 0.8, y - s * 0.2); ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.beginPath();
+  ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.3, y - s * 0.2); ctx.lineTo(x - s * 0.3, y - s * 0.2); ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+function coinIcon(x, y, s) {
+  ctx.save();
+  ctx.fillStyle = "#ffcf3f";
+  ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#a87400";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(x, y, s * 0.65, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+function crystalIcon(el, x, y, s) {
+  ctx.save();
+  ctx.fillStyle = EL[el].c;
+  ctx.strokeStyle = EL[el].l;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.55, y - s * 0.3); ctx.lineTo(x + s * 0.4, y + s);
+  ctx.lineTo(x - s * 0.4, y + s); ctx.lineTo(x - s * 0.55, y - s * 0.3); ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+// キャラ（すべてコードで描くオリジナルデザイン）
+// k: { el, acc, eye, rar, evo }
+function drawChar(k, x, y, r) {
+  const c = EL[k.el];
+  ctx.save();
+  // ★6: 回転するオーラ
+  if (k.rar >= 6) {
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = `hsl(${(frameNo * 3) % 360},90%,70%)`;
+    ctx.lineWidth = Math.max(2, r * 0.1);
+    ctx.setLineDash([r * 0.3, r * 0.2]);
+    ctx.lineDashOffset = -frameNo * 0.8;
+    ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  // ★5以上: 翼
+  if (k.rar >= 5) {
+    ctx.fillStyle = k.rar >= 6 ? "rgba(255,240,200,0.92)" : "rgba(255,255,255,0.85)";
     for (const s of [-1, 1]) {
-      ctx.beginPath();
-      ctx.ellipse(x + s * r * 0.3, y - r * 1.25, r * 0.36, r * 0.16, s * -0.5, 0, Math.PI * 2);
-      ctx.fill();
+      for (let j = 0; j < 3; j++) {
+        ctx.beginPath();
+        ctx.ellipse(x + s * r * (0.95 + j * 0.12), y - r * (0.15 - j * 0.22), r * (0.55 - j * 0.1), r * 0.18, s * (0.5 - j * 0.35), 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
-  } else if (a.id === "lux") {
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    for (const s of [-1, 1]) {
+  }
+  // 頭の飾り（後ろ側）
+  switch (k.acc) {
+    case "flame":
+      for (const [ox, h, col] of [[-0.42, 0.75, "#ff7a2e"], [0, 1.05, "#ff7a2e"], [0.42, 0.75, "#ff7a2e"], [0, 0.7, "#ffd34a"]]) {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(x + (ox - 0.3) * r, y - r * 0.55);
+        ctx.quadraticCurveTo(x + (ox - 0.1) * r, y - r * (0.6 + h * 0.6), x + ox * r, y - r * (0.55 + h));
+        ctx.quadraticCurveTo(x + (ox + 0.1) * r, y - r * (0.6 + h * 0.6), x + (ox + 0.3) * r, y - r * 0.55);
+        ctx.fill();
+      }
+      break;
+    case "fin":
+      ctx.fillStyle = c.d;
       ctx.beginPath();
-      ctx.ellipse(x + s * r * 0.95, y - r * 0.1, r * 0.45, r * 0.22, s * 0.6, 0, Math.PI * 2);
+      ctx.moveTo(x - r * 0.45, y - r * 0.75);
+      ctx.quadraticCurveTo(x + r * 0.05, y - r * 1.75, x + r * 0.55, y - r * 0.7);
       ctx.fill();
-    }
+      break;
+    case "leaf":
+      ctx.strokeStyle = "#2d7a3c";
+      ctx.lineWidth = r * 0.12;
+      ctx.beginPath(); ctx.moveTo(x, y - r * 0.9); ctx.lineTo(x, y - r * 1.25); ctx.stroke();
+      ctx.fillStyle = "#5fd36e";
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(x + s * r * 0.3, y - r * 1.25, r * 0.36, r * 0.16, s * -0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case "horns":
+      ctx.fillStyle = "#f3e9d2";
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.3, y - r * 0.8);
+        ctx.quadraticCurveTo(x + s * r * 0.9, y - r * 1.1, x + s * r * 0.85, y - r * 1.55);
+        ctx.quadraticCurveTo(x + s * r * 0.75, y - r * 1.0, x + s * r * 0.65, y - r * 0.6);
+        ctx.fill();
+      }
+      break;
+    case "ears":
+      for (const s of [-1, 1]) {
+        ctx.fillStyle = c.c;
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.2, y - r * 0.85);
+        ctx.lineTo(x + s * r * 0.75, y - r * 1.35);
+        ctx.lineTo(x + s * r * 0.85, y - r * 0.45);
+        ctx.fill();
+        ctx.fillStyle = "#ffb3c8";
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.35, y - r * 0.8);
+        ctx.lineTo(x + s * r * 0.7, y - r * 1.15);
+        ctx.lineTo(x + s * r * 0.75, y - r * 0.6);
+        ctx.fill();
+      }
+      break;
+    case "bunny":
+      for (const s of [-1, 1]) {
+        ctx.fillStyle = c.c;
+        ctx.beginPath(); ctx.ellipse(x + s * r * 0.35, y - r * 1.3, r * 0.2, r * 0.6, s * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffd0dc";
+        ctx.beginPath(); ctx.ellipse(x + s * r * 0.35, y - r * 1.28, r * 0.09, r * 0.42, s * 0.2, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    case "antenna":
+      ctx.strokeStyle = c.d;
+      ctx.lineWidth = Math.max(1.5, r * 0.08);
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.25, y - r * 0.9);
+        ctx.quadraticCurveTo(x + s * r * 0.3, y - r * 1.4, x + s * r * 0.6, y - r * 1.5);
+        ctx.stroke();
+        ctx.fillStyle = c.l;
+        ctx.beginPath(); ctx.arc(x + s * r * 0.6, y - r * 1.5, r * 0.15, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    case "spikes":
+      ctx.fillStyle = c.d;
+      for (let i = -2; i <= 2; i++) {
+        const a = -Math.PI / 2 + i * 0.42;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a - 0.17) * r * 0.9, y + Math.sin(a - 0.17) * r * 0.9);
+        ctx.lineTo(x + Math.cos(a) * r * 1.45, y + Math.sin(a) * r * 1.45);
+        ctx.lineTo(x + Math.cos(a + 0.17) * r * 0.9, y + Math.sin(a + 0.17) * r * 0.9);
+        ctx.fill();
+      }
+      break;
   }
   // 体
   const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
@@ -690,27 +1098,147 @@ function drawAlly(a, x, y, r) {
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.35)";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = Math.max(1, r * 0.1);
   ctx.stroke();
-  // 顔
-  for (const s of [-1, 1]) {
-    ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.ellipse(x + s * r * 0.33, y - r * 0.05, r * 0.2, r * 0.25, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#1b1b2a";
-    ctx.beginPath(); ctx.arc(x + s * r * 0.33, y, r * 0.12, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.arc(x + s * r * 0.33 - r * 0.04, y - r * 0.05, r * 0.045, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(255,120,150,0.45)";
-    ctx.beginPath(); ctx.ellipse(x + s * r * 0.6, y + r * 0.28, r * 0.13, r * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  // 進化済み: 額の宝石
+  if (k.evo) {
+    ctx.fillStyle = RCOL[k.rar] === undefined ? "#fff" : (k.rar >= 6 ? `hsl(${(frameNo * 3) % 360},90%,65%)` : RCOL[k.rar]);
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 0.72); ctx.lineTo(x + r * 0.12, y - r * 0.56);
+    ctx.lineTo(x, y - r * 0.4); ctx.lineTo(x - r * 0.12, y - r * 0.56); ctx.closePath();
+    ctx.fill();
   }
-  ctx.strokeStyle = "#1b1b2a";
+  // 目
+  const pupil = "#1b1b2a";
+  if (k.eye === "mono") {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.ellipse(x, y - r * 0.05, r * 0.32, r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = pupil;
+    ctx.beginPath(); ctx.arc(x, y, r * 0.17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(x - r * 0.06, y - r * 0.07, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  } else {
+    for (const s of [-1, 1]) {
+      const ex = x + s * r * 0.33, ey = y - r * 0.05;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.ellipse(ex, ey, r * 0.2, r * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = pupil;
+      ctx.beginPath(); ctx.arc(ex, ey + r * 0.05, r * 0.12, 0, Math.PI * 2); ctx.fill();
+      if (k.eye === "sparkle") {
+        ctx.fillStyle = "#fff";
+        starPath(ex - r * 0.04, ey, r * 0.08);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = "#fff";
+        ctx.beginPath(); ctx.arc(ex - r * 0.04, ey, r * 0.045, 0, Math.PI * 2); ctx.fill();
+      }
+      if (k.eye === "sleepy") {
+        // まぶた
+        ctx.fillStyle = c.c;
+        ctx.beginPath(); ctx.ellipse(ex, ey - r * 0.08, r * 0.23, r * 0.17, 0, Math.PI, Math.PI * 2); ctx.fill();
+        ctx.fillRect(ex - r * 0.23, ey - r * 0.1, r * 0.46, r * 0.04);
+      }
+      if (k.eye === "sharp") {
+        ctx.strokeStyle = pupil;
+        ctx.lineWidth = Math.max(1.2, r * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(x + s * r * 0.13, y - r * 0.2);
+        ctx.lineTo(x + s * r * 0.55, y - r * 0.33);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(255,120,150,0.45)";
+      ctx.beginPath(); ctx.ellipse(x + s * r * 0.6, y + r * 0.28, r * 0.13, r * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.strokeStyle = pupil;
   ctx.lineWidth = Math.max(1.2, r * 0.08);
   ctx.beginPath(); ctx.arc(x, y + r * 0.3, r * 0.16, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
   // 頭の飾り（前側）
-  if (a.id === "lux") {
-    ctx.strokeStyle = "#ffe66b";
-    ctx.lineWidth = r * 0.13;
-    ctx.beginPath(); ctx.ellipse(x, y - r * 1.15, r * 0.5, r * 0.16, 0, 0, Math.PI * 2); ctx.stroke();
+  switch (k.acc) {
+    case "halo":
+      ctx.strokeStyle = "#ffe66b";
+      ctx.lineWidth = r * 0.13;
+      ctx.beginPath(); ctx.ellipse(x, y - r * 1.15, r * 0.5, r * 0.16, 0, 0, Math.PI * 2); ctx.stroke();
+      break;
+    case "star":
+      starPath(x + r * 0.15, y - r * 1.05, r * 0.42);
+      ctx.fillStyle = "#ffe066";
+      ctx.fill();
+      ctx.strokeStyle = "#a87400";
+      ctx.lineWidth = Math.max(1, r * 0.06);
+      ctx.stroke();
+      break;
+    case "bow":
+      ctx.fillStyle = "#ff6fa8";
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + r * 0.5, y - r * 0.85);
+        ctx.lineTo(x + r * 0.5 + s * r * 0.45, y - r * 0.85 - r * 0.28);
+        ctx.lineTo(x + r * 0.5 + s * r * 0.45, y - r * 0.85 + r * 0.28);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#ffd0e4";
+      ctx.beginPath(); ctx.arc(x + r * 0.5, y - r * 0.85, r * 0.12, 0, Math.PI * 2); ctx.fill();
+      break;
+    case "hat":
+      ctx.fillStyle = "#2a1846";
+      ctx.beginPath(); ctx.ellipse(x, y - r * 0.75, r * 0.85, r * 0.18, -0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.5, y - r * 0.8);
+      ctx.quadraticCurveTo(x + r * 0.1, y - r * 1.4, x + r * 0.55, y - r * 1.85);
+      ctx.lineTo(x + r * 0.5, y - r * 0.85);
+      ctx.fill();
+      ctx.fillStyle = c.c;
+      ctx.fillRect(x - r * 0.48, y - r * 0.95, r * 0.98, r * 0.12);
+      break;
+  }
+  // ★6: 冠
+  if (k.rar >= 6 && k.acc !== "hat") {
+    ctx.save();
+    ctx.translate(x - r * 0.55, y - r * 0.95);
+    ctx.rotate(-0.4);
+    ctx.fillStyle = "#ffd23f";
+    ctx.strokeStyle = "#8a6a00";
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    const cw = r * 0.55, ch = r * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(-cw / 2, ch / 2); ctx.lineTo(-cw / 2, -ch / 2); ctx.lineTo(-cw / 4, 0);
+    ctx.lineTo(0, -ch / 2 - ch * 0.2); ctx.lineTo(cw / 4, 0); ctx.lineTo(cw / 2, -ch / 2); ctx.lineTo(cw / 2, ch / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// キャラアイコン（左上 x,y・サイズ s）
+function drawIcon(fi, x, y, s, opt = {}) {
+  const f = FAM[fi], u = save.box[fi], rar = u ? u.rar : f.rar;
+  ctx.save();
+  const g = ctx.createLinearGradient(0, y, 0, y + s);
+  g.addColorStop(0, u || !opt.silhouette ? EL[f.el].d : "#22263a");
+  g.addColorStop(1, "#0b0e22");
+  ctx.fillStyle = g;
+  roundRect(x, y, s, s, s * 0.15);
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = u || !opt.silhouette ? rarityStroke(rar, x, y, s, s) : "#3a3f55";
+  ctx.stroke();
+  if (!u && opt.silhouette) {
+    txt("?", x + s / 2, y + s / 2, s * 0.45, "#5a6080", "center", "900");
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  roundRect(x, y, s, s, s * 0.15);
+  ctx.clip();
+  drawChar(u ? look(fi) : { el: f.el, acc: f.acc, eye: f.eye, rar, evo: false }, x + s / 2, y + s * 0.56, s * 0.25);
+  ctx.restore();
+  drawStars(rar, x + s / 2, y + s - 6, s * 0.065);
+  if (opt.lv && u) {
+    ctx.textAlign = "left";
+    outlinedText(`Lv${u.lv}`, x + 3, y + 8, "#fff", 9);
   }
   ctx.restore();
 }
@@ -719,7 +1247,6 @@ function drawEnemy(e) {
   const c = EL[e.el], r = e.r;
   const x = e.x, y = e.y + Math.sin(frameNo * 0.05 + e.wob) * 1.5;
   ctx.save();
-  // 翼（ボス）
   if (e.boss) {
     ctx.fillStyle = c.d;
     for (const s of [-1, 1]) {
@@ -732,7 +1259,6 @@ function drawEnemy(e) {
       ctx.fill();
     }
   }
-  // 角
   ctx.fillStyle = e.boss ? "#f0e6d0" : c.d;
   const hl = e.boss ? 1.55 : 1.3;
   for (const s of [-1, 1]) {
@@ -742,7 +1268,6 @@ function drawEnemy(e) {
     ctx.lineTo(x + s * r * 0.7, y - r * 0.55);
     ctx.fill();
   }
-  // 本体
   ctx.shadowColor = c.c;
   ctx.shadowBlur = e.boss ? 18 : 8;
   const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, r * 0.1, x, y, r);
@@ -751,7 +1276,6 @@ function drawEnemy(e) {
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
-  // 目
   for (const s of [-1, 1]) {
     ctx.fillStyle = "#fff8d6";
     ctx.beginPath(); ctx.ellipse(x + s * r * 0.34, y - r * 0.1, r * 0.2, r * 0.15, 0, 0, Math.PI * 2); ctx.fill();
@@ -764,7 +1288,6 @@ function drawEnemy(e) {
     ctx.lineTo(x + s * r * 0.55, y - r * 0.36);
     ctx.stroke();
   }
-  // 牙のある口
   ctx.fillStyle = "#1a0a0a";
   ctx.beginPath(); ctx.ellipse(x, y + r * 0.35, r * 0.32, r * 0.13, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = "#fff";
@@ -781,7 +1304,6 @@ function drawEnemy(e) {
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
-  // 弱点
   if (e.weak !== null) {
     const w = weakPos(e);
     const pulse = 1 + Math.sin(frameNo * 0.2) * 0.15;
@@ -795,7 +1317,6 @@ function drawEnemy(e) {
     ctx.moveTo(w.x, w.y - w.r * 1.3); ctx.lineTo(w.x, w.y + w.r * 1.3);
     ctx.stroke();
   }
-  // HPバー（ボスは上部に表示）
   if (!e.boss) {
     const bw = r * 2, bx = x - r, by = y + r + 5, ratio = e.hp / e.maxHp;
     ctx.fillStyle = "#000b";
@@ -803,19 +1324,13 @@ function drawEnemy(e) {
     ctx.fillStyle = ratio > 0.5 ? "#7ee07e" : ratio > 0.25 ? "#ffd35c" : "#ff6b6b";
     ctx.fillRect(bx, by, bw * ratio, 5);
   }
-  // 攻撃までのターン数
   const cx = x - r * 0.8, cy = y - r * 0.8;
   ctx.fillStyle = e.cd <= 1 ? "#ff3b4e" : "#fff";
   ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = "#000";
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  ctx.fillStyle = e.cd <= 1 ? "#fff" : "#111";
-  ctx.font = "900 13px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(String(e.cd), cx, cy + 1);
-  // 属性アイコン
+  txt(String(e.cd), cx, cy + 1, 13, e.cd <= 1 ? "#fff" : "#111", "center", "900");
   drawElemIcon(e.el, x + r * 0.8, y + r * 0.75, 8);
   ctx.restore();
 }
@@ -826,11 +1341,7 @@ function drawElemIcon(el, x, y, r) {
   ctx.strokeStyle = "#fff";
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  ctx.fillStyle = "#fff";
-  ctx.font = `900 ${Math.round(r * 1.2)}px system-ui, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(EL[el].n, x, y + 1);
+  txt(EL[el].n, x, y + 1, Math.round(r * 1.2), "#fff", "center", "900");
 }
 
 function drawHeart(x, y, s) {
@@ -848,9 +1359,9 @@ function drawHeart(x, y, s) {
   ctx.restore();
 }
 
-// ---- 描画: シーン ---------------------------------------------------------
+// ---- 描画: バトル -------------------------------------------------------
 function drawField() {
-  const bg = quest ? quest.bg : ["#1a1d3a", "#0b0f1e"];
+  const bg = quest.bg;
   const g = ctx.createLinearGradient(0, TOP, 0, FB);
   g.addColorStop(0, bg[0]);
   g.addColorStop(1, bg[1]);
@@ -879,10 +1390,11 @@ function drawFxUnder() {
   for (const f of fx) {
     if (f.kind !== "wave") continue;
     ctx.save();
+    const c = EL[f.el];
     const g = ctx.createLinearGradient(0, f.y - 30, 0, f.y + 60);
-    g.addColorStop(0, "rgba(160,220,255,0.9)");
-    g.addColorStop(0.3, "rgba(58,160,255,0.55)");
-    g.addColorStop(1, "rgba(58,160,255,0)");
+    g.addColorStop(0, c.l);
+    g.addColorStop(0.3, c.c + "99");
+    g.addColorStop(1, c.c + "00");
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(0, f.y + 60);
@@ -912,6 +1424,22 @@ function drawFx() {
       ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = (f.w * t + 2) * 0.35;
+      ctx.stroke();
+    } else if (f.kind === "bolt") {
+      // ジグザグの雷
+      ctx.globalAlpha = t;
+      ctx.strokeStyle = f.color;
+      ctx.shadowColor = f.color;
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(f.x1, f.y1);
+      const n = 6, nx = -(f.y2 - f.y1), ny = f.x2 - f.x1, nl = Math.hypot(nx, ny) || 1;
+      for (let i = 1; i < n; i++) {
+        const o = (i % 2 ? 1 : -1) * 9;
+        ctx.lineTo(f.x1 + (f.x2 - f.x1) * i / n + nx / nl * o, f.y1 + (f.y2 - f.y1) * i / n + ny / nl * o);
+      }
+      ctx.lineTo(f.x2, f.y2);
       ctx.stroke();
     }
     ctx.restore();
@@ -946,7 +1474,7 @@ function drawAllies() {
       ctx.restore();
     }
     const hx = a.hurt > 0 ? Math.sin(a.hurt * 2) * 3 : 0;
-    drawAlly(a, a.x + hx, a.y, R);
+    drawChar(a.look, a.x + hx, a.y, R);
     if (a.hurt > 0) {
       ctx.save();
       ctx.globalAlpha = a.hurt / 16 * 0.6;
@@ -966,11 +1494,11 @@ function drawAllies() {
     if (shot.atkMul > 1) {
       ctx.save();
       ctx.globalAlpha = 0.5;
-      ctx.fillStyle = "#ff7a2e";
+      ctx.fillStyle = EL[shooter.el].c;
       ctx.beginPath(); ctx.arc(shooter.x, shooter.y, R + 8 + Math.sin(frameNo) * 2, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    drawAlly(shooter, shooter.x, shooter.y, R);
+    drawChar(shooter.look, shooter.x, shooter.y, R);
   }
 }
 
@@ -979,8 +1507,8 @@ function drawBolts() {
     ctx.save();
     ctx.fillStyle = b.color;
     ctx.shadowColor = b.color;
-    ctx.shadowBlur = 10;
-    ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = b.size > 6 ? 18 : 10;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 }
@@ -1024,7 +1552,6 @@ function drawAim() {
       ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // 矢印
   ctx.globalAlpha = 1;
   const ang = Math.atan2(aim.dy, aim.dx);
   ctx.translate(a.x, a.y);
@@ -1042,34 +1569,19 @@ function drawHud() {
   ctx.fillStyle = "#0b0e22";
   ctx.fillRect(0, 0, W, TOP);
   ctx.save();
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "left";
-  ctx.fillStyle = "#cfd6ff";
-  ctx.font = "bold 12px system-ui, sans-serif";
-  ctx.fillText(quest.name, 10, 13);
-  ctx.fillStyle = "#ffd35c";
-  ctx.font = "900 13px system-ui, sans-serif";
-  ctx.fillText(`WAVE ${waveIdx + 1}/${quest.waves.length}`, 10, 29);
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#fff";
-  ctx.font = "900 16px system-ui, sans-serif";
-  ctx.fillText(`TURN ${turn}`, W / 2, TOP / 2);
+  txt(quest.name, 10, 13, 12, "#cfd6ff");
+  txt(`WAVE ${waveIdx + 1}/${quest.waves.length}`, 10, 29, 13, "#ffd35c", "left", "900");
+  txt(`TURN ${turn}`, W / 2, TOP / 2, 16, "#fff", "center", "900");
   ctx.restore();
-  button(W - 62, 8, 54, 24, "メニュー", () => { state = "title"; quest = null; }, { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(W - 62, 8, 54, 24, "やめる", () => go("quests"), { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 
-  // ボスHP
   const b = enemies.find(e => e.boss && !e.dead);
   if (b) {
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(8, TOP + 6, W - 16, 22);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 11px system-ui, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(b.name, 14, TOP + 13);
-    ctx.textAlign = "right";
-    ctx.fillText(`${b.hp.toLocaleString()} / ${b.maxHp.toLocaleString()}`, W - 14, TOP + 13);
+    txt(b.name, 14, TOP + 13, 11, "#fff");
+    txt(`${b.hp.toLocaleString()} / ${b.maxHp.toLocaleString()}`, W - 14, TOP + 13, 11, "#fff", "right");
     ctx.fillStyle = "#300";
     ctx.fillRect(14, TOP + 20, W - 28, 5);
     ctx.fillStyle = "#ff3b4e";
@@ -1077,7 +1589,6 @@ function drawHud() {
     ctx.restore();
   }
 
-  // HIT数
   if (state === "shoot" && hitCount > 0) {
     ctx.save();
     ctx.textAlign = "right";
@@ -1091,7 +1602,6 @@ function drawHud() {
 function drawPanel() {
   ctx.fillStyle = "#0e1230";
   ctx.fillRect(0, FB, W, H - FB);
-  // 共有HP
   const ratio = hp / maxHp;
   ctx.fillStyle = "#000";
   roundRect(10, FB + 8, W - 20, 14, 7);
@@ -1108,9 +1618,9 @@ function drawPanel() {
   outlinedText(`HP ${hp.toLocaleString()} / ${maxHp.toLocaleString()}`, W / 2, FB + 15.5, "#fff", 11);
   ctx.restore();
 
-  // 4キャラのアイコン
+  const sw = W / allies.length;
   for (let i = 0; i < allies.length; i++) {
-    const a = allies[i], x = 45 + i * 90, y = FB + 52;
+    const a = allies[i], x = sw * (i + 0.5), y = FB + 52;
     ctx.save();
     if (i === cur) {
       ctx.fillStyle = "rgba(255,211,92,0.18)";
@@ -1120,8 +1630,7 @@ function drawPanel() {
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-    drawAlly(a, x - 12, y + 2, 16);
-    // SSゲージ（円弧）
+    drawChar(a.look, x - 12, y + 2, 14);
     const ready = a.ssLeft === 0;
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(255,255,255,0.15)";
@@ -1130,19 +1639,14 @@ function drawPanel() {
     ctx.beginPath();
     ctx.arc(x - 12, y + 2, 21, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - a.ssLeft / a.ssTurns));
     ctx.stroke();
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#e8ecff";
-    ctx.font = "bold 10px system-ui, sans-serif";
-    ctx.fillText(a.type === "reflect" ? "反射" : "貫通", x + 13, y - 12);
+    txt(a.type === "reflect" ? "反射" : "貫通", x + 13, y - 12, 10, "#e8ecff");
     if (ready) {
       ctx.globalAlpha = 0.7 + Math.sin(frameNo * 0.15) * 0.3;
+      ctx.textAlign = "left";
       outlinedText("SS", x + 13, y + 4, EL[a.el].l, 15);
       ctx.globalAlpha = 1;
     } else {
-      ctx.fillStyle = "#9aa3d8";
-      ctx.font = "bold 11px system-ui, sans-serif";
-      ctx.fillText(`あと${a.ssLeft}`, x + 13, y + 4);
+      txt(`あと${a.ssLeft}`, x + 13, y + 4, 11, "#9aa3d8");
     }
     ctx.restore();
     button(x - 40, FB + 28, 80, 58, "", () => {
@@ -1150,21 +1654,14 @@ function drawPanel() {
     }, { hidden: true });
   }
 
-  // ヒント
   if (state === "aim") {
     const a = allies[cur];
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
     let msg = `${a.name}のターン　引っ張って離すと発射`;
     if (ssArmed) msg = `SS「${a.ssName}」: ${a.ssDesc}`;
     else if (a.ssLeft === 0) msg = `SS使用可能! 下のアイコンをタップ`;
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fillRect(0, FB - 22, W, 20);
-    ctx.fillStyle = ssArmed ? EL[a.el].l : "#dfe4ff";
-    ctx.font = "bold 12px system-ui, sans-serif";
-    ctx.fillText(msg, W / 2, FB - 12);
-    ctx.restore();
+    txt(msg, W / 2, FB - 12, 12, ssArmed ? EL[a.el].l : "#dfe4ff", "center");
   }
 }
 
@@ -1186,82 +1683,45 @@ function drawBanner() {
   ctx.restore();
 }
 
-function drawTitle() {
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "#2a1d5c");
-  g.addColorStop(1, "#090b1c");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-  for (let i = 0; i < 40; i++) {
-    const sx = (i * 97) % W, sy = (i * 53 + frameNo * 0.3 * (1 + i % 3)) % H;
-    ctx.fillStyle = `rgba(255,255,255,${0.2 + (i % 5) * 0.1})`;
-    ctx.fillRect(sx, sy, 2, 2);
-  }
-  CHARS.forEach((c, i) => {
-    const x = 60 + i * 80, y = 190 + Math.sin(frameNo * 0.05 + i) * 6;
-    drawAlly(c, x, y, 24);
-  });
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  outlinedText("モンスター", W / 2, 70, "#ffd35c", 36, "#5a2200");
-  outlinedText("フリック", W / 2, 116, "#ff7a4a", 44, "#5a1000");
-  ctx.fillStyle = "#cfd6ff";
-  ctx.font = "bold 12px system-ui, sans-serif";
-  ctx.fillText("引っ張って弾いて、敵を倒せ!", W / 2, 245);
-  ctx.restore();
-
-  QUESTS.forEach((q, i) => {
-    const y = 280 + i * 92;
-    const best = loadBest(i);
-    button(30, y, W - 60, 76, "", () => startQuest(i), { c1: q.bg[0], c2: "#1b1f3e" });
-    ctx.save();
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    outlinedText(q.name, 48, y + 22, "#fff", 20);
-    ctx.fillStyle = "#cfd6ff";
-    ctx.font = "bold 12px system-ui, sans-serif";
-    ctx.fillText(q.sub, 48, y + 46);
-    ctx.fillStyle = "#ffd35c";
-    ctx.fillText(best ? `ベスト ${best}ターン` : `目標 ${q.par}ターン以内でS`, 48, y + 62);
-    ctx.textAlign = "right";
-    outlinedText("★".repeat(i + 1), W - 46, y + 24, "#ffd35c", 16);
-    ctx.restore();
-  });
-}
-
 function drawResult() {
   ctx.save();
-  ctx.fillStyle = "rgba(5,7,15,0.78)";
+  ctx.fillStyle = "rgba(5,7,15,0.82)";
   ctx.fillRect(0, 0, W, H);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   if (state === "clear") {
     const r = lastResult;
-    outlinedText("QUEST CLEAR!", W / 2, 170, "#ffd35c", 34, "#5a2200");
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 18px system-ui, sans-serif";
-    ctx.fillText(`クリアターン: ${r.turn}`, W / 2, 230);
-    outlinedText(r.rank, W / 2, 300, r.rank === "S" ? "#ffef5c" : r.rank === "A" ? "#ff9ad5" : "#9ad5ff", 72);
-    ctx.fillStyle = "#cfd6ff";
-    ctx.font = "bold 14px system-ui, sans-serif";
-    ctx.fillText(r.isBest ? "ベスト記録更新!" : `ベスト ${r.best}ターン`, W / 2, 360);
+    outlinedText("QUEST CLEAR!", W / 2, 110, "#ffd35c", 34, "#5a2200");
+    txt(`クリアターン: ${r.turn}`, W / 2, 158, 17, "#fff", "center");
+    ctx.textAlign = "center";
+    outlinedText(r.rank, W / 2, 215, r.rank === "S" ? "#ffef5c" : r.rank === "A" ? "#ff9ad5" : "#9ad5ff", 64);
+    txt(r.isBest ? "ベスト記録更新!" : `ベスト ${r.best}ターン`, W / 2, 262, 13, "#cfd6ff", "center");
+    // 報酬
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    roundRect(40, 285, W - 80, r.drop ? 150 : 100, 12);
+    ctx.fill();
+    txt("獲得報酬", W / 2, 302, 13, "#ffd35c", "center");
+    coinIcon(110, 328, 8);
+    txt(`${r.coin.toLocaleString()}`, 124, 328, 14, "#fff");
+    crystalIcon(r.crEl, 220, 328, 9);
+    txt(`${EL[r.crEl].n}の結晶 ×${r.crN}`, 234, 328, 13, "#fff");
+    if (r.gem) { gemIcon(110, 356, 9); txt(`${r.gem} (初回クリア)`, 124, 356, 13, "#fff"); }
+    if (r.drop) {
+      drawIcon(r.drop.fi, 70, 372, 52);
+      txt(`${FAM[r.drop.fi].name} をゲット!`, 132, 390, 13, "#fff");
+      txt(r.drop.kind === "new" ? "NEW!" : r.drop.kind === "awk" ? "覚醒+1" : `コイン+${r.drop.coins}`, 132, 410, 12, "#ffd35c");
+    }
   } else {
     outlinedText("全滅…", W / 2, 220, "#ff6b6b", 40);
-    ctx.fillStyle = "#cfd6ff";
-    ctx.font = "bold 14px system-ui, sans-serif";
-    ctx.fillText(`WAVE ${waveIdx + 1} / ${quest.waves.length}  ・  ${turn}ターン`, W / 2, 270);
+    txt(`WAVE ${waveIdx + 1} / ${quest.waves.length}  ・  ${turn}ターン`, W / 2, 270, 14, "#cfd6ff", "center");
+    txt("BOXでキャラを強化・進化しよう!", W / 2, 300, 13, "#ffd35c", "center");
   }
   ctx.restore();
-  button(60, 410, W - 120, 50, state === "clear" ? "もう一度" : "リトライ", () => startQuest(questIdx));
-  button(60, 476, W - 120, 50, "クエスト選択", () => { state = "title"; quest = null; },
-    { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(60, 456, W - 120, 48, state === "clear" ? "もう一度" : "リトライ", () => startQuest(questIdx));
+  button(60, 516, W - 120, 48, "クエスト選択", () => go("quests"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 }
 
-function draw() {
-  ui = [];
-  if (state === "title") { drawTitle(); return; }
-
+function drawBattle() {
   ctx.save();
   if (shake) ctx.translate(rand(-shake, shake), rand(-shake, shake));
   drawField();
@@ -1281,6 +1741,482 @@ function draw() {
   drawPanel();
   drawBanner();
   if (state === "clear" || state === "over") drawResult();
+}
+
+// ---- 描画: メニュー画面 ---------------------------------------------------
+function drawMenuBg(c1 = "#2a1d5c", c2 = "#090b1c") {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 40; i++) {
+    const sx = (i * 97) % W, sy = (i * 53 + frameNo * 0.3 * (1 + i % 3)) % H;
+    ctx.fillStyle = `rgba(255,255,255,${0.15 + (i % 5) * 0.08})`;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+}
+
+function drawTopBar() {
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillRect(0, 0, W, 40);
+  ctx.save();
+  for (const [x, w] of [[8, 112], [128, 130]]) {
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    roundRect(x, 8, w, 24, 12);
+    ctx.fill();
+  }
+  gemIcon(22, 20, 8);
+  txt(save.gems.toLocaleString(), 36, 20, 13, "#fff");
+  coinIcon(142, 20, 8);
+  txt(save.coins.toLocaleString(), 156, 20, 13, "#fff");
+  ctx.restore();
+}
+
+const NAV = [["home", "ホーム"], ["quests", "クエスト"], ["gacha", "ガチャ"], ["box", "BOX"], ["party", "編成"]];
+function drawNav() {
+  ctx.fillStyle = "#0b0e22";
+  ctx.fillRect(0, NAV_Y, W, H - NAV_Y);
+  ctx.fillStyle = "rgba(255,255,255,0.15)";
+  ctx.fillRect(0, NAV_Y, W, 1);
+  const w = W / NAV.length;
+  NAV.forEach(([s, label], i) => {
+    const active = state === s || (s === "box" && state === "detail");
+    if (active) {
+      ctx.fillStyle = "rgba(255,211,92,0.15)";
+      ctx.fillRect(i * w, NAV_Y, w, H - NAV_Y);
+      ctx.fillStyle = "#ffd35c";
+      ctx.fillRect(i * w + 10, NAV_Y, w - 20, 3);
+    }
+    txt(label, i * w + w / 2, NAV_Y + 28, 13, active ? "#ffd35c" : "#9aa3d8", "center");
+    button(i * w, NAV_Y, w, H - NAV_Y, "", () => go(s), { hidden: true });
+  });
+}
+
+function header(title, sub) {
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  outlinedText(title, 14, 62, "#fff", 20);
+  if (sub) txt(sub, W - 14, 62, 12, "#cfd6ff", "right");
+  ctx.restore();
+}
+
+function drawHome() {
+  drawMenuBg();
+  drawTopBar();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("モンスター・フリック", W / 2, 72, "#ffd35c", 24, "#5a2200");
+  ctx.restore();
+  const fi = save.party[0];
+  const u = save.box[fi];
+  const y = 200 + Math.sin(frameNo * 0.05) * 6;
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = EL[FAM[fi].el].c;
+  ctx.beginPath(); ctx.arc(W / 2, 200, 82 + Math.sin(frameNo * 0.08) * 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  drawChar(look(fi), W / 2, y, 52);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(displayName(fi), W / 2, 300, "#fff", 18);
+  ctx.restore();
+  drawStars(u.rar, W / 2, 324, 8);
+  txt(`リーダー  Lv${u.lv}`, W / 2, 344, 12, "#cfd6ff", "center");
+  button(W / 2 - 60, 160, 120, 90, "", () => { detailFi = fi; go("detail"); }, { hidden: true });
+
+  const owns = Object.keys(save.box).length;
+  txt(`図鑑 ${owns} / ${FAM.length}`, W / 2, 364, 12, "#9aa3d8", "center");
+
+  if (save.daily !== today()) {
+    button(40, 382, W - 80, 40, "デイリーボーナス受け取り", () => {
+      save.daily = today();
+      save.gems += 50;
+      save.coins += 1000;
+      persist();
+      burst(W / 2, 400, "#5ef0ff", 40, 5);
+      showToast("ジェム50・コイン1000 を受け取りました");
+    }, { size: 14, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a", sub: "ジェム50 + コイン1000" });
+  }
+  button(30, 436, 145, 120, "クエスト", () => go("quests"), { size: 20, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", sub: "冒険に出よう" });
+  button(185, 436, 145, 120, "ガチャ", () => go("gacha"), { size: 20, c1: "#c58aff", c2: "#6a2ad6", fg: "#fff", sub: "仲間を増やそう" });
+  drawParticles();
+  drawNav();
+}
+
+function drawQuests() {
+  drawMenuBg("#14203a", "#070b16");
+  drawTopBar();
+  header("クエスト", "クリアで次が解放");
+  QUESTS.forEach((q, i) => {
+    const y = 80 + i * 82, unlocked = questUnlocked(i);
+    button(14, y, W - 28, 74, "", () => {
+      if (!unlocked) { showToast("前のクエストをクリアしよう"); return; }
+      startQuest(i);
+    }, { c1: unlocked ? q.bg[0] : "#2a2d3a", c2: unlocked ? "#151a33" : "#15171f" });
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    outlinedText(q.name, 28, y + 20, unlocked ? "#fff" : "#777", 17);
+    ctx.textAlign = "right";
+    outlinedText("★".repeat(q.diff), W - 28, y + 20, "#ffd35c", 12);
+    ctx.restore();
+    if (!unlocked) {
+      txt("LOCK  前のクエストをクリアで解放", 28, y + 46, 12, "#9aa3b8");
+      return;
+    }
+    txt(q.sub, 28, y + 42, 11, "#cfd6ff");
+    const best = save.best[i];
+    txt(save.cleared[i] ? `CLEAR  ベスト${best}T` : `初回ジェム${q.gem}`, 28, y + 60, 11, save.cleared[i] ? "#7dffa0" : "#5ef0ff");
+    coinIcon(W - 150, y + 60, 6);
+    txt(`${q.coin}`, W - 140, y + 60, 11, "#fff");
+    if (q.crEl) crystalIcon(q.crEl, W - 82, y + 60, 7);
+    else EL_KEYS.forEach((k, j) => crystalIcon(k, W - 96 + j * 7, y + 60, 5));
+    txt(`×${q.crN}〜`, W - 70, y + 60, 11, "#fff");
+  });
+  drawNav();
+}
+
+function drawGacha() {
+  drawMenuBg("#3a1a5c", "#0c0618");
+  drawTopBar();
+  header("ガチャ", "");
+  // バナー
+  ctx.save();
+  const g = ctx.createLinearGradient(0, 80, 0, 330);
+  g.addColorStop(0, "#ff7ae0");
+  g.addColorStop(0.5, "#7a4aff");
+  g.addColorStop(1, "#1a1050");
+  ctx.fillStyle = g;
+  roundRect(14, 82, W - 28, 250, 16);
+  ctx.fill();
+  ctx.strokeStyle = "#ffd35c";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.clip();
+  for (let i = 0; i < 12; i++) {
+    const a = frameNo * 0.01 + i * Math.PI / 6;
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.beginPath();
+    ctx.moveTo(W / 2, 220);
+    ctx.lineTo(W / 2 + Math.cos(a) * 400, 220 + Math.sin(a) * 400);
+    ctx.lineTo(W / 2 + Math.cos(a + 0.2) * 400, 220 + Math.sin(a + 0.2) * 400);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("スターダストガチャ", W / 2, 110, "#fff", 22, "#3a0a5c");
+  ctx.restore();
+  txt("★5 キャラ 出現中!", W / 2, 136, 13, "#ffe066", "center");
+  const fives = FAM.filter(f => f.rar === 5);
+  fives.forEach((f, i) => {
+    const x = 60 + (i % 3) * 120, y = 190 + Math.floor(i / 3) * 80 + Math.sin(frameNo * 0.05 + i) * 4;
+    drawChar({ el: f.el, acc: f.acc, eye: f.eye, rar: 5, evo: false }, x, y, 20);
+    txt(f.name, x, y + 36, 11, "#fff", "center");
+  });
+  txt(`提供割合  ★5: ${RATE5 * 100}%  ★4: ${RATE4 * 100}%  ★3: ${Math.round((1 - RATE5 - RATE4) * 100)}%`, W / 2, 350, 11, "#cfd6ff", "center");
+  txt("持っているキャラが出ると「覚醒」(最大5) で能力アップ", W / 2, 368, 11, "#cfd6ff", "center");
+  button(24, 392, W - 48, 64, "1回ガチャ", () => pullGacha(1),
+    { size: 18, sub: `ジェム ${GACHA_1}`, disabled: save.gems < GACHA_1 });
+  button(24, 468, W - 48, 72, "10連ガチャ", () => pullGacha(10),
+    { size: 20, sub: `ジェム ${GACHA_10}  ★4以上1体確定`, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff", disabled: save.gems < GACHA_10 });
+  drawNav();
+}
+
+function drawGachaAnim() {
+  ctx.fillStyle = "#06040f";
+  ctx.fillRect(0, 0, W, H);
+  const r = gacha.res[gacha.i], f = FAM[r.fi], rar = f.rar;
+  const cy = 300, t = gacha.t;
+  // 光線
+  ctx.save();
+  const rays = rar >= 5 ? 16 : 8;
+  for (let i = 0; i < rays; i++) {
+    const a = frameNo * 0.01 + i * Math.PI * 2 / rays;
+    ctx.fillStyle = rar >= 5 ? `hsla(${(i * 40 + frameNo * 2) % 360},90%,65%,0.18)` : `rgba(255,255,255,${rar >= 4 ? 0.08 : 0.04})`;
+    ctx.beginPath();
+    ctx.moveTo(W / 2, cy);
+    ctx.lineTo(W / 2 + Math.cos(a) * 500, cy + Math.sin(a) * 500);
+    ctx.lineTo(W / 2 + Math.cos(a + 0.12) * 500, cy + Math.sin(a + 0.12) * 500);
+    ctx.fill();
+  }
+  ctx.restore();
+  if (!gacha.opened) {
+    // タマゴが落ちてきて揺れる（色でレア度を予告）
+    const y = Math.min(cy, -60 + t * 14) - (t > 26 && t < 34 ? Math.sin((t - 26) / 8 * Math.PI) * 20 : 0);
+    const rot = t > 34 ? Math.sin(t * 0.5) * 0.18 : 0;
+    const col = rar >= 5 ? `hsl(${(frameNo * 4) % 360},90%,62%)` : rar >= 4 ? "#d8e0f0" : "#d39a5a";
+    ctx.save();
+    ctx.translate(W / 2, y + 50);
+    ctx.rotate(rot);
+    ctx.translate(0, -50);
+    ctx.shadowColor = col;
+    ctx.shadowBlur = rar >= 4 ? 30 : 12;
+    const eg = ctx.createRadialGradient(-14, -20, 4, 0, 0, 60);
+    eg.addColorStop(0, "#ffffff");
+    eg.addColorStop(1, col);
+    ctx.fillStyle = eg;
+    ctx.beginPath(); ctx.ellipse(0, 0, 40, 52, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // 模様（星と水玉）
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    starPath(-12, -18, 9); ctx.fill();
+    for (const [px, py, pr] of [[16, -6, 6], [-18, 16, 5], [12, 26, 7]]) {
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+    }
+    // ひび
+    if (t > 34) {
+      ctx.strokeStyle = "rgba(40,20,0,0.6)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-30, 2); ctx.lineTo(-16, -6); ctx.lineTo(-4, 4); ctx.lineTo(8, -6); ctx.lineTo(20, 3); ctx.lineTo(32, -4);
+      ctx.stroke();
+    }
+    ctx.restore();
+    if (t > 30) txt("タップで孵化!", W / 2, 420, 15, `rgba(255,255,255,${0.6 + Math.sin(frameNo * 0.15) * 0.4})`, "center");
+  } else {
+    if (t < 20) {
+      ctx.fillStyle = `rgba(255,255,255,${1 - t / 20})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    const s = Math.min(1, t / 12);
+    drawChar({ el: f.el, acc: f.acc, eye: f.eye, rar, evo: false }, W / 2, cy, 64 * s);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText(f.name, W / 2, 420, "#fff", 26);
+    ctx.restore();
+    drawStars(rar, W / 2, 452, 11);
+    drawElemIcon(f.el, W / 2 - 40, 482, 10);
+    txt(f.type === "reflect" ? "反射" : "貫通", W / 2 - 24, 482, 13, "#cfd6ff");
+    txt(COMBO[f.combo].name, W / 2 + 16, 482, 13, "#cfd6ff");
+    const tag = r.kind === "new" ? "NEW!" : r.kind === "awk" ? "覚醒+1!" : `コイン+${r.coins}`;
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText(tag, W / 2, 200, r.kind === "new" ? "#ff5c8a" : "#ffd35c", 24);
+    ctx.restore();
+    if (t > 15) txt("タップで次へ", W / 2, 540, 13, "rgba(255,255,255,0.7)", "center");
+  }
+  drawParticles();
+  txt(`${gacha.i + 1} / ${gacha.res.length}`, 16, 24, 13, "#9aa3d8");
+  button(0, 0, W, H, "", gachaTap, { hidden: true });
+  if (gacha.res.length > 1) button(W - 84, 10, 72, 30, "スキップ", () => go("gachaResult"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+
+function drawGachaResult() {
+  drawMenuBg("#3a1a5c", "#0c0618");
+  drawTopBar();
+  header("ガチャ結果", "");
+  const res = gacha.res, cols = 5, s = 60, gap = 8;
+  const x0 = (W - (cols * s + (cols - 1) * gap)) / 2;
+  res.forEach((r, i) => {
+    const x = x0 + (i % cols) * (s + gap), y = 100 + Math.floor(i / cols) * (s + 34);
+    drawIcon(r.fi, x, y, s);
+    const tag = r.kind === "new" ? "NEW" : r.kind === "awk" ? "覚醒+1" : `+${r.coins}`;
+    txt(tag, x + s / 2, y + s + 12, 11, r.kind === "new" ? "#ff5c8a" : "#ffd35c", "center");
+  });
+  const best = Math.max(...res.map(r => FAM[r.fi].rar));
+  if (best >= 5) {
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText("★5 ゲット!!", W / 2, 330, `hsl(${(frameNo * 4) % 360},90%,70%)`, 26);
+    ctx.restore();
+  }
+  button(40, 380, W - 80, 52, "もう一度10連", () => pullGacha(10),
+    { size: 16, sub: `ジェム ${GACHA_10}`, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff", disabled: save.gems < GACHA_10 });
+  button(40, 444, W - 80, 44, "BOXを見る", () => go("box"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(40, 500, W - 80, 44, "ガチャに戻る", () => go("gacha"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  drawNav();
+}
+
+// 図鑑グリッド（全30体。未所持はシルエット）
+function drawGrid(y0, onTap, opt = {}) {
+  const cols = 6, s = 52, gap = 6;
+  const x0 = (W - (cols * s + (cols - 1) * gap)) / 2;
+  const list = opt.ownedOnly ? FAM.filter(f => owned(f.idx)) : FAM;
+  list.forEach((f, i) => {
+    const x = x0 + (i % cols) * (s + gap), y = y0 + Math.floor(i / cols) * (s + gap);
+    drawIcon(f.idx, x, y, s, { silhouette: true, lv: true });
+    if (opt.mark && opt.mark(f.idx)) {
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      roundRect(x, y, s, s, s * 0.15);
+      ctx.fill();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      outlinedText(opt.mark(f.idx), x + s / 2, y + s / 2, "#ffd35c", 14);
+      ctx.restore();
+    }
+    button(x, y, s, s, "", () => onTap(f.idx), { hidden: true });
+  });
+}
+
+function drawBox() {
+  drawMenuBg("#14203a", "#070b16");
+  drawTopBar();
+  header("BOX", `図鑑 ${Object.keys(save.box).length} / ${FAM.length}`);
+  drawGrid(84, fi => {
+    if (!owned(fi)) { showToast("未入手のキャラです。ガチャやクエストで手に入れよう"); return; }
+    detailFi = fi;
+    go("detail");
+  });
+  // 結晶
+  ctx.fillStyle = "rgba(255,255,255,0.07)";
+  roundRect(14, 442, W - 28, 64, 12);
+  ctx.fill();
+  txt("進化の結晶", 26, 458, 12, "#cfd6ff");
+  EL_KEYS.forEach((k, i) => {
+    const x = 34 + i * 64;
+    crystalIcon(k, x, 486, 10);
+    txt(`×${save.cr[k]}`, x + 14, 486, 13, "#fff");
+  });
+  txt("キャラをタップで強化・進化", W / 2, 528, 12, "#9aa3d8", "center");
+  drawNav();
+}
+
+function drawParty() {
+  drawMenuBg("#14203a", "#070b16");
+  drawTopBar();
+  header("編成", "タップで入れ替え（4体まで）");
+  const s = 66, gap = 14, x0 = (W - (4 * s + 3 * gap)) / 2;
+  for (let i = 0; i < 4; i++) {
+    const x = x0 + i * (s + gap), y = 86, fi = save.party[i];
+    if (fi !== undefined) {
+      drawIcon(fi, x, y, s, { lv: true });
+      button(x, y, s, s, "", () => {
+        if (save.party.length <= 1) { showToast("1体以上必要です"); return; }
+        save.party.splice(i, 1);
+        persist();
+      }, { hidden: true });
+    } else {
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 2;
+      roundRect(x, y, s, s, 10);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      txt("空き", x + s / 2, y + s / 2, 12, "#9aa3d8", "center");
+    }
+    txt(i === 0 ? "リーダー" : `${i + 1}番手`, x + s / 2, y + s + 12, 11, i === 0 ? "#ffd35c" : "#cfd6ff", "center");
+  }
+  const total = save.party.reduce((t, fi) => t + unitStats(fi).hp, 0);
+  txt(`合計HP ${total.toLocaleString()}`, W / 2, 190, 13, "#7dffa0", "center");
+  drawGrid(208, fi => {
+    if (!owned(fi)) { showToast("未入手のキャラです"); return; }
+    const k = save.party.indexOf(fi);
+    if (k >= 0) {
+      if (save.party.length <= 1) { showToast("1体以上必要です"); return; }
+      save.party.splice(k, 1);
+    } else if (save.party.length >= 4) {
+      showToast("4体まで。上の枠をタップして外そう");
+      return;
+    } else {
+      save.party.push(fi);
+    }
+    persist();
+  }, { mark: fi => { const k = save.party.indexOf(fi); return k >= 0 ? (k === 0 ? "L" : String(k + 1)) : ""; } });
+  drawNav();
+}
+
+function drawDetail() {
+  const fi = detailFi, f = FAM[fi], u = save.box[fi], st = unitStats(fi), c = EL[f.el];
+  drawMenuBg(c.d, "#070b16");
+  drawTopBar();
+  button(10, 48, 64, 28, "← 戻る", () => go("box"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = typeof rarityStroke(u.rar, 0, 0, W, H) === "string" ? RCOL[u.rar] : `hsl(${(frameNo * 2) % 360},90%,65%)`;
+  ctx.beginPath(); ctx.arc(W / 2, 150, 70 + Math.sin(frameNo * 0.08) * 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  drawChar(look(fi), W / 2, 150 + Math.sin(frameNo * 0.05) * 4, 46);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(displayName(fi), W / 2, 228, "#fff", 20);
+  ctx.restore();
+  drawStars(u.rar, W / 2, 252, 8);
+  drawElemIcon(f.el, W / 2 - 46, 274, 9);
+  txt(`${f.type === "reflect" ? "反射" : "貫通"}タイプ`, W / 2 - 32, 274, 12, "#cfd6ff");
+  txt(`覚醒 ${u.awk}/${MAX_AWK}`, W / 2 + 34, 274, 12, "#ffd35c");
+
+  // ステータス
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  roundRect(14, 292, W - 28, 150, 12);
+  ctx.fill();
+  const cap = MAXLV[u.rar];
+  txt(`Lv ${u.lv} / ${cap}`, 28, 310, 15, u.lv >= cap ? "#ffd35c" : "#fff", "left", "900");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(140, 306, W - 168, 8);
+  ctx.fillStyle = "#5ef0ff";
+  ctx.fillRect(140, 306, (W - 168) * (u.lv / cap), 8);
+  txt(`ATK ${st.atk.toLocaleString()}`, 28, 334, 13, "#ffb199");
+  txt(`HP ${st.hp.toLocaleString()}`, 140, 334, 13, "#9dff8a");
+  txt(`SPD ${st.spd.toFixed(1)}`, 252, 334, 13, "#a6d4ff");
+  txt(`友情コンボ: ${COMBO[f.combo].name}`, 28, 360, 12, "#fff");
+  txt(`SS: ${ssName(fi)}（${ssTurns(fi)}ターン）`, 28, 382, 12, "#fff");
+  txt(SS[f.ss].desc, 40, 400, 11, "#cfd6ff");
+  if (u.rar < 6) {
+    txt(`進化: Lv${cap} + ${c.n}の結晶×${EVO_CR[u.rar]} + コイン${EVO_COIN[u.rar].toLocaleString()}`, 28, 422, 11, "#ffd35c");
+  } else {
+    txt("最終進化（★6）", 28, 422, 11, "#ff8ae6");
+  }
+  crystalIcon(f.el, W - 70, 422, 7);
+  txt(`×${save.cr[f.el]}`, W - 60, 422, 11, "#fff");
+
+  // ボタン
+  const full = u.lv >= cap;
+  button(14, 454, (W - 38) / 2, 56, "強化 +1", () => levelUp(fi, false),
+    { size: 15, sub: full ? "上限" : `コイン ${lvCost(u.lv)}`, disabled: full || save.coins < lvCost(u.lv), c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  const mc = full ? 0 : maxCost(fi);
+  button(24 + (W - 38) / 2, 454, (W - 38) / 2, 56, "まとめて強化", () => levelUp(fi, true),
+    { size: 15, sub: full ? "上限" : `最大まで ${mc.toLocaleString()}`, disabled: full || save.coins < lvCost(u.lv), c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  if (u.rar < 6) {
+    const can = full && save.cr[f.el] >= EVO_CR[u.rar] && save.coins >= EVO_COIN[u.rar];
+    button(14, 518, W - 28, 56, `進化  ★${u.rar} → ★${u.rar + 1}`, () => evolve(fi),
+      { size: 17, sub: `→ ${EL[f.el].p[u.rar - 3]}${f.name}`, disabled: !can, c1: "#ffe066", c2: "#ff9a1f" });
+  }
+  drawParticles();
+  drawTexts();
+  drawBanner();
+}
+
+function drawToast() {
+  if (!toast) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, toast.life / 15);
+  ctx.font = "bold 13px system-ui, sans-serif";
+  const w = Math.min(W - 20, ctx.measureText(toast.text).width + 32);
+  ctx.fillStyle = "rgba(0,0,0,0.85)";
+  roundRect((W - w) / 2, H / 2 - 22, w, 44, 12);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  txt(toast.text, W / 2, H / 2, 13, "#fff", "center");
+  ctx.restore();
+}
+
+function draw() {
+  ui = [];
+  switch (state) {
+    case "home": drawHome(); break;
+    case "quests": drawQuests(); break;
+    case "gacha": drawGacha(); break;
+    case "gachaAnim": drawGachaAnim(); break;
+    case "gachaResult": drawGachaResult(); break;
+    case "box": drawBox(); break;
+    case "party": drawParty(); break;
+    case "detail": drawDetail(); break;
+    default: drawBattle();
+  }
+  drawToast();
 }
 
 // ---- 初期化・メインループ ----------------------------------------------
@@ -1305,6 +2241,7 @@ function frame(t) {
   requestAnimationFrame(frame);
 }
 
+loadSave();
 resize();
 requestAnimationFrame(t => { last = t; frame(t); });
 </script>
