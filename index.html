@@ -196,9 +196,9 @@ const SS = {
   meteor: { name: "メテオ",   turns: 11, desc: "隕石8発を敵に落とす" },
   // ikesaki 専用
   // ジン 専用
-  haou: { name: "覇王天翔波", turns: 8, fixed: true, desc: "狙った方向に特大レーザーで大ダメージ" },
+  haou: { name: "覇王天翔波", turns: 8, fixed: true, desc: "狙った方向に特大レーザー(攻撃力50倍)＋5T能力2.5倍" },
   smileburst: { name: "フルスマイル・バースト", turns: 8, fixed: true,
-    desc: "全体大ダメージ＋敵の攻撃1T遅延＋HP30%回復＋攻撃3倍" },
+    desc: "全体に攻撃力30倍＋敵の攻撃1T遅延＋HP30%回復＋5T能力2.5倍" },
 };
 
 // 名前, 属性, 初期レア度, タイプ(reflect 反射 / pierce 貫通), 頭の飾り, 目, 友情コンボ, SS
@@ -916,10 +916,10 @@ function triggerCombo(a) {
       fx.push({ kind: "ring", x: a.x, y: a.y, r0: 8, r1: 80, life: 24, max: 24, color: "#ffe066", w: 6 });
       for (let i = 0; i < 12; i++) {
         const ang = (i / 12) * Math.PI * 2;
-        addBolt(a.x, a.y, Math.cos(ang) * 6, Math.sin(ang) * 6, a.atk * 0.6, a.el, 6);
+        addBolt(a.x, a.y, Math.cos(ang) * 6, Math.sin(ang) * 6, a.atk * 0.8, a.el, 6);
         bolts[bolts.length - 1].star = true;
       }
-      healParty(Math.round(a.hp * 0.08), a.x, a.y);
+      healParty(Math.round(a.hp * 0.12), a.x, a.y);
       break;
     }
     case "heal": {
@@ -948,6 +948,19 @@ function judgeLaser(a, dx, dy) {
   shake = Math.max(shake, big ? 16 : 8);
 }
 
+// 撃ったターンから5ターン、能力2.5倍（攻撃力・HP・スピード）。重ねがけはせず残りターンだけ戻す
+function applyBuff(a) {
+  if (!a.buff) {
+    a.buffHp = Math.round(a.hp * 1.5);
+    a.atk *= 2.5;
+    a.spd *= 2.5;
+    maxHp += a.buffHp;
+    hp += a.buffHp;
+    addText(a.x, a.y - 34, "能力2.5倍!", EL[a.el].l, 16);
+  }
+  a.buff = 5;
+}
+
 // ---- ターン進行 ---------------------------------------------------------
 function fire(dx, dy) {
   const a = allies[cur];
@@ -967,32 +980,23 @@ function fire(dx, dy) {
       case "judge":  judgeLaser(a, dx, dy); break;
       case "haou":
         judgeLaser(a, dx, dy);
-        // 撃ったターンから5ターン、能力2.5倍（攻撃力・HP・スピード）
-        if (!a.buff) {
-          a.buffHp = Math.round(a.hp * 1.5);
-          a.atk *= 2.5;
-          a.spd *= 2.5;
-          maxHp += a.buffHp;
-          hp += a.buffHp;
-          addText(a.x, a.y - 34, "能力2.5倍!", "#bfffd0", 16);
-        }
-        a.buff = 5;
+        applyBuff(a);
         sp *= 2.5;
         break;
       case "meteor":
         for (let i = 0; i < 8; i++) addBolt(rand(30, W - 30), TOP - 20 - i * 25, 0, 6, a.atk * 2.2, a.el, 9);
         break;
       case "smileburst":
-        // フィールド全体に笑顔の光 → 全体ダメージ・攻撃遅延・回復・自己強化
+        // フィールド全体に笑顔の光 → 全体に攻撃力30倍・攻撃遅延・回復・5ターン能力2.5倍
         fx.push({ kind: "smile", life: 60, max: 60 });
         for (const e of alive()) {
-          damageEnemy(e, a.atk * 6, a.el, false);
+          damageEnemy(e, a.atk * 30, a.el, false);
           if (!e.dead) { e.cd++; addText(e.x, e.y + e.r + 10, "攻撃+1T", "#9ad5ff", 12); }
         }
         healParty(Math.round(maxHp * 0.3), W / 2, FB - 20);
-        shot.atkMul = 3;
-        sp *= 1.3;
-        shake = Math.max(shake, 10);
+        applyBuff(a);
+        sp *= 2.5;
+        shake = Math.max(shake, 14);
         break;
     }
   }
