@@ -15,6 +15,7 @@
     --gold: #ffd35c;
     --gem: #5ef0ff;
     --danger: #ff6b6b;
+    --ok: #7dffa0;
   }
   * { box-sizing: border-box; }
   body {
@@ -24,19 +25,22 @@
     color: var(--text);
     font: 15px/1.6 system-ui, sans-serif;
   }
-  main { max-width: 640px; margin: 0 auto; }
+  main { max-width: 720px; margin: 0 auto; }
   h1 { margin: 4px 0 2px; font-size: 22px; color: var(--gold); }
   h2 { margin: 0 0 10px; font-size: 17px; }
+  h3 { margin: 16px 0 6px; font-size: 15px; color: var(--gold); }
   .note { color: var(--muted); font-size: 13px; }
+  .warn { color: var(--danger); font-size: 13px; }
   section {
-    margin: 16px 0;
+    margin: 14px 0;
     padding: 16px;
     border: 1px solid var(--line);
     border-radius: 14px;
     background: var(--card);
   }
   label { display: block; margin: 10px 0 4px; font-size: 13px; color: var(--muted); }
-  input, textarea {
+  label.inline { display: inline-flex; gap: 8px; align-items: center; margin: 8px 12px 0 0; color: var(--text); }
+  input, textarea, select {
     width: 100%;
     padding: 9px 10px;
     border: 1px solid var(--line);
@@ -45,8 +49,12 @@
     color: var(--text);
     font: inherit;
   }
+  input[type=checkbox] { width: auto; }
+  textarea { min-height: 80px; resize: vertical; }
+  textarea.code { font: 12px/1.4 ui-monospace, monospace; word-break: break-all; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  @media (max-width: 480px) { .row3 { grid-template-columns: 1fr 1fr; } }
   button, .btn {
     display: inline-block;
     margin-top: 12px;
@@ -59,9 +67,13 @@
     text-decoration: none;
     cursor: pointer;
   }
-  .btn.sub, button.sub { background: #3a4170; color: #fff; }
-  button.del { margin: 0; padding: 6px 10px; background: transparent; border: 1px solid var(--danger); color: var(--danger); font-size: 13px; }
-  .gift {
+  .sub { background: #3a4170 !important; color: #fff !important; }
+  .small { margin: 0; padding: 5px 10px; font-size: 13px; }
+  .del { margin: 0; padding: 5px 10px; background: transparent; border: 1px solid var(--danger); color: var(--danger); font-size: 13px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+  .tabs button { margin: 0; padding: 8px 12px; background: #252a52; color: var(--muted); font-size: 14px; }
+  .tabs button.on { background: var(--gold); color: #1a1030; }
+  .item {
     display: flex;
     gap: 10px;
     align-items: flex-start;
@@ -69,191 +81,632 @@
     padding: 10px 0;
     border-top: 1px solid var(--line);
   }
-  .gift:first-child { border-top: none; }
-  .gift b { color: var(--gold); }
+  .item:first-child { border-top: none; }
+  .item b { color: var(--gold); }
   .reward { color: var(--gem); font-size: 13px; }
   .expired { opacity: 0.5; }
-  ol { padding-left: 20px; margin: 6px 0; }
-  pre {
-    overflow-x: auto;
-    padding: 10px;
-    border-radius: 8px;
-    background: #0f1230;
-    font-size: 12px;
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+  td input, td select { padding: 4px 6px; }
+  .scroll { max-height: 420px; overflow: auto; }
+  #msg {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    max-width: 90vw;
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: #000d;
+    color: var(--gold);
+    font-weight: bold;
+    display: none;
   }
-  #msg { min-height: 1.6em; color: var(--gold); font-weight: bold; }
-  @media (max-width: 420px) { .row3 { grid-template-columns: 1fr 1fr; } }
+  pre { overflow-x: auto; padding: 10px; border-radius: 8px; background: #0f1230; font-size: 12px; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
   <h1>モンスター・フリック 管理</h1>
   <p class="note">
-    プレゼント（ジェム・コイン・結晶）を全プレイヤーに配布します。
+    ここで作った設定は <code>gifts.json</code>（プレゼント）と <code>config.json</code>（それ以外）に保存し、
+    GitHub にアップロードするとゲームに反映されます（数分〜十数分）。
     このページは誰でも開けますが、ゲームに反映できるのは GitHub に書き込める管理者だけです。
   </p>
 
-  <section>
-    <h2>① プレゼントを追加</h2>
-    <form id="form">
-      <label for="title">タイトル（20文字まで）</label>
-      <input id="title" maxlength="20" required placeholder="例: メンテナンスのおわび">
-      <label for="message">メッセージ（40文字まで）</label>
-      <input id="message" maxlength="40" placeholder="例: いつも遊んでくれてありがとう!">
+  <div class="tabs" id="tabs">
+    <button data-tab="gifts" class="on">プレゼント</button>
+    <button data-tab="news">お知らせ</button>
+    <button data-tab="settings">ゲーム設定</button>
+    <button data-tab="chars">キャラ調整</button>
+    <button data-tab="player">プレイヤー編集</button>
+    <button data-tab="publish">公開する</button>
+  </div>
+
+  <!-- ===== プレゼント ===== -->
+  <div data-panel="gifts">
+    <section>
+      <h2>プレゼントを全員に配る</h2>
+      <form id="giftForm">
+        <label for="gTitle">タイトル（20文字まで）</label>
+        <input id="gTitle" maxlength="20" required placeholder="例: メンテナンスのおわび">
+        <label for="gMessage">メッセージ（40文字まで）</label>
+        <input id="gMessage" maxlength="40" placeholder="例: いつも遊んでくれてありがとう!">
+        <div class="row3">
+          <div><label for="gGems">ジェム</label><input id="gGems" type="number" min="0" max="100000" value="100"></div>
+          <div><label for="gCoins">コイン</label><input id="gCoins" type="number" min="0" max="100000" value="0"></div>
+          <div><label for="gCr">結晶（全属性に）</label><input id="gCr" type="number" min="0" max="999" value="0"></div>
+        </div>
+        <div class="row">
+          <div><label for="gFrom">受け取り開始日</label><input id="gFrom" type="date"></div>
+          <div><label for="gUntil">受け取り期限</label><input id="gUntil" type="date"></div>
+        </div>
+        <button type="submit">リストに追加</button>
+      </form>
+    </section>
+    <section>
+      <h2>配布中のプレゼント</h2>
+      <div id="giftList"></div>
+    </section>
+  </div>
+
+  <!-- ===== お知らせ ===== -->
+  <div data-panel="news" hidden>
+    <section>
+      <h2>お知らせを出す</h2>
+      <p class="note">ゲームのホーム画面「お知らせ」に表示されます。新しいお知らせがあるとボタンに赤い点が付きます。</p>
+      <form id="newsForm">
+        <label for="nTitle">タイトル（22文字まで）</label>
+        <input id="nTitle" maxlength="22" required placeholder="例: 新キャラ登場!">
+        <label for="nBody">本文（改行できます）</label>
+        <textarea id="nBody" maxlength="300" placeholder="例: ガチャに新しいキャラが追加されました。"></textarea>
+        <label for="nDate">日付</label>
+        <input id="nDate" type="date">
+        <button type="submit">お知らせを追加</button>
+      </form>
+    </section>
+    <section>
+      <h2>表示中のお知らせ（上ほど新しい）</h2>
+      <div id="newsList"></div>
+    </section>
+  </div>
+
+  <!-- ===== ゲーム設定 ===== -->
+  <div data-panel="settings" hidden>
+    <section>
+      <h2>メンテナンス</h2>
+      <label class="inline"><input type="checkbox" id="mOn"> メンテナンス中にする（クエスト・ガチャなどが遊べなくなります）</label>
+      <label for="mMsg">表示するメッセージ</label>
+      <textarea id="mMsg" placeholder="例: 10:00〜12:00 はメンテナンスです。"></textarea>
+      <p class="note">メンテナンス中でも、URLの最後に <code>?test=1</code> を付けると管理者は遊べます。</p>
+    </section>
+    <section>
+      <h2>キャンペーン（報酬アップ）</h2>
+      <label for="cTitle">キャンペーン名（空にするとキャンペーンなし）</label>
+      <input id="cTitle" maxlength="14" placeholder="例: コイン2倍キャンペーン">
       <div class="row3">
-        <div><label for="gems">ジェム</label><input id="gems" type="number" min="0" max="100000" value="100"></div>
-        <div><label for="coins">コイン</label><input id="coins" type="number" min="0" max="100000" value="0"></div>
-        <div><label for="crystals">結晶（全属性に）</label><input id="crystals" type="number" min="0" max="999" value="0"></div>
+        <div><label for="cCoin">コイン倍率</label><input id="cCoin" type="number" min="1" max="100" step="0.5" value="1"></div>
+        <div><label for="cExp">EXP倍率</label><input id="cExp" type="number" min="1" max="100" step="0.5" value="1"></div>
+        <div><label for="cGem">初回ジェム倍率</label><input id="cGem" type="number" min="1" max="100" step="0.5" value="1"></div>
       </div>
       <div class="row">
-        <div><label for="from">受け取り開始日</label><input id="from" type="date"></div>
-        <div><label for="until">受け取り期限</label><input id="until" type="date"></div>
+        <div><label for="cFrom">開始日</label><input id="cFrom" type="date"></div>
+        <div><label for="cUntil">終了日</label><input id="cUntil" type="date"></div>
       </div>
-      <button type="submit">リストに追加</button>
-    </form>
-  </section>
+    </section>
+    <section>
+      <h2>ガチャ</h2>
+      <div class="row">
+        <div><label for="gaP1">1回の価格（ジェム）</label><input id="gaP1" type="number" min="0" value="50"></div>
+        <div><label for="gaP10">10連の価格（ジェム）</label><input id="gaP10" type="number" min="0" value="450"></div>
+      </div>
+      <div class="row3">
+        <div><label for="gaR6">★6（1体あたり %）</label><input id="gaR6" type="number" min="0" max="50" step="0.1" value="1"></div>
+        <div><label for="gaR5">★5（%）</label><input id="gaR5" type="number" min="0" max="100" step="0.1" value="6"></div>
+        <div><label for="gaR4">★4（%）</label><input id="gaR4" type="number" min="0" max="100" step="0.1" value="30"></div>
+      </div>
+      <p class="note" id="gaInfo"></p>
+      <h3>★6枠で出るキャラ</h3>
+      <div id="gaLimited" class="scroll"></div>
+    </section>
+    <section>
+      <h2>ボーナス・初期アイテム・難易度</h2>
+      <div class="row">
+        <div><label for="dGems">デイリーボーナス ジェム</label><input id="dGems" type="number" min="0" value="50"></div>
+        <div><label for="dCoins">デイリーボーナス コイン</label><input id="dCoins" type="number" min="0" value="1000"></div>
+      </div>
+      <div class="row">
+        <div><label for="sGems">新しく始めた人のジェム</label><input id="sGems" type="number" min="0" value="500"></div>
+        <div><label for="sCoins">新しく始めた人のコイン</label><input id="sCoins" type="number" min="0" value="3000"></div>
+      </div>
+      <label for="diff">敵の強さ（全クエスト共通の倍率。1 = 標準、2 = 2倍強い、0.5 = 半分）</label>
+      <input id="diff" type="number" min="0.1" max="100" step="0.1" value="1">
+    </section>
+  </div>
 
-  <section>
-    <h2>② 配布中のプレゼント</h2>
-    <div id="list"></div>
-    <p class="note" id="loadNote"></p>
-    <label for="file">保存してある gifts.json を読み込む（任意）</label>
-    <input id="file" type="file" accept=".json,application/json">
-  </section>
+  <!-- ===== キャラ調整 ===== -->
+  <div data-panel="chars" hidden>
+    <section>
+      <h2>キャラの強さ（攻撃力・HPの倍率）</h2>
+      <p class="note">空欄は標準のまま。例: 2 にすると攻撃力とHPが2倍。ikesaki は標準 1.35、ジン は標準 1.45。</p>
+      <input id="charFilter" placeholder="名前でしぼりこみ">
+      <div class="scroll" style="margin-top:8px"><table id="charTable"></table></div>
+    </section>
+  </div>
 
-  <section>
-    <h2>③ ゲームに反映する</h2>
-    <ol>
-      <li>「gifts.json を保存」を押してファイルを保存</li>
-      <li>「GitHubにアップロード」を開き、保存した <code>gifts.json</code> をドラッグ</li>
-      <li>下の「Commit changes」を押す（数分〜十数分でゲームに届きます）</li>
-    </ol>
-    <button id="download">gifts.json を保存</button>
-    <a class="btn sub" href="https://github.com/potof47/47asobi/upload/claude/monster-strike-game-lgvceq" target="_blank" rel="noopener">GitHubにアップロード</a>
-    <button class="sub" id="copy">中身をコピー</button>
-    <p id="msg"></p>
-    <details>
-      <summary class="note">gifts.json の中身を見る</summary>
-      <pre id="json"></pre>
-    </details>
-  </section>
+  <!-- ===== プレイヤー編集 ===== -->
+  <div data-panel="player" hidden>
+    <section>
+      <h2>プレイヤーのデータを編集</h2>
+      <p class="note">
+        プレイヤーにゲームの「引き継ぎ」→「コードを発行」でコードを出してもらい、ここに貼り付けます。
+        編集して新しいコードを発行し、プレイヤーに「コードを入力」で入れてもらうと反映されます。
+      </p>
+      <label for="pCodeIn">引き継ぎコード</label>
+      <textarea id="pCodeIn" class="code" placeholder="MF1Z-..."></textarea>
+      <button id="pLoad">読み込む</button>
+      <button id="pNew" class="sub">新しいデータから作る</button>
+    </section>
+    <section id="pEditor" hidden>
+      <h2>データの中身</h2>
+      <div class="row">
+        <div><label for="pName">名前</label><input id="pName" maxlength="12"></div>
+        <div><label for="pRank">プレイヤーランク</label><input id="pRank" type="number" min="1"></div>
+      </div>
+      <div class="row">
+        <div><label for="pGems">ジェム</label><input id="pGems" type="number" min="0"></div>
+        <div><label for="pCoins">コイン</label><input id="pCoins" type="number" min="0"></div>
+      </div>
+      <label>結晶（火・水・木・光・闇）</label>
+      <div class="row3" id="pCr"></div>
+      <div class="row">
+        <div><label for="pTower">無限の塔 最高到達階</label><input id="pTower" type="number" min="0"></div>
+        <div><label for="pAbyss">深淵の塔 最高到達階</label><input id="pAbyss" type="number" min="0"></div>
+      </div>
+      <h3>キャラ</h3>
+      <div class="row">
+        <div><select id="pAddSel"></select></div>
+        <div><button id="pAdd" class="small">このキャラを追加</button>
+          <button id="pAll" class="small sub">全キャラを最強にする</button></div>
+      </div>
+      <div class="scroll" style="margin-top:8px"><table id="pChars"></table></div>
+      <button id="pExport">新しいコードを発行</button>
+      <label for="pCodeOut">新しい引き継ぎコード（プレイヤーに渡す）</label>
+      <textarea id="pCodeOut" class="code" readonly></textarea>
+      <button id="pCopy" class="sub">コードをコピー</button>
+    </section>
+  </div>
+
+  <!-- ===== 公開する ===== -->
+  <div data-panel="publish" hidden>
+    <section>
+      <h2>ゲームに反映する</h2>
+      <ol>
+        <li>下のボタンで <code>gifts.json</code> と <code>config.json</code> を保存</li>
+        <li>「GitHubにアップロード」を開き、保存した2つのファイルをドラッグ</li>
+        <li>下の「Commit changes」を押す（数分〜十数分でゲームに届きます）</li>
+      </ol>
+      <button id="dlGifts">gifts.json を保存</button>
+      <button id="dlConfig">config.json を保存</button>
+      <a class="btn sub" href="https://github.com/potof47/47asobi/upload/claude/monster-strike-game-lgvceq" target="_blank" rel="noopener">GitHubにアップロード</a>
+      <p class="note" id="loadNote"></p>
+      <details>
+        <summary class="note">中身を見る</summary>
+        <pre id="jsonGifts"></pre>
+        <pre id="jsonConfig"></pre>
+      </details>
+    </section>
+  </div>
 </main>
+<div id="msg"></div>
 
 <script>
 "use strict";
-let gifts = [];
 const $ = id => document.getElementById(id);
-const clamp = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
-const dateStr = d => d.toISOString().slice(0, 10);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0)));
+const today = () => new Date().toISOString().slice(0, 10);
+const plusDays = n => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+const EL_KEYS = ["fire", "water", "wood", "light", "dark"];
+const EL_NAME = { fire: "火", water: "水", wood: "木", light: "光", dark: "闇" };
+
+let gifts = [];
+let config = {};
+let FAM = [];          // [{ idx, name, el, rar }]（index.html から読み取る）
 
 function say(text) {
-  $("msg").textContent = text;
-  setTimeout(() => { if ($("msg").textContent === text) $("msg").textContent = ""; }, 4000);
+  const m = $("msg");
+  m.textContent = text;
+  m.style.display = "block";
+  clearTimeout(say.t);
+  say.t = setTimeout(() => { m.style.display = "none"; }, 3500);
 }
 
-function toJson() {
-  return JSON.stringify({ gifts }, null, 2);
-}
-
-function render() {
-  const list = $("list");
-  list.textContent = "";
-  if (!gifts.length) {
-    list.innerHTML = '<p class="note">まだプレゼントはありません</p>';
-  }
-  const today = dateStr(new Date());
-  gifts.forEach((g, i) => {
-    const div = document.createElement("div");
-    div.className = "gift" + (g.until && g.until < today ? " expired" : "");
-    const info = document.createElement("div");
-    const parts = [];
-    if (g.gems) parts.push(`ジェム ${g.gems}`);
-    if (g.coins) parts.push(`コイン ${g.coins}`);
-    if (g.crystals) parts.push(`結晶 各${g.crystals}`);
-    info.innerHTML = "<b></b><div class='note'></div><div class='reward'></div><div class='note'></div>";
-    info.children[0].textContent = g.title;
-    info.children[1].textContent = g.message || "";
-    info.children[2].textContent = parts.join(" / ") || "（報酬なし）";
-    info.children[3].textContent = `${g.from || "すぐ"} 〜 ${g.until || "期限なし"}` + (g.until && g.until < today ? "（期限切れ）" : "");
-    const del = document.createElement("button");
-    del.className = "del";
-    del.textContent = "削除";
-    del.onclick = () => {
-      if (!confirm(`「${g.title}」を削除しますか？`)) return;
-      gifts.splice(i, 1);
-      render();
-    };
-    div.append(info, del);
-    list.append(div);
-  });
-  $("json").textContent = toJson();
-}
-
-function setGifts(data) {
-  const arr = data && Array.isArray(data.gifts) ? data.gifts : [];
-  gifts = arr.filter(g => g && g.id && g.title);
-  render();
-}
-
-// 今公開されている gifts.json を読み込む
-fetch("gifts.json?t=" + Date.now(), { cache: "no-store" })
-  .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
-  .then(d => { setGifts(d); $("loadNote").textContent = "公開中の gifts.json を読み込みました。"; })
-  .catch(() => { render(); $("loadNote").textContent = "公開中の gifts.json が見つからないので、空の状態から始めます。"; });
-
-$("file").onchange = async e => {
-  const f = e.target.files[0];
-  if (!f) return;
-  try {
-    setGifts(JSON.parse(await f.text()));
-    say("読み込みました");
-  } catch (err) {
-    say("読み込めませんでした（JSONの形式が正しくありません）");
-  }
+// ---- タブ ---------------------------------------------------------------
+$("tabs").onclick = e => {
+  const t = e.target.dataset.tab;
+  if (!t) return;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  document.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.dataset.panel !== t; });
 };
 
-const now = new Date();
-$("from").value = dateStr(now);
-$("until").value = dateStr(new Date(now.getTime() + 30 * 86400000));
+// ---- 読み込み -------------------------------------------------------------
+async function getJson(path) {
+  const r = await fetch(path + "?t=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
 
-$("form").onsubmit = e => {
+async function loadAll() {
+  const notes = [];
+  try { gifts = (await getJson("gifts.json")).gifts || []; notes.push("gifts.json"); } catch (e) { gifts = []; }
+  try { config = await getJson("config.json"); notes.push("config.json"); } catch (e) { config = {}; }
+  try {
+    const html = await (await fetch("index.html?t=" + Date.now(), { cache: "no-store" })).text();
+    const block = html.slice(html.indexOf("const FAM = ["), html.indexOf("].map((a, i)"));
+    FAM = [...block.matchAll(/^\s*\["([^"]+)",\s*"(\w+)",\s*(\d)/gm)].map((m, i) => ({ idx: i, name: m[1], el: m[2], rar: Number(m[3]) }));
+  } catch (e) { FAM = []; }
+  $("loadNote").textContent = notes.length ? `公開中の ${notes.join("・")} を読み込みました。` : "公開中の設定が見つからないので、標準の状態から始めます。";
+  fillSettings();
+  renderGifts();
+  renderNews();
+  renderChars();
+  fillPlayerSelect();
+  renderJson();
+}
+
+// ---- プレゼント -----------------------------------------------------------
+$("gFrom").value = today();
+$("gUntil").value = plusDays(30);
+$("giftForm").onsubmit = e => {
   e.preventDefault();
   const g = {
-    id: dateStr(new Date()) + "-" + Math.random().toString(36).slice(2, 8),
-    title: $("title").value.trim().slice(0, 20),
-    message: $("message").value.trim().slice(0, 40),
-    gems: clamp($("gems").value, 100000),
-    coins: clamp($("coins").value, 100000),
-    crystals: clamp($("crystals").value, 999),
-    from: $("from").value || undefined,
-    until: $("until").value || undefined,
+    id: today() + "-" + Math.random().toString(36).slice(2, 8),
+    title: $("gTitle").value.trim().slice(0, 20),
+    message: $("gMessage").value.trim().slice(0, 40),
+    gems: clamp($("gGems").value, 0, 100000),
+    coins: clamp($("gCoins").value, 0, 100000),
+    crystals: clamp($("gCr").value, 0, 999),
+    from: $("gFrom").value || undefined,
+    until: $("gUntil").value || undefined,
   };
   if (!g.title) return;
   if (g.from && g.until && g.until < g.from) { say("期限が開始日より前になっています"); return; }
   gifts.push(g);
-  render();
-  $("title").value = "";
-  $("message").value = "";
-  say(`「${g.title}」を追加しました。③で保存してアップロードしてください`);
+  $("gTitle").value = "";
+  $("gMessage").value = "";
+  renderGifts();
+  say(`「${g.title}」を追加しました。「公開する」で保存してアップロードしてください`);
 };
 
-$("download").onclick = () => {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([toJson() + "\n"], { type: "application/json" }));
-  a.download = "gifts.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
-  say("gifts.json を保存しました");
+function renderGifts() {
+  const box = $("giftList");
+  box.textContent = "";
+  if (!gifts.length) box.innerHTML = '<p class="note">まだプレゼントはありません</p>';
+  gifts.forEach((g, i) => {
+    const parts = [];
+    if (g.gems) parts.push(`ジェム ${g.gems}`);
+    if (g.coins) parts.push(`コイン ${g.coins}`);
+    if (g.crystals) parts.push(`結晶 各${g.crystals}`);
+    const expired = g.until && g.until < today();
+    box.append(itemRow(g.title, g.message || "", parts.join(" / ") || "（報酬なし）",
+      `${g.from || "すぐ"} 〜 ${g.until || "期限なし"}${expired ? "（期限切れ）" : ""}`, expired, () => {
+        if (!confirm(`「${g.title}」を削除しますか？`)) return;
+        gifts.splice(i, 1);
+        renderGifts();
+      }));
+  });
+  renderJson();
+}
+
+function itemRow(title, line1, line2, line3, dim, onDelete) {
+  const div = document.createElement("div");
+  div.className = "item" + (dim ? " expired" : "");
+  const info = document.createElement("div");
+  info.innerHTML = "<b></b><div class='note'></div><div class='reward'></div><div class='note'></div>";
+  info.children[0].textContent = title;
+  info.children[1].textContent = line1;
+  info.children[2].textContent = line2;
+  info.children[3].textContent = line3;
+  const del = document.createElement("button");
+  del.className = "del";
+  del.textContent = "削除";
+  del.onclick = onDelete;
+  div.append(info, del);
+  return div;
+}
+
+// ---- お知らせ ------------------------------------------------------------
+$("nDate").value = today();
+$("newsForm").onsubmit = e => {
+  e.preventDefault();
+  const n = {
+    id: today() + "-" + Math.random().toString(36).slice(2, 8),
+    title: $("nTitle").value.trim().slice(0, 22),
+    body: $("nBody").value.trim().slice(0, 300),
+    date: $("nDate").value || today(),
+  };
+  if (!n.title) return;
+  config.news = [n, ...(config.news || [])];
+  $("nTitle").value = "";
+  $("nBody").value = "";
+  renderNews();
+  say("お知らせを追加しました。「公開する」で保存してアップロードしてください");
 };
 
-$("copy").onclick = async () => {
+function renderNews() {
+  const box = $("newsList");
+  box.textContent = "";
+  const list = config.news || [];
+  if (!list.length) box.innerHTML = '<p class="note">お知らせはありません</p>';
+  list.forEach((n, i) => {
+    box.append(itemRow(n.title, n.date || "", "", n.body || "", false, () => {
+      if (!confirm(`「${n.title}」を削除しますか？`)) return;
+      config.news.splice(i, 1);
+      renderNews();
+    }));
+  });
+  renderJson();
+}
+
+// ---- ゲーム設定 -----------------------------------------------------------
+function fillSettings() {
+  const m = config.maintenance || {}, c = config.campaign || {}, g = config.gacha || {};
+  const d = config.daily || {}, s = config.starter || {};
+  $("mOn").checked = !!m.on;
+  $("mMsg").value = m.message || "";
+  $("cTitle").value = c.title || "";
+  $("cCoin").value = c.coinMul || 1;
+  $("cExp").value = c.expMul || 1;
+  $("cGem").value = c.gemMul || 1;
+  $("cFrom").value = c.from || "";
+  $("cUntil").value = c.until || "";
+  $("gaP1").value = g.price1 ?? 50;
+  $("gaP10").value = g.price10 ?? 450;
+  $("gaR6").value = +((g.rate6 ?? 0.01) * 100).toFixed(2);
+  $("gaR5").value = +((g.rate5 ?? 0.06) * 100).toFixed(2);
+  $("gaR4").value = +((g.rate4 ?? 0.30) * 100).toFixed(2);
+  $("dGems").value = d.gems ?? 50;
+  $("dCoins").value = d.coins ?? 1000;
+  $("sGems").value = s.gems ?? 500;
+  $("sCoins").value = s.coins ?? 3000;
+  $("diff").value = config.difficulty ?? 1;
+  // ★6枠のキャラ（チェックボックス）
+  const lim = new Set(g.limited || ["ikesaki", "ジン"]);
+  const box = $("gaLimited");
+  box.textContent = "";
+  for (const f of [...FAM].sort((a, b) => b.rar - a.rar)) {
+    const l = document.createElement("label");
+    l.className = "inline";
+    l.innerHTML = `<input type="checkbox"> <span></span>`;
+    l.querySelector("input").checked = lim.has(f.name);
+    l.querySelector("input").dataset.name = f.name;
+    l.querySelector("span").textContent = `${f.name}（★${f.rar}・${EL_NAME[f.el] || ""}）`;
+    box.append(l);
+  }
+  readSettings();
+}
+
+function readSettings() {
+  config.maintenance = { on: $("mOn").checked, message: $("mMsg").value.trim() };
+  config.campaign = {
+    title: $("cTitle").value.trim(), coinMul: Number($("cCoin").value) || 1, expMul: Number($("cExp").value) || 1,
+    gemMul: Number($("cGem").value) || 1, from: $("cFrom").value, until: $("cUntil").value,
+  };
+  const limited = [...$("gaLimited").querySelectorAll("input:checked")].map(i => i.dataset.name);
+  config.gacha = {
+    price1: clamp($("gaP1").value, 0, 1e6), price10: clamp($("gaP10").value, 0, 1e7),
+    rate6: Number($("gaR6").value) / 100, rate5: Number($("gaR5").value) / 100, rate4: Number($("gaR4").value) / 100,
+    limited: limited.length ? limited : ["ikesaki", "ジン"],
+  };
+  config.daily = { gems: clamp($("dGems").value, 0, 1e6), coins: clamp($("dCoins").value, 0, 1e8) };
+  config.starter = { gems: clamp($("sGems").value, 0, 1e9), coins: clamp($("sCoins").value, 0, 1e10) };
+  config.difficulty = Math.max(0.1, Number($("diff").value) || 1);
+  const g = config.gacha, total = g.rate6 * g.limited.length + g.rate5 + g.rate4;
+  $("gaInfo").textContent = total > 1
+    ? `⚠ 合計が ${(total * 100).toFixed(1)}% で100%を超えています（この設定はゲームで無視されます）`
+    : `★6 合計 ${(g.rate6 * g.limited.length * 100).toFixed(1)}%（${g.limited.length}体）・★5 ${(g.rate5 * 100).toFixed(1)}%・★4 ${(g.rate4 * 100).toFixed(1)}%・★3 ${((1 - total) * 100).toFixed(1)}%`;
+  $("gaInfo").className = total > 1 ? "warn" : "note";
+  renderJson();
+}
+document.querySelector('[data-panel="settings"]').addEventListener("input", readSettings);
+document.querySelector('[data-panel="settings"]').addEventListener("change", readSettings);
+
+// ---- キャラ調整 -----------------------------------------------------------
+function renderChars() {
+  const q = $("charFilter").value.trim();
+  const boost = config.charBoost || (config.charBoost = {});
+  const t = $("charTable");
+  t.innerHTML = "<tr><th>キャラ</th><th>★</th><th>属性</th><th>倍率</th></tr>";
+  for (const f of FAM) {
+    if (q && !f.name.includes(q)) continue;
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td></td><td></td><td></td><td><input type='number' min='0.1' max='100' step='0.05' placeholder='標準'></td>";
+    tr.children[0].textContent = f.name;
+    tr.children[1].textContent = f.rar;
+    tr.children[2].textContent = EL_NAME[f.el] || f.el;
+    const inp = tr.querySelector("input");
+    inp.value = boost[f.name] ?? "";
+    inp.oninput = () => {
+      if (inp.value === "") delete boost[f.name];
+      else boost[f.name] = Number(inp.value);
+      renderJson();
+    };
+    t.append(tr);
+  }
+}
+$("charFilter").oninput = renderChars;
+
+// ---- プレイヤー編集（引き継ぎコードの読み書き。ゲームと同じ形式） ---------------
+function codeCheck(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h.toString(36);
+}
+function toB64url(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function fromB64url(s) {
+  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+}
+async function pipe(bytes, stream) {
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+}
+async function decodeSave(code) {
+  const m = code.replace(/\s+/g, "").match(/^(MF1Z?)-([A-Za-z0-9_-]+)-([a-z0-9]+)$/);
+  if (!m) throw new Error("引き継ぎコードの形ではありません");
+  if (codeCheck(m[2]) !== m[3]) throw new Error("コードが途中で切れているか、間違っています");
+  let bytes = fromB64url(m[2]);
+  if (m[1] === "MF1Z") bytes = await pipe(bytes, new DecompressionStream("deflate-raw"));
+  const s = JSON.parse(new TextDecoder().decode(bytes));
+  if (!s || !s.box || !s.party) throw new Error("セーブデータが入っていません");
+  return s;
+}
+async function encodeSave(s) {
+  const bytes = await pipe(new TextEncoder().encode(JSON.stringify(s)), new CompressionStream("deflate-raw"));
+  const body = toB64url(bytes);
+  return `MF1Z-${body}-${codeCheck(body)}`;
+}
+
+let player = null;
+
+function fillPlayerSelect() {
+  const sel = $("pAddSel");
+  sel.textContent = "";
+  for (const f of FAM) {
+    const o = document.createElement("option");
+    o.value = f.idx;
+    o.textContent = `${f.name}（★${f.rar}・${EL_NAME[f.el] || ""}）`;
+    sel.append(o);
+  }
+}
+
+function showPlayer() {
+  const p = player;
+  $("pEditor").hidden = false;
+  $("pName").value = p.name || "";
+  $("pRank").value = p.rank || 1;
+  $("pGems").value = p.gems || 0;
+  $("pCoins").value = p.coins || 0;
+  $("pTower").value = p.towerMax || 0;
+  $("pAbyss").value = p.abyssMax || 0;
+  const cr = $("pCr");
+  cr.textContent = "";
+  for (const k of EL_KEYS) {
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.min = 0;
+    inp.value = (p.cr && p.cr[k]) || 0;
+    inp.title = EL_NAME[k];
+    inp.placeholder = EL_NAME[k];
+    inp.dataset.el = k;
+    cr.append(inp);
+  }
+  renderPlayerChars();
+}
+
+function renderPlayerChars() {
+  const t = $("pChars");
+  t.innerHTML = "<tr><th>キャラ</th><th>★</th><th>Lv</th><th>覚醒</th><th>編成</th><th></th></tr>";
+  for (const [k, u] of Object.entries(player.box)) {
+    const f = FAM[k];
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td></td>
+      <td><select>${[3, 4, 5, 6].map(r => `<option ${r === u.rar ? "selected" : ""}>${r}</option>`).join("")}</select></td>
+      <td><input type="number" min="1" max="99" value="${u.lv}"></td>
+      <td><input type="number" min="0" max="5" value="${u.awk}"></td>
+      <td><input type="checkbox" ${player.party.map(Number).includes(Number(k)) ? "checked" : ""}></td>
+      <td><button class="del">外す</button></td>`;
+    tr.children[0].textContent = f ? f.name : `#${k}`;
+    const [rarSel] = tr.querySelectorAll("select");
+    const [lvIn, awkIn] = tr.querySelectorAll("input[type=number]");
+    const partyIn = tr.querySelector("input[type=checkbox]");
+    rarSel.onchange = () => { u.rar = Number(rarSel.value); };
+    lvIn.oninput = () => { u.lv = clamp(lvIn.value, 1, 99); };
+    awkIn.oninput = () => { u.awk = clamp(awkIn.value, 0, 5); };
+    partyIn.onchange = () => {
+      const id = Number(k);
+      player.party = player.party.map(Number).filter(x => x !== id);
+      if (partyIn.checked) {
+        if (player.party.length >= 4) { partyIn.checked = false; say("編成は4体までです"); return; }
+        player.party.push(id);
+      }
+    };
+    tr.querySelector(".del").onclick = () => {
+      delete player.box[k];
+      player.party = player.party.map(Number).filter(x => x !== Number(k));
+      renderPlayerChars();
+    };
+    t.append(tr);
+  }
+}
+
+$("pLoad").onclick = async () => {
   try {
-    await navigator.clipboard.writeText(toJson());
-    say("コピーしました");
-  } catch (err) {
-    say("コピーできませんでした");
+    player = await decodeSave($("pCodeIn").value);
+    showPlayer();
+    say("読み込みました");
+  } catch (e) {
+    say(e.message || "読み込めませんでした");
   }
 };
+$("pNew").onclick = () => {
+  const box = {};
+  for (const i of [2, 8, 14, 20]) if (FAM[i]) box[i] = { rar: FAM[i].rar, lv: 1, awk: 0 };
+  player = { gems: 500, coins: 3000, cr: {}, box, party: Object.keys(box).map(Number), cleared: {}, best: {}, rank: 1, exp: 0 };
+  showPlayer();
+};
+$("pAdd").onclick = () => {
+  const fi = Number($("pAddSel").value), f = FAM[fi];
+  if (!f) return;
+  player.box[fi] = player.box[fi] || { rar: f.rar, lv: 1, awk: 0 };
+  renderPlayerChars();
+  say(`${f.name} を追加しました`);
+};
+$("pAll").onclick = () => {
+  if (!confirm("全キャラを ★6・Lv99・覚醒5 にしますか？")) return;
+  for (const f of FAM) player.box[f.idx] = { rar: 6, lv: 99, awk: 5 };
+  renderPlayerChars();
+};
+$("pExport").onclick = async () => {
+  const p = player;
+  p.name = $("pName").value.trim().slice(0, 12) || undefined;
+  p.rank = clamp($("pRank").value, 1, 1e6);
+  p.gems = clamp($("pGems").value, 0, 1e9);
+  p.coins = clamp($("pCoins").value, 0, 1e10);
+  p.towerMax = clamp($("pTower").value, 0, 1e6);
+  p.abyssMax = clamp($("pAbyss").value, 0, 1e6);
+  p.cr = p.cr || {};
+  for (const inp of $("pCr").querySelectorAll("input")) p.cr[inp.dataset.el] = clamp(inp.value, 0, 1e6);
+  if (!p.party.length) p.party = [Number(Object.keys(p.box)[0])];
+  $("pCodeOut").value = await encodeSave(p);
+  say("新しいコードを発行しました。プレイヤーに渡してください");
+};
+$("pCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText($("pCodeOut").value); say("コピーしました"); }
+  catch (e) { $("pCodeOut").select(); say("選択された文字をコピーしてください"); }
+};
+
+// ---- 公開 -----------------------------------------------------------------
+function renderJson() {
+  $("jsonGifts").textContent = JSON.stringify({ gifts }, null, 2);
+  $("jsonConfig").textContent = JSON.stringify(config, null, 2);
+}
+function download(name, data) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2) + "\n"], { type: "application/json" }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  say(`${name} を保存しました`);
+}
+$("dlGifts").onclick = () => download("gifts.json", { gifts });
+$("dlConfig").onclick = () => { readSettings(); download("config.json", config); };
+
+loadAll();
 </script>
 </body>
 </html>

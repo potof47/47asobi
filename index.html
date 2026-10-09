@@ -273,6 +273,7 @@ const LIMITED = FAM.find(f => f.name === "ikesaki").idx;
 FAM[LIMITED].boost = 1.35;      // 限定キャラは能力1.35倍
 const LIMITED_JIN = FAM.find(f => f.name === "ジン").idx;
 FAM[LIMITED_JIN].boost = 1.45;  // ikesaki より強め
+const BASE_BOOST = FAM.map(f => f.boost || 1);   // 管理者設定で上書きする前の値
 const LIMITED_ALL = [LIMITED, LIMITED_JIN];
 
 const RBASE = {
@@ -289,8 +290,9 @@ const RCOL = { 3: "#d39a5a", 4: "#d8e0f0", 5: "#ffd23f", 6: "#ff8ae6" };
 const lvCost = lv => 20 + lv * 8;
 
 // ---- ガチャ -----------------------------------------------------------
-const GACHA_1 = 50, GACHA_10 = 450;
-const RATE6 = 0.01, RATE5 = 0.06, RATE4 = 0.30;
+// 管理者設定（config.json）で上書きできるので let
+let GACHA_1 = 50, GACHA_10 = 450;
+let RATE6 = 0.01, RATE5 = 0.06, RATE4 = 0.30;
 
 // ---- セーブデータ -------------------------------------------------------
 const SAVE_KEY = "mflick-save-v1";
@@ -301,7 +303,7 @@ function newSave() {
   for (const fi of STARTERS) box[fi] = { rar: FAM[fi].rar, lv: 1, awk: 0 };
   const cr = {};
   for (const k of EL_KEYS) cr[k] = 0;
-  return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "",
+  return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "", starterPending: true,
     rank: 1, exp: 0, stats: {}, ach: {}, towerMax: 0, abyssMax: 0 };
 }
 function loadSave() {
@@ -787,6 +789,7 @@ function makeAlly(fi, x, y) {
 }
 
 function startQuest(i) {
+  if (maintenanceOn()) { showToast("メンテナンス中です"); return; }
   questIdx = i;
   quest = getQuest(i);
   waveIdx = 0;
@@ -805,8 +808,8 @@ function startQuest(i) {
 function loadWave() {
   const w = quest.waves[waveIdx]();
   for (const e of w.enemies) {
-    e.hp = e.maxHp = Math.round(e.hp * quest.mul);
-    e.atk = Math.round(e.atk * Math.pow(quest.mul, quest.atkPow || 1));
+    e.hp = e.maxHp = Math.round(e.hp * quest.mul * cfgDifficulty());
+    e.atk = Math.round(e.atk * Math.pow(quest.mul, quest.atkPow || 1) * cfgDifficulty());
   }
   enemies = w.enemies;
   rocks = w.rocks || [];
@@ -1222,10 +1225,12 @@ function finishQuest() {
   const isBest = best === undefined || turn < best;
   if (isBest) save.best[questIdx] = turn;
   const rank = turn <= q.par ? "S" : turn <= q.par * 1.4 ? "A" : "B";
-  const coin = Math.round(q.coin * (rank === "S" ? 1.5 : rank === "A" ? 1.2 : 1));
+  const camp = campaign() || { coin: 1, exp: 1, gem: 1 };   // 管理者のキャンペーン倍率
+  const coin = Math.round(q.coin * (rank === "S" ? 1.5 : rank === "A" ? 1.2 : 1) * camp.coin);
   const crEl = q.crEl || pick(EL_KEYS);
   const crN = q.crN + Math.floor(Math.random() * 3);
-  const gem = first ? q.gem : 0;
+  const gem = first ? Math.round(q.gem * camp.gem) : 0;
+  const exp = Math.round((q.exp || 30) * camp.exp);
   let drop = null;
   if (questIdx === IKESAKI_QUEST && first) {
     drop = acquire(LIMITED);                  // 最難関の初回クリアで★6限定キャラ
@@ -1241,11 +1246,11 @@ function finishQuest() {
   if (q.kind === "abyss") save.abyssMax = Math.max(save.abyssMax || 0, q.floor);
   addStat("clears");
   if (rank === "S") addStat("srank");
-  const up = addExp(q.exp || 30);
+  const up = addExp(exp);
   if (up.ranks) showToast(`ランクアップ! ランク${save.rank}  ジェム+${up.gems}`);
   persist();
   lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, netRank: undefined,
-    exp: q.exp || 30, kind: q.kind };
+    exp, kind: q.kind };
   if (q.kind !== "special") { state = "clear"; return; }
   // ランキングに記録（スペシャルクエストのみ）
   const leader = displayName(save.party[0]);
@@ -2956,7 +2961,7 @@ function drawNav() {
   ctx.fillRect(0, NAV_Y, W, 1);
   const w = W / NAV.length;
   NAV.forEach(([s, label], i) => {
-    const active = state === s || (s === "box" && state === "detail") || (s === "home" && (state === "gifts" || state === "transfer" || state === "missions"));
+    const active = state === s || (s === "box" && state === "detail") || (s === "home" && (state === "gifts" || state === "transfer" || state === "missions" || state === "news"));
     if (active) {
       ctx.fillStyle = "rgba(255,211,92,0.15)";
       ctx.fillRect(i * w, NAV_Y, w, H - NAV_Y);
@@ -3034,12 +3039,29 @@ function drawHome() {
   if (save.daily !== today()) {
     button(40, 382, W - 80, 40, "デイリーボーナス受け取り", () => {
       save.daily = today();
-      save.gems += 50;
-      save.coins += 1000;
+      save.gems += DAILY_BONUS.gems;
+      save.coins += DAILY_BONUS.coins;
       persist();
       burst(W / 2, 400, "#5ef0ff", 40, 5);
-      showToast("ジェム50・コイン1000 を受け取りました");
-    }, { size: 14, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a", sub: "ジェム50 + コイン1000" });
+      showToast(`ジェム${DAILY_BONUS.gems}・コイン${DAILY_BONUS.coins} を受け取りました`);
+    }, { size: 14, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a", sub: `ジェム${DAILY_BONUS.gems} + コイン${DAILY_BONUS.coins}` });
+  }
+  // お知らせ（未読があれば赤い点）
+  button(12, 184, 78, 32, "お知らせ", () => { markNewsRead(); go("news"); }, { size: 12, c1: "#ffe066", c2: "#e0a020", fg: "#3a2400" });
+  if (unreadNews()) {
+    ctx.fillStyle = "#ff3b4e";
+    ctx.beginPath(); ctx.arc(86, 186, 7, 0, Math.PI * 2); ctx.fill();
+  }
+  // キャンペーン中の表示
+  const camp = campaign();
+  if (camp) {
+    ctx.save();
+    ctx.globalAlpha = 0.85 + Math.sin(frameNo * 0.1) * 0.15;
+    ctx.fillStyle = "#ff4d6d";
+    roundRect(W / 2 - 80, 96, 160, 20, 10);
+    ctx.fill();
+    ctx.restore();
+    txt(String(camp.title).slice(0, 14), W / 2, 106, 11, "#fff", "center");
   }
   button(30, 436, 145, 120, "クエスト", () => go("quests"), { size: 20, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", sub: "冒険に出よう" });
   button(185, 436, 145, 120, "ガチャ", () => go("gacha"), { size: 20, c1: "#c58aff", c2: "#6a2ad6", fg: "#fff", sub: "仲間を増やそう" });
@@ -3535,6 +3557,123 @@ function drawDetail() {
   drawParticles();
   drawTexts();
   drawBanner();
+}
+
+// ---- 管理者設定（config.json。admin.html で作成） -----------------------------
+// お知らせ・メンテナンス・キャンペーン・ガチャ・デイリーボーナス・初期アイテム・難易度・キャラ調整
+let CFG = {};
+const DAILY_BONUS = { gems: 50, coins: 1000 };
+const cfgNum = (v, lo, hi, d) => v === undefined || v === null || v === "" || !Number.isFinite(Number(v))
+  ? d : Math.max(lo, Math.min(hi, Number(v)));
+
+async function loadConfig() {
+  try {
+    const res = await fetch("config.json?t=" + Date.now(), { cache: "no-store" });
+    CFG = res.ok ? (await res.json()) || {} : {};
+  } catch (e) {
+    CFG = {};
+  }
+  applyConfig();
+}
+
+function applyConfig() {
+  // ガチャ（確率の合計が100%を超える設定は無視）
+  const g = CFG.gacha || {};
+  GACHA_1 = cfgNum(g.price1, 0, 1e6, 50);
+  GACHA_10 = cfgNum(g.price10, 0, 1e7, 450);
+  const r6 = cfgNum(g.rate6, 0, 0.5, 0.01), r5 = cfgNum(g.rate5, 0, 1, 0.06), r4 = cfgNum(g.rate4, 0, 1, 0.30);
+  const ids = (Array.isArray(g.limited) ? g.limited : []).map(n => FAM.find(f => f.name === n)).filter(Boolean).map(f => f.idx);
+  const lim = ids.length ? ids : [LIMITED, LIMITED_JIN];
+  if (r6 * lim.length + r5 + r4 <= 1) { RATE6 = r6; RATE5 = r5; RATE4 = r4; BANNERS.star.limited = lim; }
+  // デイリーボーナス
+  const d = CFG.daily || {};
+  DAILY_BONUS.gems = cfgNum(d.gems, 0, 1e6, 50);
+  DAILY_BONUS.coins = cfgNum(d.coins, 0, 1e8, 1000);
+  // キャラ調整（能力の倍率）
+  FAM.forEach((f, i) => { f.boost = BASE_BOOST[i]; });
+  for (const [name, b] of Object.entries(CFG.charBoost || {})) {
+    const f = FAM.find(x => x.name === name);
+    if (f) f.boost = cfgNum(b, 0.1, 100, BASE_BOOST[f.idx]);
+  }
+  // 新しく始めた人の初期アイテム（最初の1回だけ）
+  if (save && save.starterPending) {
+    const s = CFG.starter || {};
+    save.gems = cfgNum(s.gems, 0, 1e9, save.gems);
+    save.coins = cfgNum(s.coins, 0, 1e10, save.coins);
+    delete save.starterPending;
+    persist();
+  }
+}
+
+const cfgDifficulty = () => cfgNum(CFG.difficulty, 0.1, 100, 1);
+// メンテナンス中か（URLに ?test=1 を付けると管理者は遊べる）
+const maintenanceOn = () => !!(CFG.maintenance && CFG.maintenance.on) && !/[?&]test=1/.test(location.search);
+
+// 期間中のキャンペーン（なければ null）
+function campaign() {
+  const c = CFG.campaign;
+  if (!c || !c.title) return null;
+  const now = Date.now();
+  if (c.from && now < new Date(c.from + "T00:00:00").getTime()) return null;
+  if (c.until && now > new Date(c.until + "T23:59:59").getTime()) return null;
+  return { title: c.title, coin: cfgNum(c.coinMul, 1, 100, 1), exp: cfgNum(c.expMul, 1, 100, 1), gem: cfgNum(c.gemMul, 1, 100, 1) };
+}
+
+// お知らせ
+const newsList = () => (Array.isArray(CFG.news) ? CFG.news : []).filter(n => n && n.id && n.title);
+const unreadNews = () => newsList().some(n => !(save.newsRead || []).includes(n.id));
+function markNewsRead() {
+  save.newsRead = newsList().map(n => n.id);
+  persist();
+}
+
+// 日本語を幅に合わせて改行
+function wrapText(text, maxW, size) {
+  ctx.font = `normal ${size}px system-ui, sans-serif`;
+  const lines = [];
+  for (const para of String(text).split("\n")) {
+    let line = "";
+    for (const ch of para) {
+      if (ctx.measureText(line + ch).width > maxW) { lines.push(line); line = ch; } else line += ch;
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+function drawNews() {
+  drawMenuBg("#2a2410", "#0c0a04");
+  drawTopBar();
+  header("お知らせ", "");
+  const list = newsList();
+  if (!list.length) txt("お知らせはありません", W / 2, 240, 14, "#cfd6ff", "center");
+  let y = 84;
+  for (const n of list) {
+    const lines = wrapText(n.body || "", W - 56, 12).slice(0, 8);
+    const h = 44 + lines.length * 17;
+    if (y + h > NAV_Y - 6) break;
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    roundRect(14, y, W - 28, h, 12);
+    ctx.fill();
+    txt(String(n.title).slice(0, 22), 26, y + 16, 14, "#ffd35c");
+    if (n.date) txt(n.date, W - 26, y + 16, 10, "#9aa3d8", "right", "normal");
+    lines.forEach((l, i) => txt(l, 26, y + 38 + i * 17, 12, "#e8ecff", "left", "normal"));
+    y += h + 8;
+  }
+  drawNav();
+}
+
+function drawMaintenance() {
+  button(0, 0, W, H, "", () => {}, { hidden: true });   // 操作を止める
+  ctx.fillStyle = "rgba(5,7,15,0.92)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("メンテナンス中", W / 2, 230, "#ffd35c", 28);
+  ctx.restore();
+  wrapText(CFG.maintenance.message || "しばらくお待ちください", W - 60, 13).slice(0, 8)
+    .forEach((l, i) => txt(l, W / 2, 280 + i * 20, 13, "#e8ecff", "center", "normal"));
 }
 
 // ---- プレゼント（管理者が gifts.json で全員に配布。admin.html で作成） ----------------
@@ -4037,9 +4176,11 @@ function draw() {
     case "gifts": drawGifts(); break;
     case "transfer": drawTransfer(); break;
     case "missions": drawMissions(); break;
+    case "news": drawNews(); break;
     default: drawBattle();
   }
   if (shareOpen) drawShare();
+  if (maintenanceOn() && !BATTLE.has(state)) drawMaintenance();
   drawToast();
 }
 
@@ -4067,6 +4208,7 @@ function frame(t) {
 
 loadSave();
 loadGifts();
+loadConfig();
 resize();
 // オフライン対応・ホーム画面に追加のためのサービスワーカー
 if ("serviceWorker" in navigator) {
