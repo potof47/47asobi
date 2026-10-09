@@ -111,7 +111,37 @@ const FAM = [
   ["ヘクセ",   "dark",  5, "pierce",  "hat",     "sharp",   "homing",  "meteor"],
   // ★6限定キャラ
   ["ikesaki",  "light", 6, "pierce",  "bowlcut", "smile",   "thunder", "meteor"],
-].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7] }));
+  // 人型・獣・鳥・竜・魚（9番目が体の形）
+  ["アカネ",   "fire",  4, "reflect", "spiky",   "sharp",   "blast",   "burst",  "human"],
+  ["カエン",   "fire",  5, "pierce",  "mage",    "sparkle", "laser",   "meteor", "human"],
+  ["ヒギツネ", "fire",  3, "pierce",  "fox",     "round",   "homing",  "needle", "beast"],
+  ["ホムラ",   "fire",  4, "reflect", "crest",   "sharp",   "thunder", "wave",   "bird"],
+  ["イグニドラ", "fire", 5, "reflect", "horns",  "sharp",   "blast",   "judge",  "dragon"],
+  ["ミナト",   "water", 4, "pierce",  "helmet",  "round",   "laser",   "wave",   "human"],
+  ["シオン",   "water", 3, "reflect", "twin",    "sparkle", "heal",    "needle", "human"],
+  ["ルーヴ",   "water", 4, "reflect", "wolf",    "sharp",   "thunder", "burst",  "beast"],
+  ["ペンタ",   "water", 3, "reflect", "tuft",    "round",   "homing",  "needle", "bird"],
+  ["アクアフィン", "water", 5, "pierce", "angler", "round", "laser",   "meteor", "fish"],
+  ["リーフィ", "wood",  3, "pierce",  "long",    "sleepy",  "heal",    "judge",  "human"],
+  ["タケル",   "wood",  5, "reflect", "hood",    "sharp",   "homing",  "burst",  "human"],
+  ["モリグマ", "wood",  4, "reflect", "bear",    "round",   "blast",   "wave",   "beast"],
+  ["フクロン", "wood",  3, "pierce",  "tuft",    "sleepy",  "thunder", "needle", "bird"],
+  ["グリンドラ", "wood", 4, "pierce", "horns",   "round",   "laser",   "meteor", "dragon"],
+  ["ユウキ",   "light", 4, "reflect", "helmet",  "sharp",   "blast",   "judge",  "human"],
+  ["ステラ",   "light", 5, "pierce",  "twin",    "sparkle", "laser",   "meteor", "human"],
+  ["ハクコ",   "light", 3, "reflect", "fox",     "sparkle", "homing",  "burst",  "beast"],
+  ["コハク",   "light", 4, "pierce",  "crest",   "round",   "heal",    "wave",   "bird"],
+  ["ソルドラ", "light", 4, "reflect", "horns",   "round",   "thunder", "burst",  "dragon"],
+  ["クロウ",   "dark",  4, "pierce",  "hood",    "sharp",   "homing",  "needle", "human"],
+  ["マオ",     "dark",  5, "reflect", "mage",    "sharp",   "blast",   "meteor", "human"],
+  ["シャドウルフ", "dark", 4, "reflect", "wolf",  "sharp",   "thunder", "judge",  "beast"],
+  ["カラスケ", "dark",  3, "reflect", "tuft",    "sharp",   "laser",   "burst",  "bird"],
+  ["ヤミウオ", "dark",  3, "pierce",  "angler",  "sleepy",  "heal",    "wave",   "fish"],
+].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
+// 図鑑の並び順（属性 → レア度）
+const ORDER = FAM.map(f => f.idx).sort((a, b) =>
+  EL_KEYS.indexOf(FAM[a].el) - EL_KEYS.indexOf(FAM[b].el) || FAM[a].rar - FAM[b].rar || a - b);
+const SHAPE_NAME = { blob: "モンスター", human: "人型", beast: "獣", bird: "鳥", dragon: "竜", fish: "魚" };
 const STARTERS = [2, 8, 14, 20];   // ブレイズ・マリン・ソーン・ルクス
 const LIMITED = FAM.find(f => f.name === "ikesaki").idx;
 
@@ -167,7 +197,7 @@ function displayName(fi) {
 }
 function look(fi) {
   const f = FAM[fi];
-  return { el: f.el, acc: f.acc, eye: f.eye, rar: unitRar(fi), evo: unitRar(fi) > f.rar };
+  return { shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: unitRar(fi), evo: unitRar(fi) > f.rar };
 }
 function unitStats(fi) {
   const f = FAM[fi], u = save.box[fi] || { rar: f.rar, lv: 1, awk: 0 }, b = RBASE[u.rar];
@@ -983,32 +1013,13 @@ function crystalIcon(el, x, y, s) {
 }
 
 // キャラ（すべてコードで描くオリジナルデザイン）
-// k: { el, acc, eye, rar, evo }
+// k: { shape, el, acc, eye, rar, evo }
 function drawChar(k, x, y, r) {
+  if (k.shape && k.shape !== "blob") { drawCreature(k, x, y, r); return; }
   const c = EL[k.el];
   ctx.save();
-  // ★6: 回転するオーラ
-  if (k.rar >= 6) {
-    ctx.save();
-    ctx.globalAlpha = 0.55;
-    ctx.strokeStyle = `hsl(${(frameNo * 3) % 360},90%,70%)`;
-    ctx.lineWidth = Math.max(2, r * 0.1);
-    ctx.setLineDash([r * 0.3, r * 0.2]);
-    ctx.lineDashOffset = -frameNo * 0.8;
-    ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
-  }
-  // ★5以上: 翼
-  if (k.rar >= 5) {
-    ctx.fillStyle = k.rar >= 6 ? "rgba(255,240,200,0.92)" : "rgba(255,255,255,0.85)";
-    for (const s of [-1, 1]) {
-      for (let j = 0; j < 3; j++) {
-        ctx.beginPath();
-        ctx.ellipse(x + s * r * (0.95 + j * 0.12), y - r * (0.15 - j * 0.22), r * (0.55 - j * 0.1), r * 0.18, s * (0.5 - j * 0.35), 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
+  drawAura(k, x, y, r);
+  drawAngelWings(k, x, y, r);
   // 頭の飾り（後ろ側）
   switch (k.acc) {
     case "flame":
@@ -1115,7 +1126,15 @@ function drawChar(k, x, y, r) {
     ctx.lineTo(x, y - r * 0.4); ctx.lineTo(x - r * 0.12, y - r * 0.56); ctx.closePath();
     ctx.fill();
   }
-  // 目
+  drawFace(k, x, y, r, c.c);
+  // 頭の飾り（前側）
+  drawFrontAcc(k, x, y, r);
+  if (k.rar >= 6 && k.acc !== "hat") drawCrown(x - r * 0.55, y - r * 0.95, r, -0.4);
+  ctx.restore();
+}
+
+// 目と口（lid: 眠そうな目のまぶたの色、noMouth: くちばし等で口を描かない）
+function drawFace(k, x, y, r, lid, noMouth = false) {
   const pupil = "#1b1b2a";
   if (k.eye === "smile") {
     // にっこり目と大きな笑顔
@@ -1127,10 +1146,12 @@ function drawChar(k, x, y, r) {
       ctx.fillStyle = "rgba(255,120,130,0.4)";
       ctx.beginPath(); ctx.ellipse(x + s * r * 0.62, y + r * 0.3, r * 0.14, r * 0.09, 0, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = "#8a2a2a";
-    ctx.beginPath(); ctx.arc(x, y + r * 0.3, r * 0.3, 0, Math.PI); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(x - r * 0.24, y + r * 0.3, r * 0.48, r * 0.09);
+    if (!noMouth) {
+      ctx.fillStyle = "#8a2a2a";
+      ctx.beginPath(); ctx.arc(x, y + r * 0.3, r * 0.3, 0, Math.PI); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x - r * 0.24, y + r * 0.3, r * 0.48, r * 0.09);
+    }
   } else if (k.eye === "mono") {
     ctx.fillStyle = "#fff";
     ctx.beginPath(); ctx.ellipse(x, y - r * 0.05, r * 0.32, r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
@@ -1155,7 +1176,7 @@ function drawChar(k, x, y, r) {
       }
       if (k.eye === "sleepy") {
         // まぶた
-        ctx.fillStyle = c.c;
+        ctx.fillStyle = lid;
         ctx.beginPath(); ctx.ellipse(ex, ey - r * 0.08, r * 0.23, r * 0.17, 0, Math.PI, Math.PI * 2); ctx.fill();
         ctx.fillRect(ex - r * 0.23, ey - r * 0.1, r * 0.46, r * 0.04);
       }
@@ -1171,12 +1192,16 @@ function drawChar(k, x, y, r) {
       ctx.beginPath(); ctx.ellipse(x + s * r * 0.6, y + r * 0.28, r * 0.13, r * 0.08, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
-  if (k.eye !== "smile") {
+  if (k.eye !== "smile" && !noMouth) {
     ctx.strokeStyle = pupil;
     ctx.lineWidth = Math.max(1.2, r * 0.08);
     ctx.beginPath(); ctx.arc(x, y + r * 0.3, r * 0.16, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
   }
-  // 頭の飾り（前側）
+}
+
+// 頭の飾り（前側）
+function drawFrontAcc(k, x, y, r) {
+  const c = EL[k.el];
   switch (k.acc) {
     case "bowlcut": {
       // マッシュルームカット
@@ -1241,11 +1266,14 @@ function drawChar(k, x, y, r) {
       ctx.fillRect(x - r * 0.48, y - r * 0.95, r * 0.98, r * 0.12);
       break;
   }
-  // ★6: 冠
-  if (k.rar >= 6 && k.acc !== "hat") {
+}
+
+// ★6の冠（cx, cy が中心、r は持ち主の大きさ）
+function drawCrown(cx, cy, r, rot) {
+  {
     ctx.save();
-    ctx.translate(x - r * 0.55, y - r * 0.95);
-    ctx.rotate(-0.4);
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
     ctx.fillStyle = "#ffd23f";
     ctx.strokeStyle = "#8a6a00";
     ctx.lineWidth = Math.max(1, r * 0.05);
@@ -1258,7 +1286,460 @@ function drawChar(k, x, y, r) {
     ctx.stroke();
     ctx.restore();
   }
+}
+
+// ★6: 回転するオーラ
+function drawAura(k, x, y, r) {
+  if (k.rar < 6) return;
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = `hsl(${(frameNo * 3) % 360},90%,70%)`;
+  ctx.lineWidth = Math.max(2, r * 0.1);
+  ctx.setLineDash([r * 0.3, r * 0.2]);
+  ctx.lineDashOffset = -frameNo * 0.8;
+  ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
+}
+
+// ★5以上: 天使の翼
+function drawAngelWings(k, x, y, r) {
+  if (k.rar < 5) return;
+  ctx.fillStyle = k.rar >= 6 ? "rgba(255,240,200,0.92)" : "rgba(255,255,255,0.85)";
+  for (const s of [-1, 1]) {
+    for (let j = 0; j < 3; j++) {
+      ctx.beginPath();
+      ctx.ellipse(x + s * r * (0.95 + j * 0.12), y - r * (0.15 - j * 0.22), r * (0.55 - j * 0.1), r * 0.18, s * (0.5 - j * 0.35), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+const SKIN = "#ffdcc4", SKIN_D = "#f0b896";
+const HAIR = { fire: "#c2381a", water: "#1d5aa8", wood: "#2f7a36", light: "#e3b93c", dark: "#3b2452" };
+
+function shade(x, y, r, c1, c2) {
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  return g;
+}
+
+// 人型・獣・鳥・竜・魚（すべてオリジナルデザイン）
+function drawCreature(k, x, y, r) {
+  ctx.save();
+  drawAura(k, x, y, r);
+  const winged = k.shape === "bird" || k.shape === "dragon";
+  if (!winged) drawAngelWings(k, x, y + r * (k.shape === "human" ? 0.45 : 0.1), k.shape === "human" ? r * 0.85 : r);
+  switch (k.shape) {
+    case "human":  drawHuman(k, x, y, r); break;
+    case "beast":  drawBeast(k, x, y, r); break;
+    case "bird":   drawBird(k, x, y, r); break;
+    case "dragon": drawDragon(k, x, y, r); break;
+    case "fish":   drawFish(k, x, y, r); break;
+  }
+  if (k.rar >= 6) {
+    if (k.shape === "human") drawCrown(x + r * 0.32, y - r * 0.98, r, 0.35);
+    else drawCrown(x - r * 0.45, y - r * 0.92, r, -0.4);
+  }
+  ctx.restore();
+}
+
+function drawHuman(k, x, y, r) {
+  const c = EL[k.el], hair = HAIR[k.el];
+  const hx = x, hy = y - r * 0.28, hr = r * 0.6;
+  // マント（騎士）
+  if (k.acc === "helmet") {
+    ctx.fillStyle = c.d;
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.45, y + r * 0.15); ctx.lineTo(x + r * 0.45, y + r * 0.15);
+    ctx.lineTo(x + r * 0.7, y + r * 1.0); ctx.lineTo(x - r * 0.7, y + r * 1.0);
+    ctx.fill();
+  }
+  // 後ろ髪
+  ctx.fillStyle = hair;
+  if (k.acc === "long") {
+    roundRect(hx - hr * 1.05, hy - hr * 0.3, hr * 2.1, hr * 2.0, hr * 0.5);
+    ctx.fill();
+  } else if (k.acc === "twin") {
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); ctx.ellipse(hx + s * hr * 1.15, hy + hr * 0.5, hr * 0.32, hr * 0.85, s * -0.25, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // 足
+  ctx.fillStyle = "#3a2f2a";
+  for (const s of [-1, 1]) { roundRect(x + s * r * 0.22 - r * 0.13, y + r * 0.72, r * 0.26, r * 0.3, r * 0.08); ctx.fill(); }
+  // 胴体（服）
+  ctx.fillStyle = shade(x, y + r * 0.5, r * 0.6, c.l, c.c);
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.32, y + r * 0.2); ctx.lineTo(x + r * 0.32, y + r * 0.2);
+  ctx.lineTo(x + r * 0.48, y + r * 0.82); ctx.lineTo(x - r * 0.48, y + r * 0.82);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = c.d;
+  ctx.fillRect(x - r * 0.46, y + r * 0.55, r * 0.92, r * 0.09);
+  // 手と武器
+  ctx.fillStyle = SKIN;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * r * 0.5, y + r * 0.52, r * 0.12, 0, Math.PI * 2); ctx.fill(); }
+  if (k.acc === "helmet" || k.acc === "spiky") {
+    // 剣
+    ctx.save();
+    ctx.translate(x + r * 0.55, y + r * 0.5);
+    ctx.rotate(-0.5);
+    ctx.fillStyle = "#e6ecf5";
+    ctx.fillRect(-r * 0.05, -r * 0.85, r * 0.1, r * 0.8);
+    ctx.fillStyle = "#c9a227";
+    ctx.fillRect(-r * 0.18, -r * 0.08, r * 0.36, r * 0.08);
+    ctx.restore();
+  } else if (k.acc === "mage" || k.acc === "long") {
+    // 杖
+    ctx.strokeStyle = "#7a5230";
+    ctx.lineWidth = Math.max(1.5, r * 0.08);
+    ctx.beginPath(); ctx.moveTo(x - r * 0.55, y + r * 0.95); ctx.lineTo(x - r * 0.55, y - r * 0.1); ctx.stroke();
+    ctx.fillStyle = c.l;
+    ctx.shadowColor = c.c;
+    ctx.shadowBlur = r * 0.5;
+    ctx.beginPath(); ctx.arc(x - r * 0.55, y - r * 0.15, r * 0.13, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // 顔
+  ctx.fillStyle = shade(hx, hy, hr, "#fff3ea", SKIN);
+  ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+  drawFace(k, hx, hy + hr * 0.12, hr * 0.92, SKIN);
+  // 前髪・かぶりもの
+  switch (k.acc) {
+    case "spiky":
+      ctx.fillStyle = hair;
+      ctx.beginPath();
+      ctx.moveTo(hx - hr * 1.0, hy);
+      for (let i = 0; i <= 6; i++) {
+        const a = Math.PI + i * Math.PI / 6;
+        const rr = i % 2 ? hr * 1.45 : hr * 1.0;
+        ctx.lineTo(hx + Math.cos(a) * rr, hy - hr * 0.1 + Math.sin(a) * rr);
+      }
+      ctx.lineTo(hx + hr * 1.0, hy);
+      ctx.lineTo(hx + hr * 0.6, hy - hr * 0.35);
+      ctx.lineTo(hx + hr * 0.2, hy - hr * 0.2);
+      ctx.lineTo(hx - hr * 0.2, hy - hr * 0.4);
+      ctx.lineTo(hx - hr * 0.6, hy - hr * 0.2);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case "long":
+    case "twin":
+      ctx.fillStyle = hair;
+      ctx.beginPath();
+      ctx.arc(hx, hy - hr * 0.05, hr * 1.04, Math.PI * 1.02, Math.PI * 1.98);
+      ctx.quadraticCurveTo(hx + hr * 0.5, hy - hr * 0.55, hx, hy - hr * 0.3);
+      ctx.quadraticCurveTo(hx - hr * 0.5, hy - hr * 0.55, hx - hr * 1.02, hy - hr * 0.1);
+      ctx.fill();
+      if (k.acc === "twin") {
+        ctx.fillStyle = "#ff6fa8";
+        for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(hx + s * hr * 0.95, hy - hr * 0.3, hr * 0.16, 0, Math.PI * 2); ctx.fill(); }
+      } else {
+        // エルフ耳
+        ctx.fillStyle = SKIN_D;
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(hx + s * hr * 0.9, hy - hr * 0.05);
+          ctx.lineTo(hx + s * hr * 1.45, hy - hr * 0.45);
+          ctx.lineTo(hx + s * hr * 0.95, hy + hr * 0.25);
+          ctx.fill();
+        }
+      }
+      break;
+    case "helmet":
+      ctx.fillStyle = shade(hx, hy - hr * 0.4, hr, "#ffffff", "#9aa6b8");
+      ctx.beginPath(); ctx.arc(hx, hy - hr * 0.05, hr * 1.06, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#7d889a";
+      ctx.fillRect(hx - hr * 1.06, hy - hr * 0.12, hr * 2.12, hr * 0.16);
+      ctx.fillStyle = c.c;
+      ctx.beginPath();
+      ctx.moveTo(hx - hr * 0.1, hy - hr * 1.05);
+      ctx.quadraticCurveTo(hx + hr * 0.6, hy - hr * 1.6, hx + hr * 1.0, hy - hr * 0.9);
+      ctx.quadraticCurveTo(hx + hr * 0.5, hy - hr * 1.1, hx + hr * 0.1, hy - hr * 0.95);
+      ctx.fill();
+      break;
+    case "hood":
+      // 忍者ずきん（目元以外を覆う）
+      ctx.fillStyle = "#2a2838";
+      ctx.beginPath(); ctx.arc(hx, hy, hr * 1.06, Math.PI * 0.98, Math.PI * 2.02); ctx.fill();
+      ctx.fillRect(hx - hr * 1.06, hy + hr * 0.3, hr * 2.12, hr * 0.5);
+      ctx.beginPath(); ctx.arc(hx, hy + hr * 0.3, hr * 1.06, 0, Math.PI); ctx.fill();
+      ctx.fillStyle = c.c;
+      ctx.fillRect(hx - hr * 1.06, hy - hr * 0.42, hr * 2.12, hr * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(hx + hr * 0.9, hy - hr * 0.4);
+      ctx.lineTo(hx + hr * 1.6, hy - hr * 0.6);
+      ctx.lineTo(hx + hr * 1.5, hy - hr * 0.2);
+      ctx.fill();
+      break;
+    case "mage":
+      ctx.fillStyle = hair;
+      ctx.beginPath(); ctx.arc(hx, hy - hr * 0.05, hr * 1.04, Math.PI * 1.05, Math.PI * 1.95); ctx.lineTo(hx, hy - hr * 0.35); ctx.fill();
+      ctx.fillStyle = c.d;
+      ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.7, hr * 1.4, hr * 0.28, -0.08, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(hx - hr * 0.75, hy - hr * 0.75);
+      ctx.quadraticCurveTo(hx + hr * 0.1, hy - hr * 1.6, hx + hr * 0.9, hy - hr * 2.1);
+      ctx.lineTo(hx + hr * 0.75, hy - hr * 0.8);
+      ctx.fill();
+      ctx.fillStyle = c.l;
+      starPath(hx + hr * 0.2, hy - hr * 1.05, hr * 0.2);
+      ctx.fill();
+      break;
+  }
+}
+
+function drawBeast(k, x, y, r) {
+  const c = EL[k.el];
+  const fur = k.el === "light" ? "#fff8e0" : c.c, furL = k.el === "light" ? "#ffffff" : c.l;
+  // しっぽ
+  const wag = Math.sin(frameNo * 0.12) * 0.15;
+  ctx.save();
+  ctx.translate(x + r * 0.55, y + r * 0.55);
+  ctx.rotate(-0.7 + wag);
+  ctx.fillStyle = fur;
+  ctx.beginPath(); ctx.ellipse(0, -r * 0.45, r * (k.acc === "bear" ? 0.2 : 0.3), r * (k.acc === "bear" ? 0.2 : 0.6), 0, 0, Math.PI * 2); ctx.fill();
+  if (k.acc === "fox") {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.ellipse(0, -r * 0.9, r * 0.17, r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  // 体
+  ctx.fillStyle = shade(x, y + r * 0.5, r * 0.6, furL, fur);
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.55, r * 0.58, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.62, r * 0.3, r * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+  // 前足
+  ctx.fillStyle = fur;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + s * r * 0.3, y + r * 0.92, r * 0.16, r * 0.1, 0, 0, Math.PI * 2); ctx.fill(); }
+  // 耳
+  const hx = x, hy = y - r * 0.15, hr = r * 0.66;
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = fur;
+    if (k.acc === "bear") {
+      ctx.beginPath(); ctx.arc(hx + s * hr * 0.72, hy - hr * 0.72, hr * 0.32, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffc9a8";
+      ctx.beginPath(); ctx.arc(hx + s * hr * 0.72, hy - hr * 0.72, hr * 0.16, 0, Math.PI * 2); ctx.fill();
+    } else {
+      const tall = k.acc === "wolf" ? 1.55 : 1.4;
+      ctx.beginPath();
+      ctx.moveTo(hx + s * hr * 0.25, hy - hr * 0.75);
+      ctx.lineTo(hx + s * hr * 0.75, hy - hr * tall);
+      ctx.lineTo(hx + s * hr * 0.92, hy - hr * 0.4);
+      ctx.fill();
+      ctx.fillStyle = k.el === "dark" ? "#6a4a8a" : "#ffd0dc";
+      ctx.beginPath();
+      ctx.moveTo(hx + s * hr * 0.42, hy - hr * 0.7);
+      ctx.lineTo(hx + s * hr * 0.72, hy - hr * (tall - 0.25));
+      ctx.lineTo(hx + s * hr * 0.8, hy - hr * 0.5);
+      ctx.fill();
+    }
+  }
+  // 頭
+  ctx.fillStyle = shade(hx, hy, hr, furL, fur);
+  ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+  // マズル
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.beginPath(); ctx.ellipse(hx, hy + hr * 0.42, hr * 0.42, hr * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#2a1c1c";
+  ctx.beginPath(); ctx.ellipse(hx, hy + hr * 0.3, hr * 0.12, hr * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  drawFace(k, hx, hy - hr * 0.08, hr * 0.85, fur, true);
+  ctx.strokeStyle = "#2a1c1c";
+  ctx.lineWidth = Math.max(1, hr * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(hx, hy + hr * 0.36);
+  ctx.quadraticCurveTo(hx - hr * 0.1, hy + hr * 0.52, hx - hr * 0.2, hy + hr * 0.45);
+  ctx.moveTo(hx, hy + hr * 0.36);
+  ctx.quadraticCurveTo(hx + hr * 0.1, hy + hr * 0.52, hx + hr * 0.2, hy + hr * 0.45);
+  ctx.stroke();
+  // 額の模様
+  ctx.fillStyle = c.d;
+  ctx.beginPath();
+  ctx.moveTo(hx, hy - hr * 0.95); ctx.lineTo(hx + hr * 0.12, hy - hr * 0.62); ctx.lineTo(hx - hr * 0.12, hy - hr * 0.62);
+  ctx.fill();
+}
+
+function drawBird(k, x, y, r) {
+  const c = EL[k.el];
+  const flap = Math.sin(frameNo * 0.18) * 0.35;
+  const wingCol = k.rar >= 5 ? "#ffe9a8" : c.d;
+  // 翼
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(x + s * r * 0.55, y + r * 0.05);
+    ctx.rotate(s * (-0.5 + flap));
+    ctx.fillStyle = wingCol;
+    ctx.beginPath(); ctx.ellipse(s * r * 0.4, 0, r * 0.55, r * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = c.c;
+    ctx.beginPath(); ctx.ellipse(s * r * 0.25, r * 0.05, r * 0.35, r * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  // 尾羽
+  ctx.fillStyle = c.d;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath(); ctx.ellipse(x + i * r * 0.2, y + r * 0.85, r * 0.12, r * 0.3, i * 0.4, 0, Math.PI * 2); ctx.fill();
+  }
+  // 冠羽
+  ctx.fillStyle = k.acc === "crest" ? c.c : c.d;
+  if (k.acc === "crest") {
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath(); ctx.ellipse(x + i * r * 0.18, y - r * 0.85, r * 0.1, r * 0.35, i * 0.35, 0, Math.PI * 2); ctx.fill();
+    }
+  } else {
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + s * r * 0.25, y - r * 0.6);
+      ctx.lineTo(x + s * r * 0.55, y - r * 1.05);
+      ctx.lineTo(x + s * r * 0.55, y - r * 0.5);
+      ctx.fill();
+    }
+  }
+  // 体
+  ctx.fillStyle = shade(x, y, r * 0.82, c.l, c.c);
+  ctx.beginPath(); ctx.arc(x, y + r * 0.05, r * 0.82, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.4, r * 0.45, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+  drawFace(k, x, y - r * 0.12, r * 0.78, c.c, true);
+  // くちばし
+  ctx.fillStyle = "#ffb02e";
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.16, y + r * 0.08); ctx.lineTo(x + r * 0.16, y + r * 0.08); ctx.lineTo(x, y + r * 0.3);
+  ctx.fill();
+  // 足
+  ctx.strokeStyle = "#ffb02e";
+  ctx.lineWidth = Math.max(1, r * 0.07);
+  for (const s of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(x + s * r * 0.25, y + r * 0.82); ctx.lineTo(x + s * r * 0.25, y + r * 1.0); ctx.stroke();
+  }
+}
+
+function drawDragon(k, x, y, r) {
+  const c = EL[k.el];
+  const wingCol = k.rar >= 5 ? "#ffe9a8" : c.d;
+  const flap = Math.sin(frameNo * 0.1) * 0.15;
+  // コウモリ型の翼
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(x + s * r * 0.45, y - r * 0.1);
+    ctx.rotate(s * flap);
+    ctx.fillStyle = wingCol;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(s * r * 0.75, -r * 0.75);
+    ctx.lineTo(s * r * 1.05, -r * 0.2);
+    ctx.quadraticCurveTo(s * r * 0.85, -r * 0.05, s * r * 0.8, r * 0.2);
+    ctx.quadraticCurveTo(s * r * 0.6, r * 0.05, s * r * 0.5, r * 0.35);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  // しっぽ
+  ctx.fillStyle = c.c;
+  ctx.beginPath();
+  ctx.moveTo(x + r * 0.3, y + r * 0.6);
+  ctx.quadraticCurveTo(x + r * 1.0, y + r * 0.9, x + r * 1.05, y + r * 0.35);
+  ctx.lineTo(x + r * 0.85, y + r * 0.55);
+  ctx.quadraticCurveTo(x + r * 0.7, y + r * 0.55, x + r * 0.4, y + r * 0.35);
+  ctx.fill();
+  ctx.fillStyle = c.d;
+  ctx.beginPath();
+  ctx.moveTo(x + r * 1.05, y + r * 0.35); ctx.lineTo(x + r * 1.2, y + r * 0.2); ctx.lineTo(x + r * 0.95, y + r * 0.22);
+  ctx.fill();
+  // 角
+  ctx.fillStyle = "#f3e9d2";
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + s * r * 0.3, y - r * 0.6);
+    ctx.quadraticCurveTo(x + s * r * 0.55, y - r * 1.1, x + s * r * 0.35, y - r * 1.25);
+    ctx.quadraticCurveTo(x + s * r * 0.75, y - r * 0.95, x + s * r * 0.55, y - r * 0.45);
+    ctx.fill();
+  }
+  // 体
+  ctx.fillStyle = shade(x, y, r * 0.85, c.l, c.c);
+  ctx.beginPath(); ctx.arc(x, y + r * 0.05, r * 0.85, 0, Math.PI * 2); ctx.fill();
+  // おなか（しま模様）
+  ctx.fillStyle = "#fff1c8";
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.5, r * 0.42, r * 0.36, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "rgba(160,110,40,0.4)";
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(x - r * 0.3, y + r * (0.35 + i * 0.13)); ctx.lineTo(x + r * 0.3, y + r * (0.35 + i * 0.13)); ctx.stroke();
+  }
+  // 鼻先
+  ctx.fillStyle = c.l;
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.12, r * 0.36, r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = c.d;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * r * 0.11, y + r * 0.1, r * 0.04, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = c.d;
+  ctx.lineWidth = Math.max(1, r * 0.05);
+  ctx.beginPath(); ctx.arc(x, y + r * 0.16, r * 0.18, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+  drawFace(k, x, y - r * 0.32, r * 0.72, c.c, true);
+}
+
+function drawFish(k, x, y, r) {
+  const c = EL[k.el];
+  const sway = Math.sin(frameNo * 0.15) * 0.25;
+  // 尾びれ
+  ctx.save();
+  ctx.translate(x + r * 0.75, y);
+  ctx.rotate(sway);
+  ctx.fillStyle = c.d;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(r * 0.3, -r * 0.2, r * 0.45, -r * 0.6);
+  ctx.quadraticCurveTo(r * 0.3, 0, r * 0.45, r * 0.6);
+  ctx.quadraticCurveTo(r * 0.3, r * 0.2, 0, 0);
+  ctx.fill();
+  ctx.restore();
+  // 背びれ
+  ctx.fillStyle = c.d;
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.35, y - r * 0.55);
+  ctx.quadraticCurveTo(x, y - r * 1.15, x + r * 0.45, y - r * 0.5);
+  ctx.fill();
+  // ちょうちん（アンコウ風）
+  if (k.acc === "angler") {
+    ctx.strokeStyle = c.d;
+    ctx.lineWidth = Math.max(1.2, r * 0.06);
+    ctx.beginPath(); ctx.moveTo(x - r * 0.4, y - r * 0.6); ctx.quadraticCurveTo(x - r * 0.6, y - r * 1.2, x - r * 1.0, y - r * 0.95); ctx.stroke();
+    ctx.fillStyle = "#fff6a8";
+    ctx.shadowColor = "#fff6a8";
+    ctx.shadowBlur = r * 0.6;
+    ctx.beginPath(); ctx.arc(x - r * 1.0, y - r * 0.92, r * 0.14 + Math.sin(frameNo * 0.2) * r * 0.03, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // 体
+  ctx.fillStyle = shade(x - r * 0.2, y, r * 0.9, c.l, c.c);
+  ctx.beginPath(); ctx.ellipse(x, y, r * 0.9, r * 0.68, 0, 0, Math.PI * 2); ctx.fill();
+  // うろこ
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  for (let i = 0; i < 3; i++) {
+    for (let j = -1; j <= 1; j++) {
+      ctx.beginPath(); ctx.arc(x + r * (0.05 + i * 0.22), y + j * r * 0.24, r * 0.12, -0.5 * Math.PI, 0.5 * Math.PI); ctx.stroke();
+    }
+  }
+  // 胸びれ
+  ctx.fillStyle = c.l;
+  ctx.beginPath(); ctx.ellipse(x - r * 0.05, y + r * 0.28, r * 0.22, r * 0.1, 0.6 + sway, 0, Math.PI * 2); ctx.fill();
+  // 目と口（横向き）
+  const ex = x - r * 0.45, ey = y - r * 0.12;
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(ex, ey, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#1b1b2a";
+  ctx.beginPath(); ctx.arc(ex - r * 0.03, ey + r * 0.02, r * 0.13, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(ex - r * 0.07, ey - r * 0.04, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  if (k.eye === "sleepy") {
+    ctx.fillStyle = c.c;
+    ctx.beginPath(); ctx.arc(ex, ey, r * 0.24, Math.PI, Math.PI * 2); ctx.fill();
+  }
+  ctx.strokeStyle = "#1b1b2a";
+  ctx.lineWidth = Math.max(1, r * 0.05);
+  ctx.beginPath(); ctx.arc(x - r * 0.78, y + r * 0.2, r * 0.1, -0.3 * Math.PI, 0.5 * Math.PI); ctx.stroke();
+  ctx.fillStyle = "rgba(255,120,150,0.45)";
+  ctx.beginPath(); ctx.ellipse(x - r * 0.3, y + r * 0.2, r * 0.1, r * 0.06, 0, 0, Math.PI * 2); ctx.fill();
 }
 
 // キャラアイコン（左上 x,y・サイズ s）
@@ -1282,7 +1763,7 @@ function drawIcon(fi, x, y, s, opt = {}) {
   ctx.save();
   roundRect(x, y, s, s, s * 0.15);
   ctx.clip();
-  drawChar(u ? look(fi) : { el: f.el, acc: f.acc, eye: f.eye, rar, evo: false }, x + s / 2, y + s * 0.56, s * 0.25);
+  drawChar(u ? look(fi) : { shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar, evo: false }, x + s / 2, y + s * 0.56, s * 0.25);
   ctx.restore();
   drawStars(rar, x + s / 2, y + s - 6, s * 0.065);
   if (opt.lv && u) {
@@ -1965,7 +2446,7 @@ function drawGacha() {
   // ★6限定キャラを中央に大きく
   const lf = FAM[LIMITED];
   const ly = 205 + Math.sin(frameNo * 0.05) * 4;
-  drawChar({ el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, W / 2, ly, 30);
+  drawChar({ shape: lf.shape, el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, W / 2, ly, 30);
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -1975,7 +2456,7 @@ function drawGacha() {
   fives.forEach((f, i) => {
     const side = i < 3 ? -1 : 1, k = i % 3;
     const x = W / 2 + side * (k === 1 ? 128 : 90), y = 172 + k * 52 + Math.sin(frameNo * 0.05 + i) * 3;
-    drawChar({ el: f.el, acc: f.acc, eye: f.eye, rar: 5, evo: false }, x, y, 14);
+    drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: 5, evo: false }, x, y, 14);
     txt(f.name, x, y + 24, 10, "#fff", "center");
   });
   const pct = v => Math.round(v * 100);
@@ -2045,7 +2526,7 @@ function drawGachaAnim() {
       ctx.fillRect(0, 0, W, H);
     }
     const s = Math.min(1, t / 12);
-    drawChar({ el: f.el, acc: f.acc, eye: f.eye, rar, evo: false }, W / 2, cy, 64 * s);
+    drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar, evo: false }, W / 2, cy, 64 * s);
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -2096,13 +2577,34 @@ function drawGachaResult() {
   drawNav();
 }
 
-// 図鑑グリッド（全30体。未所持はシルエット）
+// 図鑑グリッド（属性タブ＋ページ送り。未所持はシルエット）
+let gridEl = "all", gridPage = 0;
+const GRID_PAGE = 30;
 function drawGrid(y0, onTap, opt = {}) {
   const cols = 6, s = 52, gap = 6;
   const x0 = (W - (cols * s + (cols - 1) * gap)) / 2;
-  const list = opt.ownedOnly ? FAM.filter(f => owned(f.idx)) : FAM;
+  const tabs = ["all", ...EL_KEYS], tw = (W - 28) / tabs.length;
+  tabs.forEach((t, i) => {
+    const tx = 14 + i * tw, active = gridEl === t;
+    ctx.fillStyle = active ? (t === "all" ? "#ffd35c" : EL[t].c) : "rgba(255,255,255,0.08)";
+    roundRect(tx + 2, y0, tw - 4, 26, 8);
+    ctx.fill();
+    txt(t === "all" ? "全て" : EL[t].n, tx + tw / 2, y0 + 13, 12, active ? "#1a1030" : "#cfd6ff", "center");
+    button(tx, y0, tw, 26, "", () => { gridEl = t; gridPage = 0; }, { hidden: true });
+  });
+  const all = ORDER.filter(fi => gridEl === "all" || FAM[fi].el === gridEl);
+  const pages = Math.max(1, Math.ceil(all.length / GRID_PAGE));
+  if (gridPage >= pages) gridPage = pages - 1;
+  const gy = y0 + 34;
+  if (pages > 1) {
+    const py = gy + 5 * (s + gap) + 2;
+    button(x0, py, 70, 26, "◀ 前", () => { gridPage = (gridPage + pages - 1) % pages; }, { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+    button(W - x0 - 70, py, 70, 26, "次 ▶", () => { gridPage = (gridPage + 1) % pages; }, { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+    txt(`${gridPage + 1} / ${pages}`, W / 2, py + 13, 13, "#fff", "center");
+  }
+  const list = all.slice(gridPage * GRID_PAGE, (gridPage + 1) * GRID_PAGE).map(fi => FAM[fi]);
   list.forEach((f, i) => {
-    const x = x0 + (i % cols) * (s + gap), y = y0 + Math.floor(i / cols) * (s + gap);
+    const x = x0 + (i % cols) * (s + gap), y = gy + Math.floor(i / cols) * (s + gap);
     drawIcon(f.idx, x, y, s, { silhouette: true, lv: true });
     if (opt.mark && opt.mark(f.idx)) {
       ctx.save();
@@ -2122,22 +2624,22 @@ function drawBox() {
   drawMenuBg("#14203a", "#070b16");
   drawTopBar();
   header("BOX", `図鑑 ${Object.keys(save.box).length} / ${FAM.length}`);
-  drawGrid(84, fi => {
+  drawGrid(80, fi => {
     if (!owned(fi)) { showToast("未入手のキャラです。ガチャやクエストで手に入れよう"); return; }
     detailFi = fi;
     go("detail");
   });
   // 結晶
   ctx.fillStyle = "rgba(255,255,255,0.07)";
-  roundRect(14, 442, W - 28, 64, 12);
+  roundRect(14, 442, W - 28, 58, 12);
   ctx.fill();
-  txt("進化の結晶", 26, 458, 12, "#cfd6ff");
+  txt("進化の結晶", 26, 456, 12, "#cfd6ff");
   EL_KEYS.forEach((k, i) => {
     const x = 34 + i * 64;
-    crystalIcon(k, x, 486, 10);
-    txt(`×${save.cr[k]}`, x + 14, 486, 13, "#fff");
+    crystalIcon(k, x, 480, 10);
+    txt(`×${save.cr[k]}`, x + 14, 480, 13, "#fff");
   });
-  txt("キャラをタップで強化・進化", W / 2, 528, 12, "#9aa3d8", "center");
+  txt("キャラをタップで強化・進化", W / 2, 518, 12, "#9aa3d8", "center");
   drawNav();
 }
 
@@ -2167,8 +2669,8 @@ function drawParty() {
     txt(i === 0 ? "リーダー" : `${i + 1}番手`, x + s / 2, y + s + 12, 11, i === 0 ? "#ffd35c" : "#cfd6ff", "center");
   }
   const total = save.party.reduce((t, fi) => t + unitStats(fi).hp, 0);
-  txt(`合計HP ${total.toLocaleString()}`, W / 2, 190, 13, "#7dffa0", "center");
-  drawGrid(208, fi => {
+  txt(`合計HP ${total.toLocaleString()}`, W / 2, 182, 13, "#7dffa0", "center");
+  drawGrid(196, fi => {
     if (!owned(fi)) { showToast("未入手のキャラです"); return; }
     const k = save.party.indexOf(fi);
     if (k >= 0) {
@@ -2202,9 +2704,9 @@ function drawDetail() {
   outlinedText(displayName(fi), W / 2, 228, "#fff", 20);
   ctx.restore();
   drawStars(u.rar, W / 2, 252, 8);
-  drawElemIcon(f.el, W / 2 - 46, 274, 9);
-  txt(`${f.type === "reflect" ? "反射" : "貫通"}タイプ`, W / 2 - 32, 274, 12, "#cfd6ff");
-  txt(`覚醒 ${u.awk}/${MAX_AWK}`, W / 2 + 34, 274, 12, "#ffd35c");
+  drawElemIcon(f.el, W / 2 - 84, 274, 9);
+  txt(`${SHAPE_NAME[f.shape]} / ${f.type === "reflect" ? "反射" : "貫通"}タイプ`, W / 2 - 70, 274, 12, "#cfd6ff");
+  txt(`覚醒 ${u.awk}/${MAX_AWK}`, W / 2 + 46, 274, 12, "#ffd35c");
 
   // ステータス
   ctx.fillStyle = "rgba(0,0,0,0.35)";
