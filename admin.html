@@ -207,8 +207,10 @@
         <div><label for="gaR4">★4（%）</label><input id="gaR4" type="number" min="0" max="100" step="0.1" value="30"></div>
       </div>
       <p class="note" id="gaInfo"></p>
-      <h3>★6枠で出るキャラ</h3>
+      <h3>★6枠で出るキャラ（スターダストガチャ）</h3>
       <div id="gaLimited" class="scroll"></div>
+      <h3>★6枠で出るキャラ（灼熱ガチャ）</h3>
+      <div id="gaLimited2" class="scroll"></div>
     </section>
     <section>
       <h2>ボーナス・初期アイテム・難易度</h2>
@@ -471,9 +473,17 @@ function fillSettings() {
   $("sGems").value = s.gems ?? 500;
   $("sCoins").value = s.coins ?? 3000;
   $("diff").value = config.difficulty ?? 1;
-  // ★6枠のキャラ（チェックボックス）
-  const lim = new Set(g.limited || ["ikesaki", "ジン"]);
-  const box = $("gaLimited");
+  // ★6枠のキャラ（ガチャごとのチェックボックス）
+  fillLimited("gaLimited", g.limited || DEFAULT_LIMITED);
+  fillLimited("gaLimited2", g.limited2 || DEFAULT_LIMITED2);
+  readSettings();
+}
+
+const DEFAULT_LIMITED = ["ikesaki", "ジン"];
+const DEFAULT_LIMITED2 = ["パニパニ"];
+function fillLimited(id, names) {
+  const lim = new Set(names);
+  const box = $(id);
   box.textContent = "";
   for (const f of [...FAM].sort((a, b) => b.rar - a.rar)) {
     const l = document.createElement("label");
@@ -484,8 +494,8 @@ function fillSettings() {
     l.querySelector("span").textContent = `${f.name}（★${f.rar}・${EL_NAME[f.el] || ""}）`;
     box.append(l);
   }
-  readSettings();
 }
+const checkedNames = id => [...$(id).querySelectorAll("input:checked")].map(i => i.dataset.name);
 
 function readSettings() {
   config.maintenance = { on: $("mOn").checked, message: $("mMsg").value.trim() };
@@ -493,19 +503,23 @@ function readSettings() {
     title: $("cTitle").value.trim(), coinMul: Number($("cCoin").value) || 1, expMul: Number($("cExp").value) || 1,
     gemMul: Number($("cGem").value) || 1, from: $("cFrom").value, until: $("cUntil").value,
   };
-  const limited = [...$("gaLimited").querySelectorAll("input:checked")].map(i => i.dataset.name);
+  const limited = checkedNames("gaLimited"), limited2 = checkedNames("gaLimited2");
   config.gacha = {
     price1: clamp($("gaP1").value, 0, 1e6), price10: clamp($("gaP10").value, 0, 1e7),
     rate6: Number($("gaR6").value) / 100, rate5: Number($("gaR5").value) / 100, rate4: Number($("gaR4").value) / 100,
-    limited: limited.length ? limited : ["ikesaki", "ジン"],
+    limited: limited.length ? limited : DEFAULT_LIMITED,
+    limited2: limited2.length ? limited2 : DEFAULT_LIMITED2,
   };
   config.daily = { gems: clamp($("dGems").value, 0, 1e6), coins: clamp($("dCoins").value, 0, 1e8) };
   config.starter = { gems: clamp($("sGems").value, 0, 1e9), coins: clamp($("sCoins").value, 0, 1e10) };
   config.difficulty = Math.max(0.1, Number($("diff").value) || 1);
-  const g = config.gacha, total = g.rate6 * g.limited.length + g.rate5 + g.rate4;
+  // 確率は★6キャラが多いほうのガチャで確認（どちらも100%以内である必要がある）
+  const g = config.gacha, n6 = Math.max(g.limited.length, g.limited2.length);
+  const total = g.rate6 * n6 + g.rate5 + g.rate4;
+  const line = (name, n) => `${name}: ★6 ${(g.rate6 * n * 100).toFixed(1)}%（${n}体）・★3 ${((1 - g.rate6 * n - g.rate5 - g.rate4) * 100).toFixed(1)}%`;
   $("gaInfo").textContent = total > 1
     ? `⚠ 合計が ${(total * 100).toFixed(1)}% で100%を超えています（この設定はゲームで無視されます）`
-    : `★6 合計 ${(g.rate6 * g.limited.length * 100).toFixed(1)}%（${g.limited.length}体）・★5 ${(g.rate5 * 100).toFixed(1)}%・★4 ${(g.rate4 * 100).toFixed(1)}%・★3 ${((1 - total) * 100).toFixed(1)}%`;
+    : `${line("スターダスト", g.limited.length)} ／ ${line("灼熱", g.limited2.length)}（★5 ${(g.rate5 * 100).toFixed(1)}%・★4 ${(g.rate4 * 100).toFixed(1)}%は共通）`;
   $("gaInfo").className = total > 1 ? "warn" : "note";
   renderJson();
 }

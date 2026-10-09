@@ -1352,7 +1352,8 @@ function evolve(fi) {
 // ---- ガチャ -----------------------------------------------------------
 // ガチャの種類。limited: ★6枠で出る限定キャラ（1体につき RATE6 の確率）
 const BANNERS = {
-  star: { name: "スターダストガチャ", limited: [...LIMITED_ALL], c1: "#ff7ae0", c2: "#7a4aff" },
+  star: { name: "スターダストガチャ", limited: [LIMITED, LIMITED_JIN], c1: "#ff7ae0", c2: "#7a4aff" },
+  fire: { name: "灼熱ガチャ",         limited: [LIMITED_PANI],         c1: "#ff9a5a", c2: "#c0301a" },
 };
 let gachaBanner = "star";
 const rate6Total = banner => RATE6 * BANNERS[banner].limited.length;
@@ -3673,9 +3674,15 @@ function applyConfig() {
   GACHA_1 = cfgNum(g.price1, 0, 1e6, 50);
   GACHA_10 = cfgNum(g.price10, 0, 1e7, 450);
   const r6 = cfgNum(g.rate6, 0, 0.5, 0.01), r5 = cfgNum(g.rate5, 0, 1, 0.06), r4 = cfgNum(g.rate4, 0, 1, 0.30);
-  const ids = (Array.isArray(g.limited) ? g.limited : []).map(n => FAM.find(f => f.name === n)).filter(Boolean).map(f => f.idx);
-  const lim = ids.length ? ids : [...LIMITED_ALL];
-  if (r6 * lim.length + r5 + r4 <= 1) { RATE6 = r6; RATE5 = r5; RATE4 = r4; BANNERS.star.limited = lim; }
+  // ★6枠のキャラ: limited = スターダストガチャ、limited2 = 灼熱ガチャ
+  const toIds = list => (Array.isArray(list) ? list : []).map(n => FAM.find(f => f.name === n)).filter(Boolean).map(f => f.idx);
+  const lim1 = toIds(g.limited).length ? toIds(g.limited) : [LIMITED, LIMITED_JIN];
+  const lim2 = toIds(g.limited2).length ? toIds(g.limited2) : [LIMITED_PANI];
+  if (r6 * Math.max(lim1.length, lim2.length) + r5 + r4 <= 1) {
+    RATE6 = r6; RATE5 = r5; RATE4 = r4;
+    BANNERS.star.limited = lim1;
+    BANNERS.fire.limited = lim2;
+  }
   // デイリーボーナス
   const d = CFG.daily || {};
   DAILY_BONUS.gems = cfgNum(d.gems, 0, 1e6, 50);
