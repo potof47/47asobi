@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>モンフリ管理</title>
+<style>
+  :root {
+    --bg: #0c0e22;
+    --card: #1b1f3e;
+    --line: #343a6a;
+    --text: #e8ecff;
+    --muted: #9aa3d8;
+    --gold: #ffd35c;
+    --gem: #5ef0ff;
+    --danger: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 system-ui, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { margin: 4px 0 2px; font-size: 22px; color: var(--gold); }
+  h2 { margin: 0 0 10px; font-size: 17px; }
+  .note { color: var(--muted); font-size: 13px; }
+  section {
+    margin: 16px 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--card);
+  }
+  label { display: block; margin: 10px 0 4px; font-size: 13px; color: var(--muted); }
+  input, textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0f1230;
+    color: var(--text);
+    font: inherit;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  button, .btn {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(#ffcf4a, #ff8f1f);
+    color: #3a1c00;
+    font: bold 15px system-ui, sans-serif;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .btn.sub, button.sub { background: #3a4170; color: #fff; }
+  button.del { margin: 0; padding: 6px 10px; background: transparent; border: 1px solid var(--danger); color: var(--danger); font-size: 13px; }
+  .gift {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+  }
+  .gift:first-child { border-top: none; }
+  .gift b { color: var(--gold); }
+  .reward { color: var(--gem); font-size: 13px; }
+  .expired { opacity: 0.5; }
+  ol { padding-left: 20px; margin: 6px 0; }
+  pre {
+    overflow-x: auto;
+    padding: 10px;
+    border-radius: 8px;
+    background: #0f1230;
+    font-size: 12px;
+  }
+  #msg { min-height: 1.6em; color: var(--gold); font-weight: bold; }
+  @media (max-width: 420px) { .row3 { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>モンスター・フリック 管理</h1>
+  <p class="note">
+    プレゼント（ジェム・コイン・結晶）を全プレイヤーに配布します。
+    このページは誰でも開けますが、ゲームに反映できるのは GitHub に書き込める管理者だけです。
+  </p>
+
+  <section>
+    <h2>① プレゼントを追加</h2>
+    <form id="form">
+      <label for="title">タイトル（20文字まで）</label>
+      <input id="title" maxlength="20" required placeholder="例: メンテナンスのおわび">
+      <label for="message">メッセージ（40文字まで）</label>
+      <input id="message" maxlength="40" placeholder="例: いつも遊んでくれてありがとう!">
+      <div class="row3">
+        <div><label for="gems">ジェム</label><input id="gems" type="number" min="0" max="100000" value="100"></div>
+        <div><label for="coins">コイン</label><input id="coins" type="number" min="0" max="100000" value="0"></div>
+        <div><label for="crystals">結晶（全属性に）</label><input id="crystals" type="number" min="0" max="999" value="0"></div>
+      </div>
+      <div class="row">
+        <div><label for="from">受け取り開始日</label><input id="from" type="date"></div>
+        <div><label for="until">受け取り期限</label><input id="until" type="date"></div>
+      </div>
+      <button type="submit">リストに追加</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>② 配布中のプレゼント</h2>
+    <div id="list"></div>
+    <p class="note" id="loadNote"></p>
+    <label for="file">保存してある gifts.json を読み込む（任意）</label>
+    <input id="file" type="file" accept=".json,application/json">
+  </section>
+
+  <section>
+    <h2>③ ゲームに反映する</h2>
+    <ol>
+      <li>「gifts.json を保存」を押してファイルを保存</li>
+      <li>「GitHubにアップロード」を開き、保存した <code>gifts.json</code> をドラッグ</li>
+      <li>下の「Commit changes」を押す（数分〜十数分でゲームに届きます）</li>
+    </ol>
+    <button id="download">gifts.json を保存</button>
+    <a class="btn sub" href="https://github.com/potof47/47asobi/upload/claude/monster-strike-game-lgvceq" target="_blank" rel="noopener">GitHubにアップロード</a>
+    <button class="sub" id="copy">中身をコピー</button>
+    <p id="msg"></p>
+    <details>
+      <summary class="note">gifts.json の中身を見る</summary>
+      <pre id="json"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+"use strict";
+let gifts = [];
+const $ = id => document.getElementById(id);
+const clamp = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+const dateStr = d => d.toISOString().slice(0, 10);
+
+function say(text) {
+  $("msg").textContent = text;
+  setTimeout(() => { if ($("msg").textContent === text) $("msg").textContent = ""; }, 4000);
+}
+
+function toJson() {
+  return JSON.stringify({ gifts }, null, 2);
+}
+
+function render() {
+  const list = $("list");
+  list.textContent = "";
+  if (!gifts.length) {
+    list.innerHTML = '<p class="note">まだプレゼントはありません</p>';
+  }
+  const today = dateStr(new Date());
+  gifts.forEach((g, i) => {
+    const div = document.createElement("div");
+    div.className = "gift" + (g.until && g.until < today ? " expired" : "");
+    const info = document.createElement("div");
+    const parts = [];
+    if (g.gems) parts.push(`ジェム ${g.gems}`);
+    if (g.coins) parts.push(`コイン ${g.coins}`);
+    if (g.crystals) parts.push(`結晶 各${g.crystals}`);
+    info.innerHTML = "<b></b><div class='note'></div><div class='reward'></div><div class='note'></div>";
+    info.children[0].textContent = g.title;
+    info.children[1].textContent = g.message || "";
+    info.children[2].textContent = parts.join(" / ") || "（報酬なし）";
+    info.children[3].textContent = `${g.from || "すぐ"} 〜 ${g.until || "期限なし"}` + (g.until && g.until < today ? "（期限切れ）" : "");
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "削除";
+    del.onclick = () => {
+      if (!confirm(`「${g.title}」を削除しますか？`)) return;
+      gifts.splice(i, 1);
+      render();
+    };
+    div.append(info, del);
+    list.append(div);
+  });
+  $("json").textContent = toJson();
+}
+
+function setGifts(data) {
+  const arr = data && Array.isArray(data.gifts) ? data.gifts : [];
+  gifts = arr.filter(g => g && g.id && g.title);
+  render();
+}
+
+// 今公開されている gifts.json を読み込む
+fetch("gifts.json?t=" + Date.now(), { cache: "no-store" })
+  .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+  .then(d => { setGifts(d); $("loadNote").textContent = "公開中の gifts.json を読み込みました。"; })
+  .catch(() => { render(); $("loadNote").textContent = "公開中の gifts.json が見つからないので、空の状態から始めます。"; });
+
+$("file").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    setGifts(JSON.parse(await f.text()));
+    say("読み込みました");
+  } catch (err) {
+    say("読み込めませんでした（JSONの形式が正しくありません）");
+  }
+};
+
+const now = new Date();
+$("from").value = dateStr(now);
+$("until").value = dateStr(new Date(now.getTime() + 30 * 86400000));
+
+$("form").onsubmit = e => {
+  e.preventDefault();
+  const g = {
+    id: dateStr(new Date()) + "-" + Math.random().toString(36).slice(2, 8),
+    title: $("title").value.trim().slice(0, 20),
+    message: $("message").value.trim().slice(0, 40),
+    gems: clamp($("gems").value, 100000),
+    coins: clamp($("coins").value, 100000),
+    crystals: clamp($("crystals").value, 999),
+    from: $("from").value || undefined,
+    until: $("until").value || undefined,
+  };
+  if (!g.title) return;
+  if (g.from && g.until && g.until < g.from) { say("期限が開始日より前になっています"); return; }
+  gifts.push(g);
+  render();
+  $("title").value = "";
+  $("message").value = "";
+  say(`「${g.title}」を追加しました。③で保存してアップロードしてください`);
+};
+
+$("download").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([toJson() + "\n"], { type: "application/json" }));
+  a.download = "gifts.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  say("gifts.json を保存しました");
+};
+
+$("copy").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(toJson());
+    say("コピーしました");
+  } catch (err) {
+    say("コピーできませんでした");
+  }
+};
+</script>
+</body>
+</html>

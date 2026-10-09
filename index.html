@@ -402,7 +402,10 @@ let ui = [];           // 当たり判定付きボタン（毎フレーム描画
 let dragging = false, dragStart = null, dragNow = null;
 
 function showToast(text) { toast = { text, life: 90 }; }
-function go(s) { state = s; particles = []; texts = []; banner = null; shareOpen = false; }
+function go(s) {
+  state = s; particles = []; texts = []; banner = null; shareOpen = false;
+  if (s === "home" || s === "gifts") loadGifts();
+}
 
 // ---- バトル開始 ---------------------------------------------------------
 function makeAlly(fi, x, y) {
@@ -2440,7 +2443,7 @@ function drawNav() {
   ctx.fillRect(0, NAV_Y, W, 1);
   const w = W / NAV.length;
   NAV.forEach(([s, label], i) => {
-    const active = state === s || (s === "box" && state === "detail");
+    const active = state === s || (s === "box" && state === "detail") || (s === "home" && state === "gifts");
     if (active) {
       ctx.fillStyle = "rgba(255,211,92,0.15)";
       ctx.fillRect(i * w, NAV_Y, w, H - NAV_Y);
@@ -2466,6 +2469,14 @@ function drawHome() {
   drawTopBar();
   button(W - 92, 8, 84, 24, "共有・QR", () => { shareOpen = true; },
     { size: 11, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  // プレゼント（未受け取りの数をバッジ表示）
+  const gn = unclaimed().length;
+  button(12, 96, 78, 40, "プレゼント", () => go("gifts"), { size: 12, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
+  if (gn) {
+    ctx.fillStyle = "#ff3b4e";
+    ctx.beginPath(); ctx.arc(86, 98, 10, 0, Math.PI * 2); ctx.fill();
+    txt(String(gn), 86, 99, 12, "#fff", "center", "900");
+  }
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -2880,6 +2891,77 @@ function drawDetail() {
   drawBanner();
 }
 
+// ---- プレゼント（管理者が gifts.json で全員に配布。admin.html で作成） ----------------
+let gifts = [];
+async function loadGifts() {
+  try {
+    const res = await fetch("gifts.json?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    const now = Date.now();
+    gifts = (Array.isArray(data.gifts) ? data.gifts : []).filter(g => g && g.id && g.title
+      && (!g.from || now >= new Date(g.from + "T00:00:00").getTime())
+      && (!g.until || now <= new Date(g.until + "T23:59:59").getTime()));
+  } catch (e) { /* オフライン等 */ }
+}
+const unclaimed = () => gifts.filter(g => !(save.claimed || []).includes(g.id));
+const giftNum = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+
+function claimGift(g) {
+  save.claimed = save.claimed || [];
+  if (save.claimed.includes(g.id)) return;
+  save.gems += giftNum(g.gems, 100000);
+  save.coins += giftNum(g.coins, 100000);
+  const cr = giftNum(g.crystals, 999);
+  for (const k of EL_KEYS) save.cr[k] += cr;
+  save.claimed.push(g.id);
+  persist();
+}
+
+function giftText(g) {
+  const parts = [];
+  if (giftNum(g.gems, 100000)) parts.push(`ジェム${giftNum(g.gems, 100000)}`);
+  if (giftNum(g.coins, 100000)) parts.push(`コイン${giftNum(g.coins, 100000)}`);
+  if (giftNum(g.crystals, 999)) parts.push(`結晶 各${giftNum(g.crystals, 999)}`);
+  return parts.join(" + ");
+}
+
+function drawGifts() {
+  drawMenuBg("#3a1a4a", "#0c0618");
+  drawTopBar();
+  header("プレゼント", "");
+  const list = unclaimed();
+  if (!list.length) {
+    txt("受け取れるプレゼントはありません", W / 2, 240, 14, "#cfd6ff", "center");
+    txt("運営からのお知らせを待っていてね", W / 2, 266, 12, "#9aa3d8", "center");
+  }
+  list.slice(0, 5).forEach((g, i) => {
+    const y = 84 + i * 82;
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    roundRect(14, y, W - 28, 74, 12);
+    ctx.fill();
+    gemIcon(36, y + 22, 10);
+    txt(String(g.title).slice(0, 20), 54, y + 18, 15, "#ffd35c");
+    txt(String(g.message || "").slice(0, 26), 28, y + 40, 11, "#cfd6ff", "left", "normal");
+    txt(giftText(g), 28, y + 58, 12, "#5ef0ff");
+    if (g.until) txt(`〜${g.until}`, W - 106, y + 18, 10, "#9aa3d8", "right", "normal");
+    button(W - 96, y + 22, 72, 32, "受け取る", () => {
+      claimGift(g);
+      burst(W / 2, y + 37, "#5ef0ff", 30, 5);
+      showToast(`${giftText(g) || "プレゼント"} を受け取りました`);
+    }, { size: 13 });
+  });
+  if (list.length > 1) {
+    button(40, 500, W - 80, 48, "まとめて受け取る", () => {
+      for (const g of list) claimGift(g);
+      burst(W / 2, 520, "#5ef0ff", 50, 6);
+      showToast(`${list.length}個のプレゼントを受け取りました`);
+    }, { size: 16, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
+  }
+  drawParticles();
+  drawNav();
+}
+
 // ---- 共有・ホーム画面に追加 -------------------------------------------------
 const SHARE_URL = "https://potof47.github.io/47asobi/";
 const qrImg = new Image();
@@ -3096,6 +3178,7 @@ function draw() {
     case "party": drawParty(); break;
     case "detail": drawDetail(); break;
     case "ranking": drawRanking(); break;
+    case "gifts": drawGifts(); break;
     default: drawBattle();
   }
   if (shareOpen) drawShare();
@@ -3125,6 +3208,7 @@ function frame(t) {
 }
 
 loadSave();
+loadGifts();
 resize();
 // オフライン対応・ホーム画面に追加のためのサービスワーカー
 if ("serviceWorker" in navigator) {
