@@ -292,7 +292,8 @@ function newSave() {
   for (const fi of STARTERS) box[fi] = { rar: FAM[fi].rar, lv: 1, awk: 0 };
   const cr = {};
   for (const k of EL_KEYS) cr[k] = 0;
-  return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "" };
+  return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "",
+    rank: 1, exp: 0, stats: {}, ach: {}, towerMax: 0 };
 }
 function loadSave() {
   try {
@@ -324,7 +325,98 @@ function normalizeSave(s) {
   out.best = s.best && typeof s.best === "object" ? s.best : {};
   out.claimed = Array.isArray(s.claimed) ? s.claimed.map(String) : [];
   out.name = typeof s.name === "string" ? s.name.slice(0, 12) : undefined;
+  out.rank = int(s.rank, 1, 1e6, 1);
+  out.exp = int(s.exp, 0, 1e9, 0);
+  out.towerMax = int(s.towerMax, 0, 1e6, 0);
+  const nums = o => Object.fromEntries(Object.entries(o && typeof o === "object" ? o : {}).map(([k, v]) => [k, int(v, 0, 1e12, 0)]));
+  out.stats = nums(s.stats);
+  out.ach = nums(s.ach);
   return out;
+}
+
+// ---- プレイヤーランク・ミッション（遊ぶほどジェムがもらえる） ---------------------
+const expNeed = rank => 100 + rank * 20;
+// 経験値を足してランクアップ分のジェムを渡す（ランクに上限なし）
+function addExp(n) {
+  save.exp += n;
+  let ranks = 0, gems = 0;
+  while (save.exp >= expNeed(save.rank)) {
+    save.exp -= expNeed(save.rank);
+    save.rank++;
+    ranks++;
+    const g = 10 + (save.rank % 10 === 0 ? 50 : 0);
+    gems += g;
+  }
+  save.gems += gems;
+  return { ranks, gems };
+}
+
+// 実績（何回でももらえる）: step ごとに gem ジェム
+const ACH = [
+  { key: "kills",  name: "敵を倒す",          step: 100,  gem: 15 },
+  { key: "clears", name: "クエストをクリア",   step: 10,   gem: 20 },
+  { key: "srank",  name: "Sランクでクリア",    step: 5,    gem: 25 },
+  { key: "hits",   name: "合計ヒット",         step: 1000, gem: 10 },
+  { key: "weak",   name: "弱点に当てる",       step: 100,  gem: 10 },
+  { key: "ss",     name: "SSを使う",           step: 20,   gem: 10 },
+  { key: "pulls",  name: "ガチャを引く",       step: 10,   gem: 20 },
+  { key: "lvups",  name: "キャラを強化",       step: 50,   gem: 10 },
+  { key: "evos",   name: "キャラを進化",       step: 1,    gem: 30 },
+  { key: "dex",    name: "図鑑のキャラを集める", step: 1,  gem: 10 },
+];
+// デイリーミッション（毎日リセット）
+const DAILY = [
+  { key: "clears", name: "クエストを3回クリア", goal: 3,  gem: 20 },
+  { key: "kills",  name: "敵を30体倒す",       goal: 30, gem: 15 },
+  { key: "ss",     name: "SSを2回使う",        goal: 2,  gem: 10 },
+  { key: "pulls",  name: "ガチャを1回引く",     goal: 1,  gem: 10 },
+  { key: "lvups",  name: "キャラを5回強化",     goal: 5,  gem: 10 },
+];
+const DAILY_ALL_GEM = 30;
+
+function dailyState() {
+  if (!save.dm || save.dm.date !== today()) save.dm = { date: today(), prog: {}, claimed: [], all: false };
+  return save.dm;
+}
+function addStat(key, n = 1) {
+  save.stats[key] = (save.stats[key] || 0) + n;
+  const d = dailyState();
+  d.prog[key] = (d.prog[key] || 0) + n;
+}
+const statValue = key => key === "dex" ? Object.keys(save.box).length : (save.stats[key] || 0);
+// まだ受け取っていない実績の段数
+const achReady = a => Math.max(0, Math.floor(statValue(a.key) / a.step) - (save.ach[a.key] || 0));
+const dailyDone = m => (dailyState().prog[m.key] || 0) >= m.goal;
+const dailyReady = m => dailyDone(m) && !dailyState().claimed.includes(m.key);
+const dailyAllReady = () => DAILY.every(m => dailyState().claimed.includes(m.key)) && !dailyState().all;
+function missionBadge() {
+  return ACH.filter(a => achReady(a) > 0).length + DAILY.filter(dailyReady).length + (dailyAllReady() ? 1 : 0);
+}
+function claimAch(a) {
+  const n = achReady(a);
+  if (!n) return 0;
+  save.ach[a.key] = (save.ach[a.key] || 0) + n;
+  save.gems += n * a.gem;
+  return n * a.gem;
+}
+function claimDaily(m) {
+  if (!dailyReady(m)) return 0;
+  dailyState().claimed.push(m.key);
+  save.gems += m.gem;
+  return m.gem;
+}
+function claimDailyAll() {
+  if (!dailyAllReady()) return 0;
+  dailyState().all = true;
+  save.gems += DAILY_ALL_GEM;
+  return DAILY_ALL_GEM;
+}
+function claimEverything() {
+  let g = 0;
+  for (const m of DAILY) g += claimDaily(m);
+  g += claimDailyAll();
+  for (const a of ACH) g += claimAch(a);
+  return g;
 }
 function persist() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* 保存できない環境 */ }
@@ -461,6 +553,126 @@ const QUESTS = [
 ];
 const questUnlocked = i => i === 0 || !!save.cleared[i - 1];
 
+// ---- 自動生成ステージ（ストーリー200ステージ・無限の塔） ---------------------------
+// 同じ番号なら毎回同じ配置になるよう、番号から乱数を作る
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const CHAPTERS = [
+  ["はじまりの草原", "wood", "water"], ["ほのおの谷", "fire", "wood"], ["しずくの湖", "water", "fire"],
+  ["ひかりの丘", "light", "wood"], ["かげの洞窟", "dark", "water"], ["ささやきの森", "wood", "dark"],
+  ["ようがんの火口", "fire", "light"], ["さんごの海", "water", "light"], ["そらの神殿", "light", "fire"],
+  ["まよいの墓地", "dark", "fire"], ["ほしくずの浜", "water", "dark"], ["からくり工場", "fire", "dark"],
+  ["まぼろしの城", "light", "dark"], ["いにしえの迷宮", "wood", "light"], ["らいめいの塔", "light", "water"],
+  ["しんかいの都", "water", "wood"], ["たいようの祭壇", "fire", "water"], ["つきかげの里", "dark", "light"],
+  ["こんとんの境界", "dark", "wood"], ["はてしない天空", "light", "dark"],
+];
+const STAGES_PER_CHAPTER = 10;
+const STORY_COUNT = CHAPTERS.length * STAGES_PER_CHAPTER;
+const BOSS_TITLE = ["守護竜", "大精霊", "魔像", "巨人", "大蛇", "獣王", "騎士団長", "古代兵器", "妖精女王", "番人"];
+const EL_BG = {
+  fire: ["#3a1a12", "#160806"], water: ["#0f2440", "#060d1c"], wood: ["#173322", "#0a170f"],
+  light: ["#3a3416", "#141006"], dark: ["#24133a", "#0c0616"],
+};
+
+// 1つのWAVEを作る（r: 乱数, m/s: メイン/サブ属性, n: 雑魚の数, mul: 強さ倍率）
+function genWave(r, m, s, n, mul, bossOpt) {
+  const enemies = [], rocks = [];
+  const place = rad => {
+    for (let k = 0; k < 40; k++) {
+      const x = 40 + r() * (W - 80), y = TOP + 70 + r() * 300;
+      if ([...enemies, ...rocks].every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + 20)) return { x, y };
+    }
+    return { x: 40 + r() * (W - 80), y: TOP + 70 + r() * 300 };
+  };
+  const atkMul = Math.pow(mul, 0.9);
+  if (bossOpt) {
+    enemies.push(boss(W / 2, TOP + 150, m, Math.round(160000 * mul * bossOpt.hpMul), Math.round(8000 * atkMul),
+      bossOpt.cd || 3, bossOpt.name, { r: bossOpt.r || 46 }));
+  }
+  for (let i = 0; i < n; i++) {
+    const el = r() < 0.7 ? m : s, big = r() < 0.15, rad = big ? 28 : 22;
+    const p = place(rad);
+    enemies.push(mob(p.x, p.y, el, Math.round((14000 + r() * 8000) * mul * (big ? 1.6 : 1)),
+      Math.round((1800 + r() * 800) * atkMul), 2 + Math.floor(r() * 3),
+      { r: rad, weak: r() < 0.45 ? (r() < 0.6 ? DOWN : r() * Math.PI * 2) : undefined, roam: big && r() < 0.5 }));
+  }
+  const nr = Math.floor(r() * 3.2);
+  for (let i = 0; i < nr; i++) { const p = place(13); rocks.push(rock(p.x, p.y)); }
+  return { boss: !!bossOpt, enemies, rocks };
+}
+
+const diffStars = mul => Math.max(1, Math.min(6, Math.round(1 + Math.log2(mul / 0.5) * 1.4)));
+
+// ストーリーの n 番目（0始まり）のステージ
+function storyStage(n) {
+  const ch = Math.floor(n / STAGES_PER_CHAPTER), k = n % STAGES_PER_CHAPTER;
+  const [chName, m, s] = CHAPTERS[ch];
+  const mul = 0.5 * (1 + n * 0.055);
+  const bossStage = k === STAGES_PER_CHAPTER - 1, midBoss = k === 4;
+  const waveCount = bossStage ? 3 : k >= 5 ? 3 : 2;
+  const mobs = Math.min(6, 2 + Math.floor(n / 25));
+  const rn = seeded(n * 7919 + 13);
+  const bossName = `${EL[m].w}の${BOSS_TITLE[Math.floor(rn() * BOSS_TITLE.length)]}`;
+  const waves = [];
+  for (let w = 0; w < waveCount; w++) {
+    const last = w === waveCount - 1;
+    const bossOpt = last && bossStage ? { name: bossName, hpMul: 1.6, r: 52 }
+      : last && midBoss ? { name: bossName, hpMul: 0.8 } : null;
+    const seed = n * 1000 + w;
+    waves.push(() => genWave(seeded(seed), m, s, bossOpt ? Math.max(1, mobs - 2) : mobs, mul, bossOpt));
+  }
+  return {
+    id: "s" + n, kind: "story",
+    name: `${ch + 1}-${k + 1} ${chName}`, sub: `${EL[m].n}属性中心 / ${EL[ADV_BY[m]].n}属性が有利`,
+    boss: bossStage || midBoss, diff: diffStars(mul), mul: 1, par: waveCount * 3 + 1,
+    bg: EL_BG[m], coin: 300 + n * 40, gem: bossStage ? 20 : midBoss ? 10 : 5, crEl: m, crN: 1 + Math.floor(n / 40),
+    exp: 20 + Math.floor(n / 2), waves,
+  };
+}
+
+// 無限の塔の f 階（1始まり）
+function towerFloor(f) {
+  const els = EL_KEYS;
+  const m = els[(f * 3) % 5], s = els[(f * 7 + 2) % 5];
+  const mul = 0.6 + f * 0.08;
+  const bossF = f % 10 === 0, waveCount = bossF ? 2 : f % 5 === 0 ? 2 : 1;
+  const mobs = Math.min(6, 3 + Math.floor(f / 30));
+  const waves = [];
+  for (let w = 0; w < waveCount; w++) {
+    const bossOpt = bossF && w === waveCount - 1 ? { name: `${f}階の${BOSS_TITLE[f / 10 % BOSS_TITLE.length]}`, hpMul: 1.2 } : null;
+    waves.push(() => genWave(seeded(500000 + f * 100 + w), m, s, bossOpt ? mobs - 2 : mobs, mul, bossOpt));
+  }
+  return {
+    id: "t" + f, kind: "tower", floor: f,
+    name: `無限の塔 ${f}階`, sub: `${EL[m].n}属性中心 / ${EL[ADV_BY[m]].n}属性が有利`,
+    boss: bossF, diff: diffStars(mul), mul: 1, par: waveCount * 3 + 1,
+    bg: ["#1d1a3a", "#08061a"], coin: 400 + f * 30, gem: towerGem(f), crEl: null, crN: 1 + Math.floor(f / 25),
+    exp: 25 + f, waves,
+  };
+}
+const towerGem = f => 5 + Math.floor(f / 10) * 2 + (f % 10 === 0 ? 30 : 0);
+
+// その属性に有利な属性（例: 木 → 火）
+const ADV_BY = Object.fromEntries(EL_KEYS.map(k => [k, EL_KEYS.find(a => ADV[a] === k)]));
+
+// クエストID: 数字=スペシャル、"s番号"=ストーリー、"t階"=無限の塔
+function getQuest(id) {
+  if (typeof id === "number") return { ...QUESTS[id], id, kind: "special", exp: 60 * QUESTS[id].diff };
+  if (id[0] === "s") return storyStage(Number(id.slice(1)));
+  return towerFloor(Number(id.slice(1)));
+}
+const storyUnlocked = n => n === 0 || !!save.cleared["s" + (n - 1)];
+const storyProgress = () => { let n = 0; while (n < STORY_COUNT && save.cleared["s" + n]) n++; return n; };
+
 // ---- 状態 -------------------------------------------------------------
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
@@ -500,7 +712,7 @@ function makeAlly(fi, x, y) {
 
 function startQuest(i) {
   questIdx = i;
-  quest = QUESTS[i];
+  quest = getQuest(i);
   waveIdx = 0;
   const n = save.party.length;
   allies = save.party.map((fi, k) => makeAlly(fi, W / (n + 1) * (k + 1), 505));
@@ -601,6 +813,8 @@ function damageEnemy(e, base, el, weak) {
   e.hp -= dmg;
   e.flash = 6;
   hitCount++;
+  addStat("hits");
+  if (weak) addStat("weak");
   const col = m >= 2 ? "#ffe066" : m < 1 ? "#9aa3b8" : "#ffffff";
   addText(e.x + rand(-12, 12), e.y - e.r * 0.3 + rand(-6, 6), dmg.toLocaleString(), col, weak ? 19 : 15);
   if (weak) addText(e.x, e.y - e.r - 16, "弱点!", "#ffef5c", 14);
@@ -612,6 +826,7 @@ function damageEnemy(e, base, el, weak) {
     burst(e.x, e.y, EL[e.el].c, e.boss ? 60 : 24, e.boss ? 6 : 4);
     addText(e.x, e.y, e.boss ? "撃破!!" : "撃破!", "#ffd35c", e.boss ? 24 : 17);
     shake = Math.max(shake, e.boss ? 12 : 4);
+    addStat("kills");
   }
 }
 
@@ -719,6 +934,7 @@ function fire(dx, dy) {
   if (ssArmed) {
     ssArmed = false;
     a.ssLeft = a.ssTurns;
+    addStat("ss");
     showBanner(a.ssName, "ストライクショット!", EL[a.el].c);
     burst(a.x, a.y, EL[a.el].l, 30, 5);
     switch (a.ss) {
@@ -890,9 +1106,16 @@ function finishQuest() {
   save.gems += gem;
   save.cr[crEl] += crN;
   save.cleared[questIdx] = true;
+  if (q.kind === "tower") save.towerMax = Math.max(save.towerMax || 0, q.floor);
+  addStat("clears");
+  if (rank === "S") addStat("srank");
+  const up = addExp(q.exp || 30);
+  if (up.ranks) showToast(`ランクアップ! ランク${save.rank}  ジェム+${up.gems}`);
   persist();
-  lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, netRank: undefined };
-  // ランキングに記録
+  lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, netRank: undefined,
+    exp: q.exp || 30, kind: q.kind };
+  if (q.kind !== "special") { state = "clear"; return; }
+  // ランキングに記録（スペシャルクエストのみ）
   const leader = displayName(save.party[0]);
   addLocalRecord(questIdx, turn, leader);
   persist();
@@ -917,6 +1140,7 @@ function levelUp(fi, toMax) {
     if (!toMax) break;
   }
   if (!n) { showToast("コインが足りません"); return; }
+  addStat("lvups", n);
   burst(180, 170, "#ffe066", 20, 4);
   addText(180, 120, `Lv UP! → ${u.lv}`, "#ffe066", 20);
   persist();
@@ -936,6 +1160,7 @@ function evolve(fi) {
   save.cr[f.el] -= EVO_CR[u.rar];
   save.coins -= EVO_COIN[u.rar];
   u.rar++;
+  addStat("evos");
   persist();
   burst(180, 170, EL[f.el].l, 70, 6);
   burst(180, 170, "#ffffff", 30, 4);
@@ -959,6 +1184,7 @@ function pullGacha(n) {
     const guarantee = n === 10 && i === 9 && !res.some(r => FAM[r.fi].rar >= 4);
     res.push(acquire(rollOne(guarantee)));
   }
+  addStat("pulls", n);
   persist();
   gacha = { res, i: 0, t: 0, opened: false };
   go("gachaAnim");
@@ -2448,6 +2674,7 @@ function drawResult() {
     crystalIcon(r.crEl, 220, 328, 9);
     txt(`${EL[r.crEl].n}の結晶 ×${r.crN}`, 234, 328, 13, "#fff");
     if (r.gem) { gemIcon(110, 356, 9); txt(`${r.gem} (初回クリア)`, 124, 356, 13, "#fff"); }
+    txt(`EXP +${r.exp}`, 234, 356, 13, "#ffd35c");
     if (r.drop) {
       drawIcon(r.drop.fi, 70, 372, 52);
       txt(`${FAM[r.drop.fi].name} をゲット!`, 132, 390, 13, "#fff");
@@ -2459,8 +2686,21 @@ function drawResult() {
     txt("BOXでキャラを強化・進化しよう!", W / 2, 300, 13, "#ffd35c", "center");
   }
   ctx.restore();
-  button(60, 456, W - 120, 48, state === "clear" ? "もう一度" : "リトライ", () => startQuest(questIdx));
-  button(60, 516, W - 120, 48, "クエスト選択", () => go("quests"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  // ストーリー・塔は「次へ」で続けて遊べる
+  let next = null;
+  if (state === "clear" && quest.kind === "story") {
+    const n = Number(questIdx.slice(1)) + 1;
+    if (n < STORY_COUNT) next = "s" + n;
+  } else if (state === "clear" && quest.kind === "tower") {
+    next = "t" + (quest.floor + 1);
+  }
+  if (next) {
+    button(60, 444, W - 120, 46, quest.kind === "tower" ? `${quest.floor + 1}階へ` : "次のステージへ", () => startQuest(next),
+      { size: 16, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
+  }
+  const y0 = next ? 498 : 456;
+  button(60, y0, W - 120, next ? 40 : 48, state === "clear" ? "もう一度" : "リトライ", () => startQuest(questIdx));
+  button(60, y0 + (next ? 48 : 60), W - 120, next ? 40 : 48, "クエスト選択", () => go("quests"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 }
 
 function drawBattle() {
@@ -2523,7 +2763,7 @@ function drawNav() {
   ctx.fillRect(0, NAV_Y, W, 1);
   const w = W / NAV.length;
   NAV.forEach(([s, label], i) => {
-    const active = state === s || (s === "box" && state === "detail") || (s === "home" && (state === "gifts" || state === "transfer"));
+    const active = state === s || (s === "box" && state === "detail") || (s === "home" && (state === "gifts" || state === "transfer" || state === "missions"));
     if (active) {
       ctx.fillStyle = "rgba(255,211,92,0.15)";
       ctx.fillRect(i * w, NAV_Y, w, H - NAV_Y);
@@ -2553,6 +2793,20 @@ function drawHome() {
   const gn = unclaimed().length;
   button(12, 96, 78, 40, "プレゼント", () => go("gifts"), { size: 12, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
   button(12, 144, 78, 32, "引き継ぎ", () => go("transfer"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  // ミッション（受け取れる数をバッジ表示）
+  const mn = missionBadge();
+  button(W - 90, 96, 78, 40, "ミッション", () => go("missions"), { size: 12, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  if (mn) {
+    ctx.fillStyle = "#ff3b4e";
+    ctx.beginPath(); ctx.arc(W - 16, 98, 10, 0, Math.PI * 2); ctx.fill();
+    txt(String(mn), W - 16, 99, 12, "#fff", "center", "900");
+  }
+  // プレイヤーランク
+  txt(`ランク ${save.rank}`, W - 51, 152, 12, "#ffd35c", "center", "900");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(W - 88, 162, 74, 5);
+  ctx.fillStyle = "#ffd35c";
+  ctx.fillRect(W - 88, 162, 74 * Math.min(1, save.exp / expNeed(save.rank)), 5);
   if (gn) {
     ctx.fillStyle = "#ff3b4e";
     ctx.beginPath(); ctx.arc(86, 98, 10, 0, Math.PI * 2); ctx.fill();
@@ -2600,37 +2854,132 @@ function drawHome() {
   drawNav();
 }
 
+let questTab = "story", chapterView = null;
+
 function drawQuests() {
   drawMenuBg("#14203a", "#070b16");
   drawTopBar();
-  header("クエスト", "クリアで次が解放");
+  header("クエスト", "");
+  const tabs = [["story", "ストーリー"], ["special", "スペシャル"], ["tower", "無限の塔"]];
+  const tw = (W - 28) / tabs.length;
+  tabs.forEach(([k, label], i) => {
+    const x = 14 + i * tw, active = questTab === k;
+    ctx.fillStyle = active ? "#ffd35c" : "rgba(255,255,255,0.08)";
+    roundRect(x + 2, 78, tw - 4, 30, 9);
+    ctx.fill();
+    txt(label, x + tw / 2, 93, 13, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, 78, tw, 30, "", () => { questTab = k; }, { hidden: true });
+  });
+  if (questTab === "story") drawStoryList();
+  else if (questTab === "special") drawSpecialList();
+  else drawTowerPanel();
+  drawNav();
+}
+
+// ストーリー: 章ごとに10ステージ
+function drawStoryList() {
+  const prog = storyProgress();
+  const maxCh = Math.min(CHAPTERS.length - 1, Math.floor(prog / STAGES_PER_CHAPTER));
+  if (chapterView === null || chapterView > maxCh) chapterView = maxCh;
+  const ch = chapterView, [chName, m] = CHAPTERS[ch];
+  button(14, 116, 40, 30, "◀", () => { chapterView = Math.max(0, ch - 1); }, { size: 14, c1: "#4a5280", c2: "#2b3158", fg: "#fff", disabled: ch === 0 });
+  button(W - 54, 116, 40, 30, "▶", () => {
+    if (ch < maxCh) chapterView = ch + 1; else showToast("この章をクリアすると次の章へ進めます");
+  }, { size: 14, c1: "#4a5280", c2: "#2b3158", fg: "#fff", disabled: ch >= maxCh });
+  drawElemIcon(m, W / 2 - 76, 131, 9);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(`第${ch + 1}章 ${chName}`, W / 2 + 6, 131, "#fff", 16);
+  ctx.restore();
+  txt(`全${STORY_COUNT}ステージ中 ${prog}クリア`, W / 2, 158, 11, "#9aa3d8", "center", "normal");
+  const cw = (W - 36) / 2;
+  for (let k = 0; k < STAGES_PER_CHAPTER; k++) {
+    const n = ch * STAGES_PER_CHAPTER + k, q = storyStage(n);
+    const x = 14 + (k % 2) * (cw + 8), y = 172 + Math.floor(k / 2) * 80;
+    const unlocked = storyUnlocked(n), cleared = !!save.cleared[q.id];
+    button(x, y, cw, 72, "", () => {
+      if (!unlocked) { showToast("前のステージをクリアしよう"); return; }
+      startQuest(q.id);
+    }, { c1: unlocked ? (q.boss ? "#5a1f2a" : q.bg[0]) : "#2a2d3a", c2: unlocked ? "#151a33" : "#15171f" });
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    outlinedText(`${ch + 1}-${k + 1}`, x + 10, y + 16, unlocked ? "#fff" : "#777", 15);
+    if (q.boss) outlinedText(k === STAGES_PER_CHAPTER - 1 ? "BOSS" : "中ボス", x + 52, y + 16, "#ff6b8b", 11);
+    ctx.textAlign = "right";
+    outlinedText("★".repeat(q.diff), x + cw - 8, y + 16, "#ffd35c", 9);
+    ctx.restore();
+    if (!unlocked) { txt("LOCK", x + 10, y + 44, 12, "#777"); continue; }
+    if (cleared) txt(`CLEAR  ベスト${save.best[q.id]}T`, x + 10, y + 40, 11, "#7dffa0");
+    else { gemIcon(x + 16, y + 40, 6); txt(`初回 ${q.gem}`, x + 26, y + 40, 11, "#5ef0ff"); }
+    coinIcon(x + 16, y + 58, 5);
+    txt(`${q.coin}`, x + 25, y + 58, 10, "#fff", "left", "normal");
+    crystalIcon(q.crEl, x + 82, y + 58, 6);
+    txt(`×${q.crN}`, x + 91, y + 58, 10, "#fff", "left", "normal");
+  }
+}
+
+// スペシャル（高難度・ランキング対象）
+function drawSpecialList() {
+  txt("ランキング対象の高難度クエスト", W / 2, 124, 11, "#9aa3d8", "center", "normal");
   QUESTS.forEach((q, i) => {
-    const y = 80 + i * 82, unlocked = questUnlocked(i);
-    button(14, y, W - 28, 74, "", () => {
+    const y = 138 + i * 72, unlocked = questUnlocked(i);
+    button(14, y, W - 28, 66, "", () => {
       if (!unlocked) { showToast("前のクエストをクリアしよう"); return; }
       startQuest(i);
     }, { c1: unlocked ? q.bg[0] : "#2a2d3a", c2: unlocked ? "#151a33" : "#15171f" });
     ctx.save();
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    outlinedText(q.name, 28, y + 20, unlocked ? "#fff" : "#777", 17);
+    outlinedText(q.name, 28, y + 18, unlocked ? "#fff" : "#777", 16);
     ctx.textAlign = "right";
-    outlinedText("★".repeat(q.diff), W - 28, y + 20, "#ffd35c", 12);
+    outlinedText("★".repeat(q.diff), W - 28, y + 18, "#ffd35c", 11);
     ctx.restore();
-    if (!unlocked) {
-      txt("LOCK  前のクエストをクリアで解放", 28, y + 46, 12, "#9aa3b8");
-      return;
-    }
-    txt(q.sub, 28, y + 42, 11, "#cfd6ff");
-    const best = save.best[i];
-    txt(save.cleared[i] ? `CLEAR  ベスト${best}T` : `初回ジェム${q.gem}`, 28, y + 60, 11, save.cleared[i] ? "#7dffa0" : "#5ef0ff");
-    coinIcon(W - 150, y + 60, 6);
-    txt(`${q.coin}`, W - 140, y + 60, 11, "#fff");
-    if (q.crEl) crystalIcon(q.crEl, W - 82, y + 60, 7);
-    else EL_KEYS.forEach((k, j) => crystalIcon(k, W - 96 + j * 7, y + 60, 5));
-    txt(`×${q.crN}〜`, W - 70, y + 60, 11, "#fff");
+    if (!unlocked) { txt("LOCK  前のクエストをクリアで解放", 28, y + 44, 12, "#9aa3b8"); return; }
+    txt(q.sub, 28, y + 38, 11, "#cfd6ff");
+    txt(save.cleared[i] ? `CLEAR  ベスト${save.best[i]}T` : `初回ジェム${q.gem}`, 28, y + 54, 11, save.cleared[i] ? "#7dffa0" : "#5ef0ff");
+    coinIcon(W - 150, y + 54, 6);
+    txt(`${q.coin}`, W - 140, y + 54, 11, "#fff");
+    if (q.crEl) crystalIcon(q.crEl, W - 82, y + 54, 7);
+    else EL_KEYS.forEach((k, j) => crystalIcon(k, W - 96 + j * 7, y + 54, 5));
+    txt(`×${q.crN}〜`, W - 70, y + 54, 11, "#fff");
   });
-  drawNav();
+}
+
+// 無限の塔（どこまでも登れる。新しい階をクリアするたびにジェム）
+function drawTowerPanel() {
+  const best = save.towerMax || 0, next = best + 1, q = towerFloor(next);
+  // 塔のイラスト
+  ctx.save();
+  const tx = W / 2, base = 380;
+  for (let i = 0; i < 6; i++) {
+    const w = 120 - i * 14, y = base - i * 36;
+    ctx.fillStyle = i % 2 ? "#3a3470" : "#4a4290";
+    ctx.fillRect(tx - w / 2, y - 34, w, 34);
+    ctx.fillStyle = "#ffd35c";
+    ctx.globalAlpha = 0.6 + Math.sin(frameNo * 0.08 + i) * 0.3;
+    ctx.fillRect(tx - 6, y - 24, 12, 14);
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = "#ff6b8b";
+  ctx.beginPath(); ctx.moveTo(tx, base - 6 * 36 - 34); ctx.lineTo(tx - 30, base - 5 * 36 - 34); ctx.lineTo(tx + 30, base - 5 * 36 - 34); ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(`最高到達 ${best}階`, W / 2, 132, "#ffd35c", 20);
+  ctx.restore();
+  txt("上の階ほど敵が強くなる、終わりのない塔", W / 2, 400, 12, "#cfd6ff", "center", "normal");
+  gemIcon(W / 2 - 92, 424, 8);
+  txt(`${next}階のクリア報酬: ジェム${q.gem}・コイン${q.coin}`, W / 2 + 8, 424, 12, "#5ef0ff", "center");
+  txt("10階ごとにボス＆ボーナスジェム+30", W / 2, 446, 11, "#ff9ad5", "center", "normal");
+  button(40, 466, W - 80, 56, `${next}階に挑戦`, () => startQuest(q.id),
+    { size: 18, sub: `${"★".repeat(q.diff)}  ${q.sub}`, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
+  if (best > 0) {
+    button(40, 528, W - 80, 36, `${best}階に再挑戦（報酬はコインのみ）`, () => startQuest("t" + best),
+      { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  }
 }
 
 function drawGacha() {
@@ -3043,6 +3392,79 @@ function drawGifts() {
   drawNav();
 }
 
+// ---- ミッション画面 ---------------------------------------------------------
+let missionTab = "daily";
+
+function progressRow(y, title, cur, goal, gem, ready, done, onClaim) {
+  ctx.fillStyle = ready ? "rgba(255,211,92,0.16)" : "rgba(255,255,255,0.07)";
+  roundRect(14, y, W - 28, 42, 10);
+  ctx.fill();
+  txt(title, 24, y + 13, 12, done && !ready ? "#7f88b8" : "#fff");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(24, y + 26, 170, 6);
+  ctx.fillStyle = ready ? "#ffd35c" : "#5ef0ff";
+  ctx.fillRect(24, y + 26, 170 * Math.min(1, cur / goal), 6);
+  txt(`${Math.min(cur, goal).toLocaleString()}/${goal.toLocaleString()}`, 200, y + 29, 10, "#cfd6ff", "left", "normal");
+  if (ready) {
+    button(W - 98, y + 6, 76, 30, `+${gem}`, onClaim, { size: 13 });
+    gemIcon(W - 86, y + 21, 6);
+  } else if (done) {
+    txt("受取済", W - 60, y + 21, 12, "#7f88b8", "center");
+  } else {
+    gemIcon(W - 78, y + 21, 6);
+    txt(`${gem}`, W - 68, y + 21, 12, "#5ef0ff");
+  }
+}
+
+function drawMissions() {
+  drawMenuBg("#102a3a", "#06101a");
+  drawTopBar();
+  header("ミッション", "");
+  const total = missionBadge();
+  button(W - 132, 48, 120, 26, "まとめて受け取る", () => {
+    const g = claimEverything();
+    persist();
+    if (g) { burst(W / 2, 300, "#5ef0ff", 50, 6); showToast(`ジェム${g}を受け取りました!`); }
+    else showToast("受け取れるミッションはありません");
+  }, { size: 12, disabled: !total });
+  const tabs = [["daily", "デイリー"], ["ach", "実績（何回でも）"]];
+  const tw = (W - 28) / 2;
+  tabs.forEach(([k, label], i) => {
+    const x = 14 + i * tw, active = missionTab === k;
+    ctx.fillStyle = active ? "#ffd35c" : "rgba(255,255,255,0.08)";
+    roundRect(x + 2, 82, tw - 4, 28, 9);
+    ctx.fill();
+    txt(label, x + tw / 2, 96, 13, active ? "#1a1030" : "#cfd6ff", "center");
+    button(x, 82, tw, 28, "", () => { missionTab = k; }, { hidden: true });
+  });
+  const claimed = g => { if (g) { persist(); burst(W / 2, 300, "#5ef0ff", 30, 5); showToast(`ジェム${g}を受け取りました!`); } };
+
+  if (missionTab === "daily") {
+    const d = dailyState();
+    txt("毎日0時にリセット", W / 2, 124, 11, "#9aa3d8", "center", "normal");
+    DAILY.forEach((m, i) => {
+      progressRow(136 + i * 48, m.name, d.prog[m.key] || 0, m.goal, m.gem, dailyReady(m), d.claimed.includes(m.key),
+        () => claimed(claimDaily(m)));
+    });
+    const doneCount = DAILY.filter(m => d.claimed.includes(m.key)).length;
+    progressRow(136 + DAILY.length * 48 + 8, "デイリーを全部達成", doneCount, DAILY.length, DAILY_ALL_GEM,
+      dailyAllReady(), d.all, () => claimed(claimDailyAll()));
+    txt(`プレイヤーランク ${save.rank}（ランクアップごとにジェム10、10ランクごとに+50）`, W / 2, 448, 10, "#ffd35c", "center", "normal");
+    txt(`次のランクまで EXP ${expNeed(save.rank) - save.exp}`, W / 2, 466, 11, "#cfd6ff", "center", "normal");
+  } else {
+    txt("目標を達成するたびに、何回でもジェムがもらえます", W / 2, 124, 11, "#9aa3d8", "center", "normal");
+    ACH.forEach((a, i) => {
+      const v = statValue(a.key), tier = save.ach[a.key] || 0, ready = achReady(a);
+      // 受け取り済みの段の次が目標
+      const goal = (tier + Math.max(1, ready)) * a.step;
+      progressRow(134 + i * 45, `${a.name}（${tier + 1}段目）`, v, goal, a.gem * Math.max(1, ready), ready > 0, false,
+        () => claimed(claimAch(a)));
+    });
+  }
+  drawParticles();
+  drawNav();
+}
+
 // ---- データ引き継ぎコード ---------------------------------------------------
 // 形式: MF1Z-<圧縮データ(base64url)>-<チェック用の値>（圧縮できない環境では MF1-）
 function codeCheck(s) {
@@ -3396,6 +3818,7 @@ function draw() {
     case "ranking": drawRanking(); break;
     case "gifts": drawGifts(); break;
     case "transfer": drawTransfer(); break;
+    case "missions": drawMissions(); break;
     default: drawBattle();
   }
   if (shareOpen) drawShare();
