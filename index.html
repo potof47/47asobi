@@ -616,10 +616,14 @@ function trialQuest(fi, tier) {
   const m = f.el, s = ADV_BY[f.el];        // そのキャラが不利な属性の敵も混ざる
   const mul = [0, 2.2, 4.5, 8][tier], hard = tier >= 2;
   const bossName = `${f.name}の影`;
+  // ギミック: Ⅰは1つ・Ⅱは2つ・Ⅲは3つ。そのキャラが対策できるものから順に出す
+  const own = FAM[fi].abil.map(k => GIM_KEYS.find(g => GIM[g].abil === k)).filter(Boolean);
+  const order = [...own, ...GIM_KEYS.filter(g => !own.includes(g)).sort((a, b) => ((fi * 7 + GIM_KEYS.indexOf(a)) % 5) - ((fi * 7 + GIM_KEYS.indexOf(b)) % 5))];
+  const gims = order.slice(0, tier);
   const waves = [
-    () => genWave(seeded(700000 + fi * 10 + tier), m, s, 4, mul, null, hard),
-    () => genWave(seeded(710000 + fi * 10 + tier), s, m, 5, mul, null, hard),
-    () => genWave(seeded(720000 + fi * 10 + tier), m, s, 3, mul, { name: bossName, hpMul: 1.6 + tier * 0.4, r: 54, cd: 2 }, hard),
+    () => genWave(seeded(700000 + fi * 10 + tier), m, s, 4, mul, null, hard, gims),
+    () => genWave(seeded(710000 + fi * 10 + tier), s, m, 5, mul, null, hard, gims),
+    () => genWave(seeded(720000 + fi * 10 + tier), m, s, 3, mul, { name: bossName, hpMul: 1.6 + tier * 0.4, r: 54, cd: 2 }, hard, gims),
   ];
   return {
     id: `x${fi}_${tier}`, kind: "trial", fi, tier,
@@ -627,7 +631,7 @@ function trialQuest(fi, tier) {
     sub: `${EL[m].n}・${EL[s].n}属性の敵${hard ? " / ガード・再生" : ""}`,
     boss: true, diff: 6 + tier, mul: 1, par: 12,
     bg: ["#1a0a2a", "#05020a"], coin: 5000 * tier, gem: 50 * tier, crEl: f.el, crN: 5 * tier,
-    exp: 150 * tier, waves,
+    exp: 150 * tier, waves, gims,
   };
 }
 function ssName(fi) {
@@ -747,33 +751,33 @@ const LAYOUTS = {
 const QUESTS = [
   { name: "はじまりの森", sub: "木属性中心 / 火属性が有利", diff: 1, mul: 0.8, par: 12,
     bg: ["#173322", "#0a170f"], coin: 800, gem: 50, crEl: "wood", crN: 3,
-    waves: LAYOUTS.A("wood", "water", ["森の番人グロウガ"]) },
+    gims: ["block"], waves: LAYOUTS.A("wood", "water", ["森の番人グロウガ"]) },
   { name: "灼熱の火山", sub: "火属性中心 / 水属性が有利", diff: 2, mul: 1.15, par: 12,
     bg: ["#3a1a12", "#160806"], coin: 1200, gem: 50, crEl: "fire", crN: 3,
-    waves: LAYOUTS.A("fire", "wood", ["溶岩竜バルガロス"]) },
+    gims: ["mine"], waves: LAYOUTS.A("fire", "wood", ["溶岩竜バルガロス"]) },
   { name: "蒼の海溝", sub: "水属性中心 / 木属性が有利", diff: 3, mul: 1.0, par: 16,
     bg: ["#0f2440", "#060d1c"], coin: 1800, gem: 80, crEl: "water", crN: 4,
-    waves: LAYOUTS.B("water", "fire", ["深淵の主ヴォルタク"]) },
+    gims: ["warp"], waves: LAYOUTS.B("water", "fire", ["深淵の主ヴォルタク"]) },
   { name: "光の神殿", sub: "光属性中心 / 闇属性が有利", diff: 4, mul: 1.35, par: 16,
     bg: ["#3a3416", "#141006"], coin: 2600, gem: 80, crEl: "light", crN: 4,
-    waves: LAYOUTS.B("light", "wood", ["天秤の守護者アストレイ"]) },
+    gims: ["dwall"], waves: LAYOUTS.B("light", "wood", ["天秤の守護者アストレイ"]) },
   { name: "冥府の塔", sub: "闇属性中心 / 光属性が有利", diff: 5, mul: 1.3, par: 20,
     bg: ["#24133a", "#0c0616"], coin: 3500, gem: 100, crEl: "dark", crN: 5,
-    waves: LAYOUTS.C("dark", "light", ["冥王ノクスガルド (I)", "冥王ノクスガルド (II)"]) },
+    gims: ["gbar", "warp"], waves: LAYOUTS.C("dark", "light", ["冥王ノクスガルド (I)", "冥王ノクスガルド (II)"]) },
   { name: "極・混沌の玉座", sub: "超高難度 / 光属性が有利", diff: 6, mul: 2.3, par: 20,
     bg: ["#2a0a14", "#0a0206"], coin: 6000, gem: 150, crEl: null, crN: 6,
-    waves: LAYOUTS.C("dark", "fire", ["混沌帝カオスレイ (I)", "混沌帝カオスレイ (II)"]) },
+    gims: ["mine", "dwall"], waves: LAYOUTS.C("dark", "fire", ["混沌帝カオスレイ (I)", "混沌帝カオスレイ (II)"]) },
   // ここから「極・混沌の玉座」より難しいクエスト（ガード・再生持ちの敵）
   // atkPow: 敵の攻撃力は mul の atkPow 乗（一撃で全滅しすぎないように少し抑える）
   { name: "超絶・星喰いの深淵", sub: "超絶 / 木属性が有利 / ガード・再生", diff: 7, mul: 4, atkPow: 0.8, par: 24,
     bg: ["#081a3a", "#02060f"], coin: 12000, gem: 300, crEl: "water", crN: 10,
-    waves: LAYOUTS.D("water", "dark", ["星喰いのリヴァイア (I)", "星喰いのリヴァイア (II)"]) },
+    gims: ["warp", "gbar"], waves: LAYOUTS.D("water", "dark", ["星喰いのリヴァイア (I)", "星喰いのリヴァイア (II)"]) },
   { name: "超絶・終焉の炎神殿", sub: "超絶 / 水属性が有利 / ガード・再生", diff: 8, mul: 7, atkPow: 0.8, par: 24,
     bg: ["#3a0a06", "#100202"], coin: 25000, gem: 500, crEl: "fire", crN: 15,
-    waves: LAYOUTS.D("fire", "light", ["終焉炎帝イグナトス (I)", "終焉炎帝イグナトス (II)"]) },
+    gims: ["dwall", "mine", "block"], waves: LAYOUTS.D("fire", "light", ["終焉炎帝イグナトス (I)", "終焉炎帝イグナトス (II)"]) },
   { name: "極限・神々の黄昏", sub: "極限 / 闇属性が有利 / ガード・再生", diff: 9, mul: 12, atkPow: 0.8, par: 26,
     bg: ["#2a2410", "#080600"], coin: 60000, gem: 1000, crEl: null, crN: 25,
-    waves: LAYOUTS.D("light", "dark", ["黄昏の神王オルディス (I)", "黄昏の神王オルディス (II)"]) },
+    gims: ["gbar", "warp", "dwall"], waves: LAYOUTS.D("light", "dark", ["黄昏の神王オルディス (I)", "黄昏の神王オルディス (II)"]) },
 ];
 const IKESAKI_QUEST = 5;   // ikesaki がもらえる「極・混沌の玉座」
 const questUnlocked = i => i === 0 || !!save.cleared[i - 1];
@@ -1033,6 +1037,12 @@ function typeWave(r, type, m, s, n, mul, bossOpt, gims, hard) {
       w.rocks.push(rock(x < W / 2 ? x + 66 : x - 66, y + 34, 14));
     });
   }
+  addGimmicks(w, gims, r);
+  return w;
+}
+// できあがったWAVEに、敵や岩と重ならないようギミックを置く
+function addGimmicks(w, gims, r) {
+  w.rocks = w.rocks || [];
   const place = rad => {
     for (let k = 0; k < 40; k++) {
       const x = 40 + r() * (W - 80), y = TOP + 70 + r() * 300;
@@ -1041,7 +1051,6 @@ function typeWave(r, type, m, s, n, mul, bossOpt, gims, hard) {
     return { x: 40 + r() * (W - 80), y: TOP + 70 + r() * 300 };
   };
   w.gim = makeGimmicks(r, gims, place, w.enemies, w.rocks);
-  return w;
 }
 function typeStage(type, i) {
   const t = type === "reflect" ? 0 : 1;
@@ -1153,6 +1162,10 @@ function startQuest(i) {
 
 function loadWave() {
   const w = quest.waves[waveIdx]();
+  // 手作りのステージ（スペシャル）はここでギミックを置く（毎回同じ場所）
+  if (!w.gim && quest.gims && quest.gims.length) {
+    addGimmicks(w, quest.gims, seeded(990000 + (typeof questIdx === "number" ? questIdx : 0) * 10 + waveIdx));
+  }
   for (const e of w.enemies) {
     e.hp = e.maxHp = Math.round(e.hp * quest.mul * cfgDifficulty());
     e.atk = Math.round(e.atk * Math.pow(quest.mul, quest.atkPow || 1) * cfgDifficulty());
@@ -4900,6 +4913,10 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-19-i", date: "2026-10-19", title: "スペシャル・試練にギミック",
+    body: "スペシャルクエスト9つと、★6キャラの試練にもギミックが出るようになりました。\n"
+      + "スペシャルは難しいクエストほど多く（最大3つ）。試練はⅠで1つ・Ⅱで2つ・Ⅲで3つ、そのキャラが対策できるギミックから順に出ます。"
+      + "出撃前の編成画面で確認して、対策キャラを入れて挑もう！" },
   { id: "up-2026-10-19-h", date: "2026-10-19", title: "出撃前の編成・反射/貫通専用",
     body: "クエストを選ぶと出撃前の編成画面に。ギミックに効く能力を持つキャラに水色の帯が付きます。\n"
       + "反射タイプを強化（攻撃力1.5倍→1.8倍・HP1.1倍）。クエストに「反射/貫通」タブを追加し、反射専用・貫通専用ステージ各10を登場させました。"
