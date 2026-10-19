@@ -188,6 +188,8 @@ const COMBO = {
   kikou:   { name: "気功波", desc: "敵を追尾するレーザー10本" },
   // パニパニ 専用
   ssboom:  { name: "加速爆発", desc: "フィールド1/4の大爆発＋味方全員のSSを1ターン短縮" },
+  // 拍手する猫 専用
+  clap:    { name: "拍手", desc: "触れた味方の攻撃力を3ターン1.3倍＋HP回復" },
 };
 // ストライクショット（ターン経過で使用可能）。fixed: 属性名を付けない専用SS
 const SS = {
@@ -201,6 +203,8 @@ const SS = {
   haou: { name: "覇王天翔波", turns: 8, fixed: true, desc: "狙った方向に特大レーザー(攻撃力50倍)＋5T能力2.5倍" },
   // パニパニ 専用
   rally: { name: "全力応援", turns: 9, fixed: true, desc: "触れた味方の攻撃力・友情コンボを3ターン2.5倍" },
+  // 拍手する猫 専用
+  handshake: { name: "握手", turns: 8, fixed: true, desc: "触れた敵が爆発＋敵に触れるたびに加速してまた動き出す" },
   smileburst: { name: "フルスマイル・バースト", turns: 8, fixed: true,
     desc: "全体に攻撃力30倍＋敵の攻撃1T遅延＋HP30%回復＋5T能力2.5倍" },
 };
@@ -296,23 +300,28 @@ const FAM = [
   ["クロマル", "dark",  3, "reflect", "horns",   "sharp",   "blast",   "burst"],
   ["ヨルガ",   "dark",  4, "reflect", "wolf",    "sharp",   "laser",   "judge",  "beast"],
   ["ネクロウ", "dark",  5, "pierce",  "tuft",    "sleepy",  "thunder", "meteor", "bird"],
+  // ★6限定キャラ（超拍手祭専用）
+  ["拍手する猫", "dark", 6, "reflect", "cat",    "sharp",   "clap",    "handshake", "cat"],
 ].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
 // 図鑑の並び順（属性 → レア度）
 const ORDER = FAM.map(f => f.idx).sort((a, b) =>
   EL_KEYS.indexOf(FAM[a].el) - EL_KEYS.indexOf(FAM[b].el) || FAM[a].rar - FAM[b].rar || a - b);
-const SHAPE_NAME = { blob: "モンスター", human: "人型", beast: "獣", bird: "鳥", dragon: "竜", fish: "魚" };
+const SHAPE_NAME = { blob: "モンスター", human: "人型", beast: "獣", bird: "鳥", dragon: "竜", fish: "魚", cat: "猫" };
 const STARTERS = [2, 8, 14, 20];   // ブレイズ・マリン・ソーン・ルクス
 const LIMITED = FAM.find(f => f.name === "ikesaki").idx;
 FAM[LIMITED].boost = 1.35;      // 限定キャラは能力1.35倍
 const LIMITED_JIN = FAM.find(f => f.name === "ジン").idx;
 FAM[LIMITED_JIN].boost = 1.45;  // ikesaki より強め
-const BASE_BOOST = FAM.map(f => f.boost || 1);   // 管理者設定で上書きする前の値
 const LIMITED_PANI = FAM.find(f => f.name === "パニパニ").idx;
 FAM[LIMITED_PANI].boost = 1.35;
-const LIMITED_ALL = [LIMITED, LIMITED_JIN, LIMITED_PANI];
+const LIMITED_CAT = FAM.find(f => f.name === "拍手する猫").idx;
+FAM[LIMITED_CAT].boost = 1.55;   // 限定キャラで一番強い
+const LIMITED_ALL = [LIMITED, LIMITED_JIN, LIMITED_PANI, LIMITED_CAT];
 // 恒常★6（常設ガチャの★6枠）
 const PERM6 = ["紅竜ヴァルカ", "蒼姫ミズハ", "樹王ドルン", "聖騎士アルテ", "魔竜ゼノス"].map(n => FAM.find(f => f.name === n).idx);
 for (const fi of PERM6) FAM[fi].boost = 1.15;
+// 管理者設定で上書きする前の値（すべての boost を決めた後に記録する）
+const BASE_BOOST = FAM.map(f => f.boost || 1);
 // 限定キャラ以外（恒常キャラ）はすべて能力1.2倍
 const PERM_BONUS = 1.2;
 const isLimited = fi => LIMITED_ALL.includes(fi);
@@ -1014,6 +1023,15 @@ function triggerCombo(a) {
       }
       break;
     }
+    case "clap": {
+      // 拍手: 猫に触れた味方（今飛んでいるキャラ）の攻撃力を3ターン1.3倍＋HP回復
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 6, r1: 60, life: 20, max: 20, color: "#d6bcff", w: 6 });
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 20, r1: 80, life: 26, max: 26, color: "#9b5cff", w: 4 });
+      const t = shot && shot.ally;
+      if (t) applyClap(t);
+      healParty(Math.round(a.hp * 0.2), a.x, a.y);
+      break;
+    }
     case "ssboom": {
       // フィールドの約1/4（半径120）の大爆発＋味方全員のSSを1ターン短縮
       const rad = 120;
@@ -1086,6 +1104,34 @@ function applyBuff(a) {
   a.buff = 5;
 }
 
+// 拍手する猫のSS: 触れた敵の場所で爆発（半径70・攻撃力の6倍）＋触れるたびに加速してまた動き出す
+const HANDSHAKE_MAX_BOOST = 15;   // 1回のSSで加速する上限回数（止まらなくなるのを防ぐ）
+function handshakeHit(a, e) {
+  const rad = 70;
+  fx.push({ kind: "ring", x: e.x, y: e.y, r0: 8, r1: rad, life: 20, max: 20, color: "#b07aff", w: 10 });
+  burst(e.x, e.y, "#d6bcff", 22, 5);
+  for (const o of alive()) if (Math.hypot(o.x - e.x, o.y - e.y) < rad + o.r) damageEnemy(o, a.atk * 6, a.el, false);
+  shake = Math.max(shake, 5);
+  const s = shot;
+  if (s && (s.boosts || 0) < HANDSHAKE_MAX_BOOST) {
+    s.boosts = (s.boosts || 0) + 1;
+    const cur = Math.hypot(a.vx, a.vy) || 1;
+    const target = Math.min(40, Math.max(cur * 1.25, s.launchSpd || 0));
+    a.vx *= target / cur;
+    a.vy *= target / cur;
+    addText(a.x, a.y - 26, "加速!", "#ffe066", 13);
+  }
+}
+
+// 拍手する猫の友情コンボ: 攻撃力を3ターン1.3倍。重ねがけはせず残りターンだけ戻す
+function applyClap(o) {
+  if (!o.clap) {
+    o.atk *= 1.3;
+    addText(o.x, o.y - 30, "拍手! 攻撃1.3倍", "#d6bcff", 13);
+  }
+  o.clap = 3;
+}
+
 // パニパニのSS: 攻撃力（＝友情コンボの威力も）を3ターン2.5倍。重ねがけはせず残りターンだけ戻す
 function applyRally(o) {
   if (!o.rally) {
@@ -1113,6 +1159,11 @@ function fire(dx, dy) {
       case "wave":   fx.push({ kind: "wave", y: FB, life: 45, max: 45, hit: new Set(), base: a.atk * 3.5, el: a.el }); break;
       case "needle": shot.needle = 30; break;
       case "judge":  judgeLaser(a, dx, dy); break;
+      case "handshake":
+        // 握手: 触れた敵が爆発、敵に触れるたびにたまにスピードアップ
+        shot.handshake = true;
+        fx.push({ kind: "ring", x: a.x, y: a.y, r0: 10, r1: 80, life: 22, max: 22, color: "#d6bcff", w: 8 });
+        break;
       case "rally":
         // このショットで触れた味方の攻撃力・友情コンボを3ターン2.5倍
         shot.rally = true;
@@ -1142,6 +1193,7 @@ function fire(dx, dy) {
   }
   a.vx = dx * sp;
   a.vy = dy * sp;
+  shot.launchSpd = sp;
   state = "shoot";
 }
 
@@ -1163,6 +1215,7 @@ function updateShot() {
           let weak = false;
           if (e.weak !== null) { const w = weakPos(e); weak = Math.hypot(a.x - w.x, a.y - w.y) < R + w.r; }
           damageEnemy(e, a.atk * s.atkMul, a.el, weak);
+          if (s.handshake) handshakeHit(a, e);
         }
       }
       for (const o of allies) {
@@ -1244,6 +1297,12 @@ function startTurn() {
   turn++;
   cur = (cur + 1) % allies.length;
   for (const a of allies) a.ssLeft = Math.max(0, a.ssLeft - 1);
+  // 拍手（猫の友情コンボ）の残りターンを減らし、切れたら元に戻す
+  for (const a of allies) {
+    if (!a.clap) continue;
+    a.clap--;
+    if (!a.clap) a.atk /= 1.3;
+  }
   // 応援（パニパニのSS）の残りターンを減らし、切れたら元に戻す
   for (const a of allies) {
     if (!a.rally) continue;
@@ -1388,9 +1447,13 @@ function evolve(fi) {
 const DAY = 86400000;
 const GACHA_DAYS = 3;
 const ROTATION_START = "2026-10-09";   // この日から3日間はスターダストと灼熱の両方
+// 3日サイクルで順番に開催。新しいガチャはここに足せば自動でサイクルに入る
+// debut: 初めて開催する回（それより後は「復刻」と表示）
 const LIMITED_GACHAS = [
-  { key: "star", name: "スターダストガチャ", short: "スターダスト", limited: [LIMITED, LIMITED_JIN], c1: "#ff7ae0", c2: "#7a4aff" },
-  { key: "fire", name: "灼熱ガチャ",         short: "灼熱",         limited: [LIMITED_PANI],         c1: "#ff9a5a", c2: "#c0301a" },
+  { key: "star", name: "スターダストガチャ", short: "スターダスト", limited: [LIMITED, LIMITED_JIN], c1: "#ff7ae0", c2: "#7a4aff", debut: 0 },
+  { key: "fire", name: "灼熱ガチャ",         short: "灼熱",         limited: [LIMITED_PANI],         c1: "#ff9a5a", c2: "#c0301a", debut: 0 },
+  // 限定キャラが全員出る。拍手する猫はここだけ
+  { key: "clap", name: "超拍手祭",           short: "超拍手祭",     limited: [...LIMITED_ALL],       c1: "#d6bcff", c2: "#5a2a9a", debut: 3 },
 ];
 // 常設ガチャ: いつでも引ける。★6枠は恒常★6（合計 STD_RATE6）
 let STD_RATE6 = 0.01;
@@ -1408,12 +1471,12 @@ function activeLimitedGachas() {
       c1: g.c1 || "#ffcf4a", c2: g.c2 || "#d6542a", endsAt: dayStart(g.until) + DAY };
   }).filter(g => g.limited.length);
   if (planned.length) return planned;
-  // 自動ローテーション: 最初の3日は両方、そのあとは3日ごとに1つずつ復刻
+  // 自動ローテーション: 最初の3日はスターダストと灼熱の両方、そのあとは3日ごとに1つずつ順番に
   const start = dayStart(ROTATION_START), cycle = Math.max(0, Math.floor((now - start) / (GACHA_DAYS * DAY)));
   const endsAt = start + (cycle + 1) * GACHA_DAYS * DAY;
-  if (cycle === 0) return LIMITED_GACHAS.map(g => ({ ...g, endsAt }));
+  if (cycle === 0) return LIMITED_GACHAS.filter(g => g.debut === 0).map(g => ({ ...g, endsAt }));
   const g = LIMITED_GACHAS[(cycle - 1) % LIMITED_GACHAS.length];
-  return [{ ...g, name: g.name + "（復刻）", endsAt }];
+  return [{ ...g, name: g.name + (cycle > g.debut ? "（復刻）" : ""), endsAt }];
 }
 const activeGachas = () => [...activeLimitedGachas(), STD_GACHA];
 const findGacha = key => activeGachas().find(g => g.key === key);
@@ -2001,6 +2064,7 @@ function drawCreature(k, x, y, r) {
     case "bird":   drawBird(k, x, y, r); break;
     case "dragon": drawDragon(k, x, y, r); break;
     case "fish":   drawFish(k, x, y, r); break;
+    case "cat":    drawCat(k, x, y, r); break;
   }
   if (k.rar >= 6) {
     if (k.shape === "human") drawCrown(x + r * 0.32, y - r * 0.98, r, 0.35);
@@ -2389,6 +2453,85 @@ function drawDragon(k, x, y, r) {
   ctx.lineWidth = Math.max(1, r * 0.05);
   ctx.beginPath(); ctx.arc(x, y + r * 0.16, r * 0.18, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
   drawFace(k, x, y - r * 0.32, r * 0.72, c.c, true);
+}
+
+// 立ち上がって拍手する黒猫（前足が開いたり閉じたりする）
+function drawCat(k, x, y, r) {
+  const fur = "#1d1824", furL = "#3a3046";
+  const clap = (Math.sin(frameNo * 0.35) + 1) / 2;   // 0=閉じる 1=開く
+  // しっぽ
+  ctx.strokeStyle = fur;
+  ctx.lineWidth = r * 0.16;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x + r * 0.35, y + r * 0.75);
+  ctx.quadraticCurveTo(x + r * 1.05, y + r * 0.7, x + r * 0.95, y + r * 0.05 + Math.sin(frameNo * 0.1) * r * 0.1);
+  ctx.stroke();
+  // 体（立っている）
+  ctx.fillStyle = shade(x, y + r * 0.45, r * 0.6, furL, fur);
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.5, r * 0.46, r * 0.52, 0, 0, Math.PI * 2); ctx.fill();
+  // 後ろ足
+  for (const s of [-1, 1]) {
+    ctx.beginPath(); ctx.ellipse(x + s * r * 0.24, y + r * 0.98, r * 0.17, r * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // 耳
+  const hx = x, hy = y - r * 0.28, hr = r * 0.56;
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = fur;
+    ctx.beginPath();
+    ctx.moveTo(hx + s * hr * 0.25, hy - hr * 0.8);
+    ctx.lineTo(hx + s * hr * 0.85, hy - hr * 1.45);
+    ctx.lineTo(hx + s * hr * 0.95, hy - hr * 0.35);
+    ctx.fill();
+    ctx.fillStyle = "#5a3a5a";
+    ctx.beginPath();
+    ctx.moveTo(hx + s * hr * 0.42, hy - hr * 0.75);
+    ctx.lineTo(hx + s * hr * 0.8, hy - hr * 1.2);
+    ctx.lineTo(hx + s * hr * 0.85, hy - hr * 0.5);
+    ctx.fill();
+  }
+  // 頭
+  ctx.fillStyle = shade(hx, hy, hr, furL, fur);
+  ctx.beginPath(); ctx.ellipse(hx, hy, hr * 1.02, hr * 0.92, 0, 0, Math.PI * 2); ctx.fill();
+  // 黄色い目
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = "#e8d84a";
+    ctx.beginPath(); ctx.ellipse(hx + s * hr * 0.4, hy - hr * 0.15, hr * 0.22, hr * 0.17, s * -0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#0a0a0a";
+    ctx.beginPath(); ctx.ellipse(hx + s * hr * 0.4, hy - hr * 0.15, hr * 0.06, hr * 0.15, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // 歯を見せた大きな笑顔
+  ctx.fillStyle = "#2a0a12";
+  ctx.beginPath(); ctx.ellipse(hx, hy + hr * 0.38, hr * 0.42, hr * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#f4f0e0";
+  ctx.fillRect(hx - hr * 0.36, hy + hr * 0.25, hr * 0.72, hr * 0.14);
+  ctx.strokeStyle = "#bdb6a0";
+  ctx.lineWidth = Math.max(0.6, r * 0.02);
+  for (let i = 1; i < 6; i++) {
+    const tx = hx - hr * 0.36 + i * hr * 0.12;
+    ctx.beginPath(); ctx.moveTo(tx, hy + hr * 0.25); ctx.lineTo(tx, hy + hr * 0.39); ctx.stroke();
+  }
+  // 前足（拍手）
+  ctx.fillStyle = fur;
+  const gap = r * (0.08 + clap * 0.4);
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(x + s * gap, y + r * 0.25);
+    ctx.rotate(s * (0.2 + clap * 0.5));
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.13, r * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  if (clap < 0.12) {
+    // 手が合わさった瞬間のきらめき
+    ctx.strokeStyle = "#ffe066";
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    for (const a of [-0.6, 0, 0.6]) {
+      ctx.beginPath();
+      ctx.moveTo(x + Math.sin(a) * r * 0.25, y + r * 0.05 - Math.cos(a) * r * 0.25);
+      ctx.lineTo(x + Math.sin(a) * r * 0.4, y + r * 0.05 - Math.cos(a) * r * 0.4);
+      ctx.stroke();
+    }
+  }
 }
 
 function drawFish(k, x, y, r) {
@@ -2955,8 +3098,8 @@ function drawPanel() {
     ctx.beginPath();
     ctx.arc(x - 12, y + 2, 21, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - a.ssLeft / a.ssTurns));
     ctx.stroke();
-    txt(a.buff ? `強化 ${a.buff}T` : a.rally ? `応援 ${a.rally}T` : a.type === "reflect" ? "反射" : "貫通",
-      x + 13, y - 12, 10, a.buff ? "#bfffd0" : a.rally ? "#ffb04a" : "#e8ecff");
+    txt(a.buff ? `強化 ${a.buff}T` : a.rally ? `応援 ${a.rally}T` : a.clap ? `拍手 ${a.clap}T` : a.type === "reflect" ? "反射" : "貫通",
+      x + 13, y - 12, 10, a.buff ? "#bfffd0" : a.rally ? "#ffb04a" : a.clap ? "#d6bcff" : "#e8ecff");
     if (ready) {
       ctx.globalAlpha = 0.7 + Math.sin(frameNo * 0.15) * 0.3;
       ctx.textAlign = "left";
@@ -3756,7 +3899,7 @@ function applyConfig() {
   const toIds = list => (Array.isArray(list) ? list : []).map(n => FAM.find(f => f.name === n)).filter(Boolean).map(f => f.idx);
   const lim1 = toIds(g.limited).length ? toIds(g.limited) : [LIMITED, LIMITED_JIN];
   const lim2 = toIds(g.limited2).length ? toIds(g.limited2) : [LIMITED_PANI];
-  if (r6 * Math.max(lim1.length, lim2.length, 3) + r5 + r4 <= 1) {
+  if (r6 * Math.max(lim1.length, lim2.length, LIMITED_ALL.length) + r5 + r4 <= 1) {
     RATE6 = r6; RATE5 = r5; RATE4 = r4;
     LIMITED_GACHAS[0].limited = lim1;
     LIMITED_GACHAS[1].limited = lim2;
