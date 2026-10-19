@@ -192,6 +192,10 @@ const COMBO = {
   ssboom:  { name: "加速爆発", desc: "フィールド1/4の大爆発＋味方全員のSSを1ターン短縮" },
   // 拍手する猫 専用
   clap:    { name: "拍手", desc: "触れた味方の攻撃力を3ターン1.3倍＋HP回復" },
+  // 降臨キャラ専用（限定キャラよりは控えめ）
+  tornado: { name: "竜巻", desc: "まわりの敵を2回巻き込む竜巻" },
+  raigeki: { name: "雷撃", desc: "近い敵へ6回連鎖する強い雷" },
+  hyouso:  { name: "氷槍", desc: "敵を追尾する氷の槍6本" },
 };
 // ストライクショット（ターン経過で使用可能）。fixed: 属性名を付けない専用SS
 const SS = {
@@ -209,6 +213,10 @@ const SS = {
   handshake: { name: "握手", turns: 8, fixed: true, desc: "触れた敵が爆発＋敵に触れるたびに加速してまた動き出す" },
   smileburst: { name: "フルスマイル・バースト", turns: 8, fixed: true,
     desc: "全体に攻撃力30倍＋敵の攻撃1T遅延＋HP30%回復＋5T能力2.5倍" },
+  // 降臨キャラ専用
+  storm:    { name: "嵐の翼",       turns: 8, fixed: true, desc: "攻撃力3.5倍で突撃＋追尾する風の刃12発" },
+  raijin:   { name: "轟雷招来",     turns: 9, fixed: true, desc: "敵全体に落雷(攻撃力12倍)＋敵の攻撃1T遅延" },
+  blizzard: { name: "絶対零度",     turns: 9, fixed: true, desc: "敵全体に吹雪(攻撃力10倍)＋敵の攻撃1T遅延＋HP15%回復" },
 };
 
 // 名前, 属性, 初期レア度, タイプ(reflect 反射 / pierce 貫通), 頭の飾り, 目, 友情コンボ, SS
@@ -305,9 +313,20 @@ const FAM = [
   // ★6限定キャラ（超拍手祭専用）
   ["拍手する猫", "dark", 6, "reflect", "cat",    "sharp",   "clap",    "handshake", "cat"],
   // 降臨キャラ（イベントボスを倒すとドロップ。ガチャには出ない）
-  ["嵐鳥ゼフィル", "wood",  5, "reflect", "crest", "sharp",   "thunder", "needle", "bird"],
-  ["雷獣ライガ",   "light", 5, "pierce",  "wolf",  "sharp",   "laser",   "judge",  "beast"],
-  ["氷竜グラキエス", "water", 5, "reflect", "horns", "sparkle", "blast", "meteor", "dragon"],
+  ["嵐鳥ゼフィル", "wood",  5, "reflect", "crest", "sharp",   "tornado", "storm",    "bird"],
+  ["雷獣ライガ",   "light", 5, "pierce",  "wolf",  "sharp",   "raigeki", "raijin",   "beast"],
+  ["氷竜グラキエス", "water", 5, "reflect", "horns", "sparkle", "hyouso", "blizzard", "dragon"],
+  // ギミック対策要員（恒常キャラ・各属性2体）
+  ["ヒエン",     "fire",  4, "reflect", "spiky",  "sharp",   "blast",   "burst",  "human"],
+  ["レオバーン", "fire",  5, "pierce",  "wolf",   "sharp",   "thunder", "meteor", "beast"],
+  ["スイレン",   "water", 4, "pierce",  "twin",   "sparkle", "heal",    "wave",   "human"],
+  ["マンタロス", "water", 5, "reflect", "angler", "round",   "laser",   "judge",  "fish"],
+  ["コノハ",     "wood",  4, "reflect", "leaf",   "round",   "homing",  "needle"],
+  ["ミドリワシ", "wood",  5, "pierce",  "crest",  "sharp",   "blast",   "meteor", "bird"],
+  ["キララ",     "light", 4, "pierce",  "long",   "sparkle", "laser",   "needle", "human"],
+  ["テンマ",     "light", 5, "reflect", "crest",  "sparkle", "thunder", "wave",   "bird"],
+  ["ヨイヤミ",   "dark",  4, "reflect", "hood",   "sleepy",  "blast",   "judge",  "human"],
+  ["ネビュラ",   "dark",  5, "pierce",  "horns",  "sharp",   "homing",  "meteor", "dragon"],
 ].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
 // 図鑑の並び順（属性 → レア度）
 const ORDER = FAM.map(f => f.idx).sort((a, b) =>
@@ -328,7 +347,7 @@ const PERM6 = ["紅竜ヴァルカ", "蒼姫ミズハ", "樹王ドルン", "聖�
 for (const fi of PERM6) FAM[fi].boost = 1.15;
 // 降臨キャラ（ガチャには出ない）
 const EVENT_CHARS = ["嵐鳥ゼフィル", "雷獣ライガ", "氷竜グラキエス"].map(n => FAM.find(f => f.name === n).idx);
-for (const fi of EVENT_CHARS) { FAM[fi].event = true; FAM[fi].boost = 1.1; }
+for (const fi of EVENT_CHARS) { FAM[fi].event = true; FAM[fi].boost = 1.12; }   // 限定キャラ（1.35）より少し弱い 1.12×1.2
 
 // ---- ギミック対策の能力 ---------------------------------------------------
 // AW: ワープを無視 / MK: 地雷を回収して攻撃アップ / ADW: ダメージウォールを無効 / AGB: 重力バリアで減速しない
@@ -343,19 +362,18 @@ const ABIL = {
 const ABIL_KEYS = Object.keys(ABIL);
 const ABIL_BASE = ["AW", "MK", "ADW", "AGB"];   // ふつうのキャラに付く能力（AB は★6の追加分だけ）
 const ABIL_FIXED = {
-  ikesaki: ["AW", "MK"], "ジン": ["AGB", "ADW"], "パニパニ": ["MK", "ADW"], "拍手する猫": ["AW", "AGB"],
-  "嵐鳥ゼフィル": ["AW", "ADW"], "雷獣ライガ": ["MK", "AGB"], "氷竜グラキエス": ["AGB", "AW"],
+  // 限定★6は3つ（アンチブロック入り）
+  ikesaki: ["AW", "MK", "AB"], "ジン": ["AGB", "ADW", "AB"], "パニパニ": ["MK", "ADW", "AB"], "拍手する猫": ["AW", "AGB", "AB"],
+  // 降臨キャラは2つ
+  "嵐鳥ゼフィル": ["AW", "ADW"], "雷獣ライガ": ["MK", "AGB"], "氷竜グラキエス": ["AGB", "AB"],
+  // ギミック対策要員（恒常キャラ）
+  "ヒエン": ["AB"], "レオバーン": ["ADW"], "スイレン": ["AB"], "マンタロス": ["AGB"], "コノハ": ["AB"],
+  "ミドリワシ": ["AW"], "キララ": ["AB"], "テンマ": ["MK"], "ヨイヤミ": ["AB"], "ネビュラ": ["ADW"],
 };
-// ふつうは1つ、生まれつき★6は2つ（キャラごとに決まっている）
-// さらに生まれつき★6は追加で、恒常★6は2つ（合計4つ）、限定★6は3つ（合計5つ＝全ギミック対策）
+// ふつうは1つ、恒常★6は2つ、限定★6は3つ（キャラごとに決まっている）
 for (const f of FAM) {
   const k = (f.idx * 7 + 3) % ABIL_BASE.length;
   f.abil = ABIL_FIXED[f.name] || (f.rar === 6 ? [ABIL_BASE[k], ABIL_BASE[(k + 2) % ABIL_BASE.length]] : [ABIL_BASE[k]]);
-  if (f.rar === 6) {
-    const add = LIMITED_ALL.includes(f.idx) ? 3 : 2;
-    const rest = ["AB", ...ABIL_BASE.slice(k), ...ABIL_BASE.slice(0, k)].filter(x => !f.abil.includes(x));
-    f.abil = [...f.abil, ...rest.slice(0, add)];
-  }
 }
 const hasAbil = (a, k) => FAM[a.fi].abil.includes(k);
 // 能力の表示（多い時は短い名前、全部そろっていれば「全ギミック対策」）
@@ -827,8 +845,10 @@ const GIM = {
 };
 const GIM_KEYS = Object.keys(GIM);
 const emptyGim = () => ({ warps: [], mines: [], dwall: [], gbars: [] });
+const MAX_GIMS = 3;   // 1つのステージに同時に出るギミックは3つまで
 function makeGimmicks(r, gims, place, enemies, rocks) {
   const g = emptyGim();
+  gims = gims.slice(0, MAX_GIMS);
   if (gims.includes("warp")) {
     const n = 2 + Math.floor(r() * 2);
     for (let i = 0; i < n; i++) { const p = place(16); g.warps.push({ x: p.x, y: p.y, r: 16 }); }
@@ -949,8 +969,43 @@ function abyssFloor(f) {
 }
 const abyssGem = f => 20 + Math.floor(f / 5) * 5 + (f % 10 === 0 ? 100 : 0);
 
+// 絶級（いちばん難しいステージ。10ステージを順番に解放）
+// 極限・神々の黄昏（スペシャル9つ目）をクリアすると挑戦できる
+const EXTREME = [
+  ["炎獄の門",       "fire",  "light", ["dwall", "mine"]],
+  ["氷結の深海",     "water", "dark",  ["warp", "gbar"]],
+  ["枯れ森の迷宮",   "wood",  "fire",  ["block", "mine", "warp"]],
+  ["天光の裁き",     "light", "water", ["dwall", "gbar"]],
+  ["常闇の玉座",     "dark",  "wood",  ["warp", "mine", "block"]],
+  ["雷鳴の天空城",   "light", "fire",  ["gbar", "dwall", "warp"]],
+  ["星砕きの荒野",   "fire",  "dark",  ["mine", "block", "gbar"]],
+  ["時の狭間",       "water", "light", ["warp", "dwall", "block"]],
+  ["終末の神殿",     "dark",  "fire",  ["gbar", "mine", "dwall"]],
+  ["無限の頂",       "wood",  "light", ["warp", "gbar", "mine"]],
+];
+const EXTREME_UNLOCK = 8;   // スペシャルクエストの番号（極限・神々の黄昏）
+const ROMAN = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ", "Ⅹ"];
+const extremeUnlocked = i => i === 0 ? !!save.cleared[EXTREME_UNLOCK] : !!save.cleared["h" + (i - 1)];
+function extremeStage(i) {
+  const [name, m, s, gims] = EXTREME[i];
+  const mul = 18 + i * 7;
+  const seed = w => seeded(950000 + i * 100 + w);
+  const waves = [
+    () => genWave(seed(0), m, s, 5, mul, null, true, gims),
+    () => genWave(seed(1), m, s, 6, mul, null, true, gims),
+    () => genWave(seed(2), m, s, 3, mul, { name: `${name}の番人`, hpMul: 1.8, r: 52, cd: 2 }, true, gims),
+    () => genWave(seed(3), m, s, 2, mul, { name: `絶・${name}の主`, hpMul: 3, r: 60, cd: 2 }, true, gims),
+  ];
+  return {
+    id: "h" + i, kind: "extreme", idx: i, name: `絶級${ROMAN[i]} ${name}`,
+    sub: `${EL[m].n}属性中心 / ${EL[ADV_BY[m]].n}属性が有利 / ガード・再生`, boss: true, diff: 10 + i, mul: 1, par: 16,
+    bg: ["#2a0a0a", "#050000"], coin: 80000 + i * 20000, gem: 300 + i * 100, crEl: m, crN: 20 + i * 3,
+    exp: 500 + i * 100, waves, gims,
+  };
+}
+
 // その属性に有利な属性（例: 木 → 火）
-const ADV_BY = Object.fromEntries(EL_KEYS.map(k => [k, EL_KEYS.find(a => ADV[a] === k)]));
+const ADV_BY =Object.fromEntries(EL_KEYS.map(k => [k, EL_KEYS.find(a => ADV[a] === k)]));
 
 // クエストID: 数字=スペシャル、"s番号"=ストーリー、"t階"=無限の塔、"u階"=深淵の塔、"xキャラ_段階"=試練
 function getQuest(id) {
@@ -961,6 +1016,7 @@ function getQuest(id) {
   // "e降臨_難易度"=降臨、"a週"=スコアアタック、"r週"=協力レイド
   if (id[0] === "e") { const [b, lv] = id.slice(1).split("_").map(Number); return eventQuest(b, lv); }
   if (id[0] === "a") return scoreQuest(Number(id.slice(1)));
+  if (id[0] === "h") return extremeStage(Number(id.slice(1)));
   if (id[0] === "r") return raidQuest(Number(id.slice(1)));
   return towerFloor(Number(id.slice(1)));
 }
@@ -1335,6 +1391,37 @@ function triggerCombo(a) {
       healParty(Math.round(a.hp * 0.15), a.x, a.y);
       break;
     }
+    case "tornado": {
+      // 竜巻: 半径110の敵に2回ダメージ
+      const rad = 110;
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: rad, r1: 12, life: 24, max: 24, color: "#aef0bf", w: 8 });
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 12, r1: rad, life: 30, max: 30, color: "#46c46a", w: 5 });
+      for (let n = 0; n < 2; n++) for (const e of alive()) if (Math.hypot(e.x - a.x, e.y - a.y) < rad + e.r) damageEnemy(e, a.atk * 1.4, a.el, false);
+      break;
+    }
+    case "raigeki": {
+      // 雷撃: 近い敵へ6回連鎖（同じ敵にも当たる）
+      let from = { x: a.x, y: a.y };
+      for (let k = 0; k < 6; k++) {
+        const list = alive();
+        if (!list.length) break;
+        const next = list.sort((p, q) => Math.hypot(p.x - from.x, p.y - from.y) - Math.hypot(q.x - from.x, q.y - from.y))[k % list.length];
+        fx.push({ kind: "bolt", x1: from.x, y1: from.y, x2: next.x, y2: next.y, life: 18, max: 18, color: "#fff3b8" });
+        damageEnemy(next, a.atk * 1.5, a.el, false);
+        from = next;
+      }
+      break;
+    }
+    case "hyouso": {
+      // 氷槍: 追尾する槍6本
+      fx.push({ kind: "ring", x: a.x, y: a.y, r0: 6, r1: 60, life: 18, max: 18, color: "#a6d4ff", w: 5 });
+      for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * Math.PI * 2;
+        addBolt(a.x, a.y, Math.cos(ang) * 7, Math.sin(ang) * 7, a.atk * 1.1, a.el, 6);
+        bolts[bolts.length - 1].beam = true;
+      }
+      break;
+    }
   }
   dmgSrc = prevSrc;
 }
@@ -1445,6 +1532,30 @@ function fire(dx, dy) {
       case "meteor":
         for (let i = 0; i < 8; i++) addBolt(rand(30, W - 30), TOP - 20 - i * 25, 0, 6, a.atk * 2.2, a.el, 9);
         break;
+      case "storm":
+        // 嵐の翼: 攻撃力3.5倍で突撃＋追尾する風の刃12発
+        shot.atkMul = 3.5;
+        sp *= 1.4;
+        for (let i = 0; i < 12; i++) {
+          const ang = (i / 12) * Math.PI * 2;
+          addBolt(a.x, a.y, Math.cos(ang) * 7, Math.sin(ang) * 7, a.atk * 1.5, a.el, 6);
+        }
+        break;
+      case "raijin":
+      case "blizzard": {
+        // 轟雷招来 / 絶対零度: 敵全体に大ダメージ＋攻撃を1ターン遅らせる
+        const ice = a.ss === "blizzard";
+        fx.push({ kind: "ring", x: W / 2, y: (TOP + FB) / 2, r0: 20, r1: 420, life: 34, max: 34, color: ice ? "#a6d4ff" : "#fff3b8", w: 16 });
+        for (const e of alive()) {
+          if (!ice) fx.push({ kind: "bolt", x1: e.x + rand(-20, 20), y1: TOP, x2: e.x, y2: e.y, life: 22, max: 22, color: "#fff3b8" });
+          else burst(e.x, e.y, "#e6f4ff", 14, 3);
+          damageEnemy(e, a.atk * (ice ? 10 : 12), a.el, false);
+          if (!e.dead) { e.cd++; addText(e.x, e.y + e.r + 10, "攻撃+1T", "#9ad5ff", 12); }
+        }
+        if (ice) healParty(Math.round(maxHp * 0.15), W / 2, FB - 20);
+        shake = Math.max(shake, 10);
+        break;
+      }
       case "smileburst":
         // フィールド全体に笑顔の光 → 全体に攻撃力30倍・攻撃遅延・回復・5ターン能力2.5倍
         fx.push({ kind: "smile", life: 60, max: 60 });
@@ -3655,6 +3766,8 @@ function drawResult() {
     if (quest.tier < TRIAL_TIERS) next = `x${quest.fi}_${quest.tier + 1}`;
   } else if (state === "clear" && quest.kind === "abyss") {
     next = "u" + (quest.floor + 1);
+  } else if (state === "clear" && quest.kind === "extreme" && quest.idx + 1 < EXTREME.length) {
+    next = "h" + (quest.idx + 1);
   }
   if (next) {
     button(60, 444, W - 120, 46,
@@ -3861,19 +3974,20 @@ function drawQuests() {
   drawMenuBg("#14203a", "#070b16");
   drawTopBar();
   header("クエスト", "");
-  const tabs = [["story", "ストーリー"], ["special", "スペシャル"], ["tower", "無限の塔"], ["abyss", "深淵の塔"], ["trial", "試練"]];
+  const tabs = [["story", "ストーリー"], ["special", "スペシャル"], ["tower", "無限の塔"], ["abyss", "深淵の塔"], ["trial", "試練"], ["extreme", "絶級"]];
   const tw = (W - 28) / tabs.length;
   tabs.forEach(([k, label], i) => {
     const x = 14 + i * tw, active = questTab === k;
-    ctx.fillStyle = active ? (k === "abyss" ? "#ff6b8b" : "#ffd35c") : "rgba(255,255,255,0.08)";
+    ctx.fillStyle = active ? (k === "abyss" || k === "extreme" ? "#ff6b8b" : "#ffd35c") : "rgba(255,255,255,0.08)";
     roundRect(x + 2, 78, tw - 4, 30, 9);
     ctx.fill();
-    txt(label, x + tw / 2, 93, 11, active ? "#1a1030" : "#cfd6ff", "center");
+    txt(label, x + tw / 2, 93, 10, active ? "#1a1030" : "#cfd6ff", "center");
     button(x, 78, tw, 30, "", () => { questTab = k; }, { hidden: true });
   });
   if (questTab === "story") drawStoryList();
   else if (questTab === "special") drawSpecialList();
   else if (questTab === "trial") drawTrialList();
+  else if (questTab === "extreme") drawExtremeList();
   else drawTowerPanel(questTab === "abyss");
   drawNav();
 }
@@ -3974,6 +4088,29 @@ function drawTrialList() {
       button(W - 108, y + 8, 88, 29, `試練${TRIAL_ROMAN[t + 1]}`, () => startQuest(q.id),
         { size: 13, c1: "#d6bcff", c2: "#6a2ad6", fg: "#fff" });
     }
+  });
+}
+
+// 絶級: いちばん難しい10ステージ（ガード・再生＋ギミック3つまで、4WAVE）
+function drawExtremeList() {
+  txt(`極限・神々の黄昏をクリアで解放。ギミックは最大${MAX_GIMS}つ`, W / 2, 122, 11, "#ff9ab8", "center");
+  EXTREME.forEach((_, i) => {
+    const q = extremeStage(i), y = 132 + i * 44, unlocked = extremeUnlocked(i), cleared = !!save.cleared[q.id];
+    button(14, y, W - 28, 40, "", () => {
+      if (!unlocked) { showToast(i === 0 ? "スペシャルの「極限・神々の黄昏」をクリアしよう" : "前の絶級をクリアしよう"); return; }
+      startQuest(q.id);
+    }, { c1: unlocked ? "#5a0f1a" : "#2a2d3a", c2: unlocked ? "#150508" : "#15171f" });
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    outlinedText(q.name, 24, y + 13, unlocked ? "#ffb0c0" : "#777", 13);
+    ctx.textAlign = "right";
+    outlinedText(`★${q.diff}`, W - 24, y + 13, unlocked ? "#ff6b8b" : "#777", 11);
+    ctx.restore();
+    if (!unlocked) { txt("LOCK", 24, y + 30, 10, "#777"); return; }
+    txt(cleared ? `CLEAR ベスト${save.best[q.id]}T` : `初回ジェム${q.gem}`, 24, y + 30, 10, cleared ? "#7dffa0" : "#5ef0ff");
+    txt(gimText(q.gims), 120, y + 30, 9, "#ff9ab8", "left", "normal");
+    txt(`対策 ${gimCounter(q.gims)}`, W - 24, y + 30, 9, "#7cf0ff", "right", "normal");
   });
 }
 
@@ -4649,9 +4786,12 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
-  { id: "up-2026-10-19-f", date: "2026-10-19", title: "名前の設定・★6の能力追加",
+  { id: "up-2026-10-19-g", date: "2026-10-19", title: "絶級ステージ・新キャラ10体",
+    body: "クエストに最高難度「絶級」10ステージを追加（極限・神々の黄昏クリアで解放、初回ジェム最大1200）。\n"
+      + "ギミック対策が得意な恒常キャラ10体がガチャに登場。降臨キャラ3体は専用の友情コンボ・SSで強くなりました。\n"
+      + "対策能力は恒常★6が2つ、限定★6が3つ（アンチブロック入り）に調整。ギミックは1ステージ最大3つまでです。" },
+  { id: "up-2026-10-19-f", date: "2026-10-19", title: "名前の設定・アンチブロック",
     body: "ホームの右側のボタンで、いつでもプレイヤー名を決められるようになりました（ランキング・協力レイドに表示）。\n"
-      + "生まれつき★6のキャラにギミック対策の能力を追加！恒常★6は＋2つ、限定★6は＋3つで全ギミックに対応。"
       + "新しい能力「アンチブロック（AB）」は動くブロックをすり抜けます。" },
   { id: "up-2026-10-19-e", date: "2026-10-19", title: "協力レイドがオンラインに！",
     body: "協力レイドで、みんなで同じボス（HP3000万）を削れるようになりました。バトル中もほかの人のダメージが反映されます。"
