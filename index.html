@@ -3518,6 +3518,9 @@ function drawGacha() {
   });
   if (!findGacha(gachaBanner)) gachaBanner = list[0].key;
   const B = findGacha(gachaBanner);
+  const fest = B.key === "clap";   // 超拍手祭はお祭り仕様の豪華な画面
+  if (fest) drawFestivalBanner(B);
+  else {
   // バナー
   ctx.save();
   const g = ctx.createLinearGradient(0, 80, 0, 330);
@@ -3570,6 +3573,7 @@ function drawGacha() {
       txt(f.name, x, y + 22, 9, "#fff", "center");
     });
   }
+  }
   // 残り時間
   if (B.endsAt) {
     const left = Math.max(0, B.endsAt - Date.now());
@@ -3585,11 +3589,183 @@ function drawGacha() {
   const r6 = rate6Total(B);
   txt(`提供割合  ★6: ${pct(r6)}%  ★5: ${pct(RATE5)}%  ★4: ${pct(RATE4)}%  ★3: ${pct(1 - r6 - RATE5 - RATE4)}%`, W / 2, 350, 11, "#cfd6ff", "center");
   txt("持っているキャラが出ると「覚醒」(最大5) で能力アップ", W / 2, 368, 11, "#cfd6ff", "center");
-  button(24, 392, W - 48, 64, "1回ガチャ", () => pullGacha(1),
-    { size: 18, sub: `ジェム ${GACHA_1}`, disabled: save.gems < GACHA_1 });
-  button(24, 468, W - 48, 72, "10連ガチャ", () => pullGacha(10),
-    { size: 20, sub: `ジェム ${GACHA_10}  ★4以上1体確定`, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff", disabled: save.gems < GACHA_10 });
+  button(24, 392, W - 48, 64, fest ? "1回 お祭りガチャ" : "1回ガチャ", () => pullGacha(1),
+    { size: 18, sub: `ジェム ${GACHA_1}`, disabled: save.gems < GACHA_1,
+      ...(fest ? { c1: "#ffe27a", c2: "#e8890c", fg: "#5a1800" } : {}) });
+  button(24, 468, W - 48, 72, fest ? "10連 お祭りガチャ" : "10連ガチャ", () => pullGacha(10),
+    { size: 20, sub: `ジェム ${GACHA_10}  ★4以上1体確定`, disabled: save.gems < GACHA_10,
+      ...(fest ? { c1: "#ff5a7a", c2: "#a0145a", fg: "#fff" } : { c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" }) });
+  if (fest) {
+    // ボタンのふちを金色にきらめかせる
+    ctx.save();
+    ctx.strokeStyle = `hsla(${45 + Math.sin(frameNo * 0.1) * 10},100%,65%,${0.6 + Math.sin(frameNo * 0.15) * 0.4})`;
+    ctx.lineWidth = 3;
+    roundRect(22, 466, W - 44, 76, 12);
+    ctx.stroke();
+    ctx.restore();
+  }
   drawNav();
+}
+
+// ---- 超拍手祭の豪華なバナー（提灯・花火・紙吹雪・金の額縁・スポットライト） ------------
+function drawFestivalBanner(B) {
+  const bx = 14, by = 82, bw = W - 28, bh = 250;
+  ctx.save();
+  // 夜空のグラデーション
+  const bgG = ctx.createLinearGradient(0, by, 0, by + bh);
+  bgG.addColorStop(0, "#2a0a3a");
+  bgG.addColorStop(0.55, "#6a1450");
+  bgG.addColorStop(1, "#c0303a");
+  ctx.fillStyle = bgG;
+  roundRect(bx, by, bw, bh, 16);
+  ctx.fill();
+  ctx.clip();
+  // 花火（場所と色は時間ごとに切り替わる）
+  for (let k = 0; k < 3; k++) {
+    const period = 90, t = (frameNo + k * 30) % period, n = Math.floor((frameNo + k * 30) / period);
+    const rnd = seeded(n * 31 + k * 7);
+    const fx0 = bx + 30 + rnd() * (bw - 60), fy0 = by + 40 + rnd() * 90, hue = Math.floor(rnd() * 360);
+    const prog = t / period, rad = 10 + prog * 55;
+    ctx.globalAlpha = Math.max(0, 1 - prog);
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * Math.PI * 2;
+      ctx.fillStyle = `hsl(${hue + i * 6},100%,70%)`;
+      ctx.beginPath(); ctx.arc(fx0 + Math.cos(a) * rad, fy0 + Math.sin(a) * rad, 2.2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // スポットライト（猫を照らす）
+  const spot = ctx.createRadialGradient(W / 2, by + 150, 10, W / 2, by + 150, 120);
+  spot.addColorStop(0, "rgba(255,240,170,0.55)");
+  spot.addColorStop(1, "rgba(255,240,170,0)");
+  ctx.fillStyle = spot;
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - 18, by);
+  ctx.lineTo(W / 2 + 18, by);
+  ctx.lineTo(W / 2 + 95, by + 215);
+  ctx.lineTo(W / 2 - 95, by + 215);
+  ctx.closePath();
+  ctx.fill();
+  // 紙吹雪
+  for (let i = 0; i < 46; i++) {
+    const sx = bx + ((i * 73 + Math.sin(frameNo * 0.02 + i) * 14) % bw + bw) % bw;
+    const sy = by + ((i * 41 + frameNo * (0.6 + (i % 4) * 0.25)) % bh);
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(frameNo * 0.05 + i);
+    ctx.fillStyle = ["#ffd35c", "#ff6b8b", "#7cf0ff", "#9dff8a", "#d6bcff", "#ffffff"][i % 6];
+    ctx.fillRect(-3, -1.5, 6, 3);
+    ctx.restore();
+  }
+  // 提灯（ひもにつるされて少しゆれる）
+  ctx.strokeStyle = "#3a1a0a";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(bx, by + 18);
+  ctx.quadraticCurveTo(W / 2, by + 34, bx + bw, by + 18);
+  ctx.stroke();
+  const lanterns = 6;
+  for (let i = 0; i < lanterns; i++) {
+    const lx = bx + 26 + i * (bw - 52) / (lanterns - 1);
+    const sag = Math.sin((i / (lanterns - 1)) * Math.PI) * 14;
+    const ly = by + 34 + sag, sw = Math.sin(frameNo * 0.05 + i) * 0.12;
+    ctx.save();
+    ctx.translate(lx, ly - 12 + sag * 0);
+    ctx.rotate(sw);
+    // 光
+    const glow = ctx.createRadialGradient(0, 12, 2, 0, 12, 22);
+    glow.addColorStop(0, "rgba(255,200,90,0.6)");
+    glow.addColorStop(1, "rgba(255,200,90,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(0, 12, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2a1208";
+    ctx.fillRect(-5, 0, 10, 3);
+    ctx.fillRect(-5, 21, 10, 3);
+    ctx.fillStyle = i % 2 ? "#e8323a" : "#ff6a2a";
+    ctx.beginPath(); ctx.ellipse(0, 12, 9, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(90,20,10,0.5)";
+    ctx.lineWidth = 1;
+    for (const dy of [-5, 0, 5]) {
+      ctx.beginPath(); ctx.ellipse(0, 12 + dy, 9 * Math.sqrt(1 - (dy / 10) ** 2), 1.2, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (i === 2 || i === 3) txt("祭", 0, 13, 9, "#fff6c0", "center", "900");
+    ctx.restore();
+  }
+  ctx.restore();
+  // 金の額縁（二重線＋四隅の飾り）
+  ctx.save();
+  const frameG = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
+  frameG.addColorStop(0, "#fff3b0");
+  frameG.addColorStop(0.5, "#d4a020");
+  frameG.addColorStop(1, "#fff3b0");
+  ctx.strokeStyle = frameG;
+  ctx.lineWidth = 5;
+  roundRect(bx, by, bw, bh, 16);
+  ctx.stroke();
+  ctx.lineWidth = 1.5;
+  roundRect(bx + 6, by + 6, bw - 12, bh - 12, 12);
+  ctx.stroke();
+  ctx.fillStyle = "#ffd35c";
+  for (const [cx, cy] of [[bx + 8, by + 8], [bx + bw - 8, by + 8], [bx + 8, by + bh - 8], [bx + bw - 8, by + bh - 8]]) {
+    starPath(cx, cy, 7 + Math.sin(frameNo * 0.12 + cx) * 1.5);
+    ctx.fill();
+  }
+  ctx.restore();
+  // タイトル（金色＋光る）
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const pulse = 1 + Math.sin(frameNo * 0.08) * 0.04;
+  ctx.translate(W / 2, by + 74);
+  ctx.scale(pulse, pulse);
+  ctx.shadowColor = "#ffcf4a";
+  ctx.shadowBlur = 18;
+  const tg = ctx.createLinearGradient(0, -16, 0, 16);
+  tg.addColorStop(0, "#fffbe0");
+  tg.addColorStop(0.5, "#ffd35c");
+  tg.addColorStop(1, "#e8890c");
+  ctx.font = "900 30px system-ui, sans-serif";
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#7a0a20";
+  ctx.strokeText(B.name, 0, 0);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = tg;
+  ctx.fillText(B.name, 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("★6限定キャラ 全員集合!", W / 2, by + 100, "#fff", 13, "#7a0a20");
+  ctx.restore();
+  // ★6キャラ: 猫を真ん中に大きく、ほかの限定キャラを左右に
+  const lims = B.limited.map(fi => FAM[fi]);
+  const cat = lims.find(f => f.idx === LIMITED_CAT), others = lims.filter(f => f.idx !== LIMITED_CAT);
+  others.forEach((lf, i) => {
+    const side = i % 2 ? 1 : -1, row = Math.floor(i / 2);
+    const lx = W / 2 + side * (row ? 72 : 118), ly = by + 148 + row * 42 + Math.sin(frameNo * 0.06 + i) * 4;
+    drawChar({ shape: lf.shape, el: lf.el, acc: lf.acc, eye: lf.eye, rar: 6, evo: false }, lx, ly, 16);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText(lf.name, lx, ly + 30, "#fff", 9, "#5a0a30");
+    ctx.restore();
+  });
+  if (cat) {
+    const cy = by + 160 + Math.sin(frameNo * 0.07) * 5;
+    drawChar({ shape: cat.shape, el: cat.el, acc: cat.acc, eye: cat.eye, rar: 6, evo: false }, W / 2, cy, 30);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    outlinedText(cat.name, W / 2, cy + 52, `hsl(${(frameNo * 4) % 360},95%,75%)`, 14, "#3a0a20");
+    // パチパチ（拍手の音がふわっと浮かぶ）
+    for (let i = 0; i < 3; i++) {
+      const t = (frameNo + i * 40) % 120 / 120;
+      const px = W / 2 + (i - 1) * 46 + Math.sin(t * 6 + i) * 6, py = cy - 22 - t * 40;
+      ctx.globalAlpha = 1 - t;
+      outlinedText("パチパチ", px, py, "#ffe066", 10, "#5a1800");
+    }
+    ctx.restore();
+  }
 }
 
 function drawGachaAnim() {
