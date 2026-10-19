@@ -870,6 +870,7 @@ function makeAlly(fi, x, y) {
     combo: f.combo, comboName: COMBO[f.combo].name,
     ss: f.ss, ssName: ssName(fi), ssTurns: t, ssDesc: SS[f.ss].desc, ssLeft: t,
     look: look(fi), x, y, vx: 0, vy: 0, hurt: 0, glow: 0,
+    shin: trialTier(fi) >= TRIAL_TIERS,   // 試練Ⅲクリア → 真の力（ガード無効・ボス×1.5）
   };
 }
 
@@ -976,10 +977,15 @@ function weakPos(e) {
 }
 
 // ---- ダメージ ---------------------------------------------------------
+// 今ダメージを出しているキャラ（体当たり・友情コンボ・SS・追尾弾のもとになったキャラ）
+let dmgSrc = null;
+const SHIN_BOSS_MUL = 1.5;   // 真の力: ボスへのダメージ倍率
+
 function damageEnemy(e, base, el, weak) {
   if (e.dead) return;
-  const guarded = e.guard && !weak;   // ガード持ちは弱点以外 1/4
-  const m = elemMult(el, e.el) * (weak ? 3 : 1) * (guarded ? 0.25 : 1);
+  const shin = !!(dmgSrc && dmgSrc.shin);   // 試練Ⅲクリアの「真の力」
+  const guarded = e.guard && !weak && !shin;   // ガード持ちは弱点以外 1/4（真の力なら無効）
+  const m = elemMult(el, e.el) * (weak ? 3 : 1) * (guarded ? 0.25 : 1) * (shin && e.boss ? SHIN_BOSS_MUL : 1);
   const dmg = Math.round(base * m * rand(0.92, 1.08));
   if (guarded && Math.random() < 0.25) addText(e.x, e.y + e.r + 8, "ガード", "#9ad5ff", 11);
   e.hp -= dmg;
@@ -1018,11 +1024,13 @@ function healParty(v, x, y) {
 }
 
 function addBolt(x, y, vx, vy, base, el, size = 4) {
-  bolts.push({ x, y, vx, vy, target: null, base, el, color: EL[el].l, size, life: 140 });
+  bolts.push({ x, y, vx, vy, target: null, base, el, color: EL[el].l, size, life: 140, src: dmgSrc });
 }
 
 // ---- 友情コンボ ---------------------------------------------------------
 function triggerCombo(a) {
+  const prevSrc = dmgSrc;
+  dmgSrc = a;   // 試練Ⅲの「真の力」を友情コンボにも乗せる
   a.glow = 20;
   const col = EL[a.el].l;
   addText(a.x, a.y - 30, a.comboName, col, 13);
@@ -1111,6 +1119,7 @@ function triggerCombo(a) {
       break;
     }
   }
+  dmgSrc = prevSrc;
 }
 
 // ---- ストライクショット -----------------------------------------------------
@@ -1194,9 +1203,10 @@ function fire(dx, dy) {
     addStat("ss");
     showBanner(a.ssName, "ストライクショット!", EL[a.el].c);
     burst(a.x, a.y, EL[a.el].l, 30, 5);
+    dmgSrc = a;
     switch (a.ss) {
       case "burst":  shot.atkMul = 3; sp *= 1.3; break;
-      case "wave":   fx.push({ kind: "wave", y: FB, life: 45, max: 45, hit: new Set(), base: a.atk * 3.5, el: a.el }); break;
+      case "wave":   fx.push({ kind: "wave", y: FB, life: 45, max: 45, hit: new Set(), base: a.atk * 3.5, el: a.el, src: a }); break;
       case "needle": shot.needle = 30; break;
       case "judge":  judgeLaser(a, dx, dy); break;
       case "handshake":
@@ -1230,6 +1240,7 @@ function fire(dx, dy) {
         shake = Math.max(shake, 14);
         break;
     }
+    dmgSrc = null;
   }
   a.vx = dx * sp;
   a.vy = dy * sp;
@@ -1254,8 +1265,10 @@ function updateShot() {
           s.cool.set(e.id, a.type === "reflect" ? 6 : 10);
           let weak = false;
           if (e.weak !== null) { const w = weakPos(e); weak = Math.hypot(a.x - w.x, a.y - w.y) < R + w.r; }
+          dmgSrc = a;
           damageEnemy(e, a.atk * s.atkMul, a.el, weak);
           if (s.handshake) handshakeHit(a, e);
+          dmgSrc = null;
         }
       }
       for (const o of allies) {
@@ -1284,7 +1297,9 @@ function updateShot() {
       s.needle--;
       s.needleT = 4;
       const ang = Math.random() * Math.PI * 2;
+      dmgSrc = a;
       addBolt(a.x, a.y, Math.cos(ang) * 6, Math.sin(ang) * 6, a.atk * 0.8, a.el);
+      dmgSrc = null;
     }
 
     if (Math.hypot(a.vx, a.vy) < STOP) {
@@ -1428,7 +1443,9 @@ function finishQuest() {
     save.trial = save.trial || {};
     save.trial[q.fi] = q.tier;
     trialUp = { fi: q.fi, tier: q.tier };
-    showToast(`${FAM[q.fi].name} が強化された! 能力×${TRIAL_MUL[q.tier]}${TRIAL_SS[q.tier] ? `・SS-${TRIAL_SS[q.tier]}` : ""}`);
+    showToast(q.tier >= TRIAL_TIERS
+      ? `${FAM[q.fi].name} が真の力に目覚めた! ガード無効・ボス×${SHIN_BOSS_MUL}`
+      : `${FAM[q.fi].name} が強化された! 能力×${TRIAL_MUL[q.tier]}${TRIAL_SS[q.tier] ? `・SS-${TRIAL_SS[q.tier]}` : ""}`);
   }
   addStat("clears");
   if (rank === "S") addStat("srank");
@@ -1587,7 +1604,9 @@ function updateBolts() {
     b.x += b.vx;
     b.y += b.vy;
     if (d < b.target.r) {
+      dmgSrc = b.src;
       damageEnemy(b.target, b.base, b.el, false);
+      dmgSrc = null;
       if (b.size > 6) burst(b.x, b.y, b.color, 14, 4);
       b.life = 0;
     }
@@ -1601,7 +1620,12 @@ function updateFx() {
     if (f.kind === "wave") {
       f.y = FB - (FB - TOP + 40) * (1 - f.life / f.max);
       for (const e of alive()) {
-        if (!f.hit.has(e.id) && e.y + e.r > f.y) { f.hit.add(e.id); damageEnemy(e, f.base, f.el, false); }
+        if (!f.hit.has(e.id) && e.y + e.r > f.y) {
+          f.hit.add(e.id);
+          dmgSrc = f.src;
+          damageEnemy(e, f.base, f.el, false);
+          dmgSrc = null;
+        }
       }
     }
   }
@@ -2944,6 +2968,7 @@ function drawAllies() {
       }
     }
     ctx.restore();
+    if (a.shin) drawShinRing(a);
     if (a.rally) {
       // 応援中はオレンジの輪
       ctx.save();
@@ -2993,8 +3018,27 @@ function drawAllies() {
       ctx.beginPath(); ctx.arc(shooter.x, shooter.y, R + 8 + Math.sin(frameNo) * 2, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
+    if (shooter.shin) drawShinRing(shooter);
     drawChar(shooter.look, shooter.x, shooter.y, R);
   }
+}
+
+// 真の力（試練Ⅲクリア）: 回る金色の二重の輪
+function drawShinRing(a) {
+  ctx.save();
+  ctx.strokeStyle = "#ffd35c";
+  ctx.shadowColor = "#ffd35c";
+  ctx.shadowBlur = 8;
+  ctx.lineWidth = 2.5;
+  ctx.globalAlpha = 0.75 + Math.sin(frameNo * 0.15) * 0.2;
+  const rot = frameNo * 0.05;
+  for (let k = 0; k < 3; k++) {
+    const s = rot + k * Math.PI * 2 / 3;
+    ctx.beginPath(); ctx.arc(a.x, a.y, R + 9, s, s + 1.4); ctx.stroke();
+  }
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(a.x, a.y, R + 4, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
 }
 
 function drawBolts() {
@@ -3534,7 +3578,8 @@ function drawTrialList() {
       button(W - 108, y + 8, 88, 29, "未所持", () => showToast("ガチャで手に入れると挑戦できます"),
         { size: 12, disabled: true });
     } else if (t >= TRIAL_TIERS) {
-      txt("強化完了", W - 64, y + 22, 13, "#ffd35c", "center", "900");
+      txt("真の力 解放", W - 66, y + 18, 13, "#ffd35c", "center", "900");
+      txt("ガード無効・ボス×1.5", W - 66, y + 35, 9, "#ffe9a8", "center", "normal");
     } else {
       const q = trialQuest(f.idx, t + 1);
       button(W - 108, y + 8, 88, 29, `試練${TRIAL_ROMAN[t + 1]}`, () => startQuest(q.id),
@@ -4113,7 +4158,8 @@ function drawDetail() {
   } else {
     const tt = trialTier(fi);
     txt(FAM[fi].rar === 6
-      ? `最終進化（★6）・試練 ${tt}/${TRIAL_TIERS}${tt ? `（能力×${TRIAL_MUL[tt]}）` : ""}`
+      ? (tt >= TRIAL_TIERS ? `真の力: ガード無効・ボス×${SHIN_BOSS_MUL}（能力×${TRIAL_MUL[tt]}）`
+        : `最終進化（★6）・試練 ${tt}/${TRIAL_TIERS}${tt ? `（能力×${TRIAL_MUL[tt]}）` : ""}`)
       : "最終進化（★6）", 28, 422, 11, "#ff8ae6");
   }
   crystalIcon(f.el, W - 70, 422, 7);
