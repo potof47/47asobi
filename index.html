@@ -1464,8 +1464,11 @@ const dayStart = s => new Date(s + "T00:00:00").getTime();
 // 今開催中の限定ガチャ（管理者の予定 → なければ自動ローテーション）
 function activeLimitedGachas() {
   const now = Date.now();
-  const planned = (CFG.gachaSchedule || []).filter(g => g && g.name && g.from && g.until
+  const planned = (CFG.gachaSchedule || []).filter(g => g && (g.name || g.key) && g.from && g.until
     && now >= dayStart(g.from) && now < dayStart(g.until) + DAY).map((g, i) => {
+    // key に既存の限定ガチャ（star / fire / clap）を指定すると、その画面・★6キャラのまま期間だけ予定どおりに出す
+    const base = LIMITED_GACHAS.find(b => b.key === g.key);
+    if (base) return { ...base, name: g.name || base.name, endsAt: dayStart(g.until) + DAY };
     const ids = (g.limited || []).map(n => FAM.find(f => f.name === n)).filter(Boolean).map(f => f.idx);
     return { key: "plan" + i + g.from, name: g.name, short: (g.short || g.name).slice(0, 7), limited: ids,
       c1: g.c1 || "#ffcf4a", c2: g.c2 || "#d6542a", endsAt: dayStart(g.until) + DAY };

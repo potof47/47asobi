@@ -3,7 +3,9 @@
   "news": [],
   "campaign": { "title": "", "coinMul": 1, "expMul": 1, "gemMul": 1, "from": "", "until": "" },
   "gacha": { "price1": 50, "price10": 450, "rate6": 0.01, "rate5": 0.06, "rate4": 0.3, "limited": ["ikesaki", "ジン"], "limited2": ["パニパニ"], "stdRate6": 0.01 },
-  "gachaSchedule": [],
+  "gachaSchedule": [
+    { "key": "clap", "name": "超拍手祭", "short": "超拍手祭", "from": "2026-10-19", "until": "2026-10-21", "limited": ["ikesaki", "ジン", "パニパニ", "拍手する猫"] }
+  ],
   "daily": { "gems": 50, "coins": 1000 },
   "starter": { "gems": 500, "coins": 3000 },
   "difficulty": 1,
