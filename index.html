@@ -393,6 +393,7 @@ function normalizeSave(s) {
   const nums = o => Object.fromEntries(Object.entries(o && typeof o === "object" ? o : {}).map(([k, v]) => [k, int(v, 0, 1e12, 0)]));
   out.stats = nums(s.stats);
   out.ach = nums(s.ach);
+  out.trial = Object.fromEntries(Object.entries(nums(s.trial)).map(([k, v]) => [k, Math.min(3, v)]));
   return out;
 }
 
@@ -493,7 +494,8 @@ const owned = fi => !!save.box[fi];
 function unitRar(fi) { return save.box[fi] ? save.box[fi].rar : FAM[fi].rar; }
 function displayName(fi) {
   const f = FAM[fi], rar = unitRar(fi);
-  return rar > f.rar ? EL[f.el].p[rar - 4] + f.name : f.name;
+  const base = rar > f.rar ? EL[f.el].p[rar - 4] + f.name : f.name;
+  return trialTier(fi) >= TRIAL_TIERS ? "真・" + base : base;   // 試練Ⅲクリアで「真・」
 }
 function look(fi) {
   const f = FAM[fi];
@@ -506,14 +508,45 @@ function unitStats(fi) {
   // タイプ補正 [攻撃力, HP]: 反射は攻撃力1.5倍
   const tm = f.type === "pierce" ? [1.05, 0.95] : [1.5, 1];
   const bo = f.boost || 1;
-  const pb = isLimited(fi) ? 1 : PERM_BONUS;   // 恒常キャラの底上げ
+  const pb = (isLimited(fi) ? 1 : PERM_BONUS) * TRIAL_MUL[trialTier(fi)];   // 恒常キャラの底上げ × 試練の強化
   return {
     atk: Math.round(b.atk * v * tm[0] * lvm * am * bo * pb),
     hp: Math.round(b.hp * (2 - v) * tm[1] * lvm * am * bo * pb),
     spd: b.spd + (fi % 3) * 0.4 + (bo > 1 ? 1.5 : 0),
   };
 }
-function ssTurns(fi) { return Math.max(4, SS[FAM[fi].ss].turns - (unitRar(fi) - FAM[fi].rar)); }
+function ssTurns(fi) {
+  return Math.max(4, SS[FAM[fi].ss].turns - (unitRar(fi) - FAM[fi].rar) - TRIAL_SS[trialTier(fi)]);
+}
+
+// ---- 試練（★6キャラ専用の強化クエスト）------------------------------------
+// 試練Ⅰ〜Ⅲをクリアするたびに、そのキャラが永久に強くなる
+const TRIAL_TIERS = 3;
+const TRIAL_MUL = [1, 1.15, 1.3, 1.5];     // 能力の倍率（クリアした段階ごと）
+const TRIAL_SS = [0, 0, 1, 2];             // SSのターン短縮
+const TRIAL_ROMAN = ["", "Ⅰ", "Ⅱ", "Ⅲ"];
+const trialChars = () => FAM.filter(f => f.rar === 6);   // 生まれつき★6のキャラ
+const trialTier = fi => Math.min(TRIAL_TIERS, (save && save.trial && save.trial[fi]) || 0);
+
+function trialQuest(fi, tier) {
+  const f = FAM[fi];
+  const m = f.el, s = ADV_BY[f.el];        // そのキャラが不利な属性の敵も混ざる
+  const mul = [0, 2.2, 4.5, 8][tier], hard = tier >= 2;
+  const bossName = `${f.name}の影`;
+  const waves = [
+    () => genWave(seeded(700000 + fi * 10 + tier), m, s, 4, mul, null, hard),
+    () => genWave(seeded(710000 + fi * 10 + tier), s, m, 5, mul, null, hard),
+    () => genWave(seeded(720000 + fi * 10 + tier), m, s, 3, mul, { name: bossName, hpMul: 1.6 + tier * 0.4, r: 54, cd: 2 }, hard),
+  ];
+  return {
+    id: `x${fi}_${tier}`, kind: "trial", fi, tier,
+    name: `${f.name}の試練${TRIAL_ROMAN[tier]}`,
+    sub: `${EL[m].n}・${EL[s].n}属性の敵${hard ? " / ガード・再生" : ""}`,
+    boss: true, diff: 6 + tier, mul: 1, par: 12,
+    bg: ["#1a0a2a", "#05020a"], coin: 5000 * tier, gem: 50 * tier, crEl: f.el, crN: 5 * tier,
+    exp: 150 * tier, waves,
+  };
+}
 function ssName(fi) {
   const s = SS[FAM[fi].ss];
   return s.fixed ? s.name : EL[FAM[fi].el].w + "の" + s.name;
@@ -792,11 +825,12 @@ const abyssGem = f => 20 + Math.floor(f / 5) * 5 + (f % 10 === 0 ? 100 : 0);
 // その属性に有利な属性（例: 木 → 火）
 const ADV_BY = Object.fromEntries(EL_KEYS.map(k => [k, EL_KEYS.find(a => ADV[a] === k)]));
 
-// クエストID: 数字=スペシャル、"s番号"=ストーリー、"t階"=無限の塔、"u階"=深淵の塔
+// クエストID: 数字=スペシャル、"s番号"=ストーリー、"t階"=無限の塔、"u階"=深淵の塔、"xキャラ_段階"=試練
 function getQuest(id) {
   if (typeof id === "number") return { ...QUESTS[id], id, kind: "special", exp: 60 * QUESTS[id].diff };
   if (id[0] === "s") return storyStage(Number(id.slice(1)));
   if (id[0] === "u") return abyssFloor(Number(id.slice(1)));
+  if (id[0] === "x") { const [fi, tier] = id.slice(1).split("_").map(Number); return trialQuest(fi, tier); }
   return towerFloor(Number(id.slice(1)));
 }
 const storyUnlocked = n => n === 0 || !!save.cleared["s" + (n - 1)];
@@ -841,8 +875,14 @@ function makeAlly(fi, x, y) {
 
 function startQuest(i) {
   if (maintenanceOn()) { showToast("メンテナンス中です"); return; }
+  const q = getQuest(i);
+  // 試練はそのキャラを編成に入れて挑戦する
+  if (q.kind === "trial" && !save.party.map(Number).includes(q.fi)) {
+    showToast(`${FAM[q.fi].name}を編成に入れて挑戦しよう`);
+    return;
+  }
   questIdx = i;
-  quest = getQuest(i);
+  quest = q;
   waveIdx = 0;
   const n = save.party.length;
   allies = save.party.map((fi, k) => makeAlly(fi, W / (n + 1) * (k + 1), 505));
@@ -1382,13 +1422,21 @@ function finishQuest() {
   save.cleared[questIdx] = true;
   if (q.kind === "tower") save.towerMax = Math.max(save.towerMax || 0, q.floor);
   if (q.kind === "abyss") save.abyssMax = Math.max(save.abyssMax || 0, q.floor);
+  // 試練: 初めてクリアした段階まで、そのキャラを強化
+  let trialUp = null;
+  if (q.kind === "trial" && trialTier(q.fi) < q.tier) {
+    save.trial = save.trial || {};
+    save.trial[q.fi] = q.tier;
+    trialUp = { fi: q.fi, tier: q.tier };
+    showToast(`${FAM[q.fi].name} が強化された! 能力×${TRIAL_MUL[q.tier]}${TRIAL_SS[q.tier] ? `・SS-${TRIAL_SS[q.tier]}` : ""}`);
+  }
   addStat("clears");
   if (rank === "S") addStat("srank");
   const up = addExp(exp);
   if (up.ranks) showToast(`ランクアップ! ランク${save.rank}  ジェム+${up.gems}`);
   persist();
   lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, netRank: undefined,
-    exp, kind: q.kind };
+    exp, kind: q.kind, trialUp };
   if (q.kind !== "special") { state = "clear"; return; }
   // ランキングに記録（スペシャルクエストのみ）
   const leader = displayName(save.party[0]);
@@ -3190,11 +3238,15 @@ function drawResult() {
     if (n < STORY_COUNT) next = "s" + n;
   } else if (state === "clear" && quest.kind === "tower") {
     next = "t" + (quest.floor + 1);
+  } else if (state === "clear" && quest.kind === "trial") {
+    if (quest.tier < TRIAL_TIERS) next = `x${quest.fi}_${quest.tier + 1}`;
   } else if (state === "clear" && quest.kind === "abyss") {
     next = "u" + (quest.floor + 1);
   }
   if (next) {
-    button(60, 444, W - 120, 46, quest.floor ? `${quest.floor + 1}階へ` : "次のステージへ", () => startQuest(next),
+    button(60, 444, W - 120, 46,
+      quest.kind === "trial" ? `次の試練（${TRIAL_ROMAN[quest.tier + 1]}）へ` : quest.floor ? `${quest.floor + 1}階へ` : "次のステージへ",
+      () => startQuest(next),
       { size: 16, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
   }
   const y0 = next ? 498 : 456;
@@ -3376,18 +3428,19 @@ function drawQuests() {
   drawMenuBg("#14203a", "#070b16");
   drawTopBar();
   header("クエスト", "");
-  const tabs = [["story", "ストーリー"], ["special", "スペシャル"], ["tower", "無限の塔"], ["abyss", "深淵の塔"]];
+  const tabs = [["story", "ストーリー"], ["special", "スペシャル"], ["tower", "無限の塔"], ["abyss", "深淵の塔"], ["trial", "試練"]];
   const tw = (W - 28) / tabs.length;
   tabs.forEach(([k, label], i) => {
     const x = 14 + i * tw, active = questTab === k;
     ctx.fillStyle = active ? (k === "abyss" ? "#ff6b8b" : "#ffd35c") : "rgba(255,255,255,0.08)";
     roundRect(x + 2, 78, tw - 4, 30, 9);
     ctx.fill();
-    txt(label, x + tw / 2, 93, 12, active ? "#1a1030" : "#cfd6ff", "center");
+    txt(label, x + tw / 2, 93, 11, active ? "#1a1030" : "#cfd6ff", "center");
     button(x, 78, tw, 30, "", () => { questTab = k; }, { hidden: true });
   });
   if (questTab === "story") drawStoryList();
   else if (questTab === "special") drawSpecialList();
+  else if (questTab === "trial") drawTrialList();
   else drawTowerPanel(questTab === "abyss");
   drawNav();
 }
@@ -3461,6 +3514,35 @@ function drawSpecialList() {
 }
 
 // 無限の塔（どこまでも登れる。新しい階をクリアするたびにジェム）
+// 試練: ★6キャラごとの強化クエスト（Ⅰ→Ⅱ→Ⅲ）
+function drawTrialList() {
+  txt("★6キャラ専用。クリアするとそのキャラが永久に強化!", W / 2, 122, 11, "#ffd35c", "center");
+  trialChars().forEach((f, i) => {
+    const y = 134 + i * 49, own = owned(f.idx), t = trialTier(f.idx);
+    ctx.fillStyle = t >= TRIAL_TIERS ? "rgba(255,211,92,0.14)" : "rgba(255,255,255,0.07)";
+    roundRect(14, y, W - 28, 45, 10);
+    ctx.fill();
+    drawIcon(f.idx, 18, y + 2, 41, { silhouette: true });
+    txt(own ? displayName(f.idx) : f.name, 66, y + 14, 13, own ? "#fff" : "#8a90b0");
+    // 強化の段階（●=クリア済み）
+    for (let k = 1; k <= TRIAL_TIERS; k++) {
+      ctx.fillStyle = k <= t ? "#ffd35c" : "rgba(255,255,255,0.18)";
+      ctx.beginPath(); ctx.arc(72 + (k - 1) * 14, y + 32, 5, 0, Math.PI * 2); ctx.fill();
+    }
+    txt(t ? `能力×${TRIAL_MUL[t]}${TRIAL_SS[t] ? `・SS-${TRIAL_SS[t]}` : ""}` : "未強化", 116, y + 32, 10, "#cfd6ff", "left", "normal");
+    if (!own) {
+      button(W - 108, y + 8, 88, 29, "未所持", () => showToast("ガチャで手に入れると挑戦できます"),
+        { size: 12, disabled: true });
+    } else if (t >= TRIAL_TIERS) {
+      txt("強化完了", W - 64, y + 22, 13, "#ffd35c", "center", "900");
+    } else {
+      const q = trialQuest(f.idx, t + 1);
+      button(W - 108, y + 8, 88, 29, `試練${TRIAL_ROMAN[t + 1]}`, () => startQuest(q.id),
+        { size: 13, c1: "#d6bcff", c2: "#6a2ad6", fg: "#fff" });
+    }
+  });
+}
+
 // 無限の塔 / 深淵の塔（abyss=true）
 function drawTowerPanel(abyss = false) {
   const best = (abyss ? save.abyssMax : save.towerMax) || 0, next = best + 1;
@@ -4029,7 +4111,10 @@ function drawDetail() {
   if (u.rar < 6) {
     txt(`進化: Lv${cap} + ${c.n}の結晶×${EVO_CR[u.rar]} + コイン${EVO_COIN[u.rar].toLocaleString()}`, 28, 422, 11, "#ffd35c");
   } else {
-    txt("最終進化（★6）", 28, 422, 11, "#ff8ae6");
+    const tt = trialTier(fi);
+    txt(FAM[fi].rar === 6
+      ? `最終進化（★6）・試練 ${tt}/${TRIAL_TIERS}${tt ? `（能力×${TRIAL_MUL[tt]}）` : ""}`
+      : "最終進化（★6）", 28, 422, 11, "#ff8ae6");
   }
   crystalIcon(f.el, W - 70, 422, 7);
   txt(`×${save.cr[f.el]}`, W - 60, 422, 11, "#fff");
