@@ -77,6 +77,7 @@
     color: #3a1c00;
     font: bold 16px system-ui, sans-serif;
   }
+  #nameForm button.sub { margin-top: 8px; background: #3a4170; color: #fff; }
   /* データ引き継ぎコード */
   #codeBox {
     position: fixed;
@@ -129,9 +130,10 @@
 <canvas id="c"></canvas>
 <div id="nameBox" hidden>
   <form id="nameForm">
-    <div>ランキングに表示する名前</div>
+    <div>プレイヤー名（ランキング・協力レイドに表示）</div>
     <input id="nameInput" maxlength="12" autocomplete="off" placeholder="12文字まで">
     <button type="submit">決定</button>
+    <button type="button" id="nameCancel" class="sub">やめる</button>
   </form>
 </div>
 <div id="codeBox" hidden>
@@ -330,23 +332,38 @@ for (const fi of EVENT_CHARS) { FAM[fi].event = true; FAM[fi].boost = 1.1; }
 
 // ---- ギミック対策の能力 ---------------------------------------------------
 // AW: ワープを無視 / MK: 地雷を回収して攻撃アップ / ADW: ダメージウォールを無効 / AGB: 重力バリアで減速しない
+// AB: 動くブロックをすり抜ける
 const ABIL = {
   AW:  { n: "アンチワープ",           s: "AW" },
   MK:  { n: "地雷回収",               s: "地雷" },
   ADW: { n: "アンチダメージウォール", s: "ADW" },
   AGB: { n: "アンチ重力バリア",       s: "AGB" },
+  AB:  { n: "アンチブロック",         s: "AB" },
 };
 const ABIL_KEYS = Object.keys(ABIL);
+const ABIL_BASE = ["AW", "MK", "ADW", "AGB"];   // ふつうのキャラに付く能力（AB は★6の追加分だけ）
 const ABIL_FIXED = {
   ikesaki: ["AW", "MK"], "ジン": ["AGB", "ADW"], "パニパニ": ["MK", "ADW"], "拍手する猫": ["AW", "AGB"],
   "嵐鳥ゼフィル": ["AW", "ADW"], "雷獣ライガ": ["MK", "AGB"], "氷竜グラキエス": ["AGB", "AW"],
 };
-// 生まれつき★6は2つ、それ以外は1つ（キャラごとに決まっている）
+// ふつうは1つ、生まれつき★6は2つ（キャラごとに決まっている）
+// さらに生まれつき★6は追加で、恒常★6は2つ（合計4つ）、限定★6は3つ（合計5つ＝全ギミック対策）
 for (const f of FAM) {
-  const k = (f.idx * 7 + 3) % ABIL_KEYS.length;
-  f.abil = ABIL_FIXED[f.name] || (f.rar === 6 ? [ABIL_KEYS[k], ABIL_KEYS[(k + 2) % ABIL_KEYS.length]] : [ABIL_KEYS[k]]);
+  const k = (f.idx * 7 + 3) % ABIL_BASE.length;
+  f.abil = ABIL_FIXED[f.name] || (f.rar === 6 ? [ABIL_BASE[k], ABIL_BASE[(k + 2) % ABIL_BASE.length]] : [ABIL_BASE[k]]);
+  if (f.rar === 6) {
+    const add = LIMITED_ALL.includes(f.idx) ? 3 : 2;
+    const rest = ["AB", ...ABIL_BASE.slice(k), ...ABIL_BASE.slice(0, k)].filter(x => !f.abil.includes(x));
+    f.abil = [...f.abil, ...rest.slice(0, add)];
+  }
 }
 const hasAbil = (a, k) => FAM[a.fi].abil.includes(k);
+// 能力の表示（多い時は短い名前、全部そろっていれば「全ギミック対策」）
+function abilText(f) {
+  const s = f.abil.map(k => ABIL[k].s).join("・");
+  if (f.abil.length >= ABIL_KEYS.length) return `全ギミック対策（${s}）`;
+  return f.abil.length > 2 ? s : f.abil.map(k => ABIL[k].n).join("・");
+}
 // 管理者設定で上書きする前の値（すべての boost を決めた後に記録する）
 const BASE_BOOST = FAM.map(f => f.boost || 1);
 // 限定キャラ以外（恒常キャラ）はすべて能力1.2倍
@@ -806,7 +823,7 @@ const GIM = {
   mine:  { n: "地雷",             abil: "MK" },
   dwall: { n: "ダメージウォール", abil: "ADW" },
   gbar:  { n: "重力バリア",       abil: "AGB" },
-  block: { n: "動くブロック",     abil: null },
+  block: { n: "動くブロック",     abil: "AB" },
 };
 const GIM_KEYS = Object.keys(GIM);
 const emptyGim = () => ({ warps: [], mines: [], dwall: [], gbars: [] });
@@ -1458,7 +1475,7 @@ function updateShot() {
       a.x += a.vx / steps;
       a.y += a.vy / steps;
       hitWall(a, s, walls(a));
-      for (const o of rocks) bounce(a, o.x, o.y, o.r);
+      for (const o of rocks) if (!(o.block && hasAbil(a, "AB"))) bounce(a, o.x, o.y, o.r);   // AB は動くブロックをすり抜ける
       gimmickStep(a, s);
       if (hp <= 0) break;
       for (const e of enemies) {
@@ -3526,10 +3543,19 @@ function drawPanel() {
       txt(`あと${a.ssLeft}`, x + 13, y + 4, 11, "#9aa3d8");
     }
     // ギミック対策の能力（今のWAVEのギミックに合うものは水色）
-    const gl = waveGims().map(k => GIM[k].abil);
-    FAM[a.fi].abil.forEach((k, j) => {
-      txt(ABIL[k].s, x + 13 + j * 24, y + 20, 9, gl.includes(k) ? "#7cf0ff" : "#8088b0", "left", "900");
-    });
+    // 枠の下に横並び。全部持っていれば「全ギミック対策」
+    const gl = waveGims().map(k => GIM[k].abil), ab = FAM[a.fi].abil;
+    if (ab.length >= ABIL_KEYS.length) {
+      txt("全ギミック対策", x, y + 29, 9, gl.some(Boolean) ? "#7cf0ff" : "#ffd35c", "center", "900");
+    } else {
+      ctx.font = "900 8px system-ui, sans-serif";
+      const ws = ab.map(k => ctx.measureText(ABIL[k].s).width);
+      let tx = x - (ws.reduce((s, w) => s + w, 0) + (ab.length - 1) * 4) / 2;
+      ab.forEach((k, j) => {
+        txt(ABIL[k].s, tx, y + 29, 8, gl.includes(k) ? "#7cf0ff" : "#8088b0", "left", "900");
+        tx += ws[j] + 4;
+      });
+    }
     ctx.restore();
     button(x - 40, FB + 28, 80, 58, "", () => {
       if (state === "aim" && i === cur && a.ssLeft === 0) ssArmed = !ssArmed;
@@ -3793,6 +3819,13 @@ function drawHome() {
   if (dn) {
     ctx.fillStyle = "#ff3b4e";
     ctx.beginPath(); ctx.arc(W - 16, 186, 7, 0, Math.PI * 2); ctx.fill();
+  }
+  // プレイヤー名（ランキング・協力レイドで使う）
+  const nm = save.name ? (save.name.length > 5 ? save.name.slice(0, 5) + "…" : save.name) : "名前を決める";
+  button(W - 90, 224, 78, 28, nm, () => askName(), { size: save.name ? 11 : 10, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
+  if (!save.name) {
+    ctx.fillStyle = "#ff3b4e";
+    ctx.beginPath(); ctx.arc(W - 16, 226, 6, 0, Math.PI * 2); ctx.fill();
   }
   button(12, 224, 78, 28, save.sound ? "♪ 音 ON" : "♪ 音 OFF", () => setSound(!save.sound),
     { size: 11, c1: save.sound ? "#ffe066" : "#4a5280", c2: save.sound ? "#e0a020" : "#2b3158", fg: save.sound ? "#3a2400" : "#cfd6ff" });
@@ -4508,7 +4541,7 @@ function drawDetail() {
   txt(`ATK ${st.atk.toLocaleString()}`, 28, 334, 13, "#ffb199");
   txt(`HP ${st.hp.toLocaleString()}`, 140, 334, 13, "#9dff8a");
   txt(`SPD ${st.spd.toFixed(1)}`, 252, 334, 13, "#a6d4ff");
-  txt(`能力: ${f.abil.map(k => ABIL[k].n).join("・")}`, 28, 353, 11, "#7cf0ff");
+  txt(`能力: ${abilText(f)}`, 28, 353, 11, "#7cf0ff");
   txt(`友情コンボ: ${COMBO[f.combo].name}（${COMBO[f.combo].desc}）`, 28, 369, 11, "#fff");
   txt(`SS: ${ssName(fi)}（${ssTurns(fi)}ターン）`, 28, 386, 11, "#fff");
   txt(SS[f.ss].desc, 40, 402, 10, "#cfd6ff");
@@ -4614,9 +4647,38 @@ function campaign() {
 }
 
 // お知らせ
-const newsList = () => (Array.isArray(CFG.news) ? CFG.news : []).filter(n => n && n.id && n.title);
+// アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
+const GAME_NEWS = [
+  { id: "up-2026-10-19-f", date: "2026-10-19", title: "名前の設定・★6の能力追加",
+    body: "ホームの右側のボタンで、いつでもプレイヤー名を決められるようになりました（ランキング・協力レイドに表示）。\n"
+      + "生まれつき★6のキャラにギミック対策の能力を追加！恒常★6は＋2つ、限定★6は＋3つで全ギミックに対応。"
+      + "新しい能力「アンチブロック（AB）」は動くブロックをすり抜けます。" },
+  { id: "up-2026-10-19-e", date: "2026-10-19", title: "協力レイドがオンラインに！",
+    body: "協力レイドで、みんなで同じボス（HP3000万）を削れるようになりました。バトル中もほかの人のダメージが反映されます。"
+      + "討伐されると、ダメージを与えた人全員にジェム300・コイン50000！スコアアタックとクエストのランキングも全国版になりました。" },
+  { id: "up-2026-10-19-d", date: "2026-10-19", title: "イベント開始：降臨・スコアアタック",
+    body: "ホームの「イベント」から遊べます。\n降臨: 2日ごとにボスが交代。ボスのキャラ（ガチャに出ない★5）がドロップ。極の初回クリアで確定！\n"
+      + "スコアアタック: 毎週ステージが変わり、スコアに応じてジェム最大600。" },
+  { id: "up-2026-10-19-c", date: "2026-10-19", title: "ギミックと対策の能力が登場",
+    body: "ワープ・地雷・ダメージウォール・重力バリア・動くブロックが登場（ストーリー3章・無限の塔10階から）。"
+      + "キャラごとに対策の能力（AW・地雷回収・ADW・AGB・AB）があり、合うキャラを編成すると有利です。" },
+  { id: "up-2026-10-19-b", date: "2026-10-19", title: "ログボ・図鑑・運極・BGM",
+    body: "7日でひと回りのログインボーナス、キャラ図鑑（10体ごとにジェム100）を追加。"
+      + "覚醒MAXのキャラが重なるとラックが上がり、99で「運極」に。BGMと効果音も付きました（ホームの「♪ 音」で切り替え）。" },
+  { id: "up-2026-10-19-a", date: "2026-10-19", title: "試練Ⅲに「真の力」",
+    body: "試練Ⅲをクリアした★6キャラは「真の力」に目覚め、敵のガードを無視＋ボスへのダメージ1.5倍に。体当たり・友情コンボ・SSすべてに効きます。" },
+  { id: "fix-2026-10-19", date: "2026-10-19", title: "不具合を直しました",
+    body: "ゲームを開き直すたびにジェムとコインが最初の数に戻ってしまう不具合を直しました。ご迷惑をおかけしました。" },
+];
+// 管理サイトのお知らせ＋アップデートのお知らせ（新しい日付が上）
+const newsList = () => [...(Array.isArray(CFG.news) ? CFG.news : []), ...GAME_NEWS]
+  .filter(n => n && n.id && n.title)
+  .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
 const unreadNews = () => newsList().some(n => !(save.newsRead || []).includes(n.id));
+let newsPage = 0, newsStack = [];
 function markNewsRead() {
+  newsPage = 0;
+  newsStack = [];
   save.newsRead = newsList().map(n => n.id);
   persist();
 }
@@ -4641,11 +4703,14 @@ function drawNews() {
   header("お知らせ", "");
   const list = newsList();
   if (!list.length) txt("お知らせはありません", W / 2, 240, 14, "#cfd6ff", "center");
-  let y = 84;
-  for (const n of list) {
+  // 入りきらない分はページ送り
+  if (newsPage >= list.length) newsPage = 0;
+  const bottom = NAV_Y - 44;
+  let y = 84, shown = 0;
+  for (const n of list.slice(newsPage)) {
     const lines = wrapText(n.body || "", W - 56, 12).slice(0, 8);
     const h = 44 + lines.length * 17;
-    if (y + h > NAV_Y - 6) break;
+    if (shown && y + h > bottom) break;
     ctx.fillStyle = "rgba(255,255,255,0.08)";
     roundRect(14, y, W - 28, h, 12);
     ctx.fill();
@@ -4653,7 +4718,18 @@ function drawNews() {
     if (n.date) txt(n.date, W - 26, y + 16, 10, "#9aa3d8", "right", "normal");
     lines.forEach((l, i) => txt(l, 26, y + 38 + i * 17, 12, "#e8ecff", "left", "normal"));
     y += h + 8;
+    shown++;
   }
+  if (newsPage > 0) {
+    button(14, NAV_Y - 38, 90, 30, "◀ 新しい", () => { newsPage = newsStack.pop() || 0; },
+      { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  }
+  if (newsPage + shown < list.length) {
+    const next = newsPage + shown;
+    button(W - 104, NAV_Y - 38, 90, 30, "古い ▶", () => { newsStack.push(newsPage); newsPage = next; },
+      { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  }
+  if (list.length) txt(`${newsPage + 1}〜${newsPage + shown} / ${list.length}件`, W / 2, NAV_Y - 23, 11, "#9aa3d8", "center", "normal");
   drawNav();
 }
 
@@ -5068,6 +5144,7 @@ function askName() {
     input.value = save.name || "";
     box.hidden = false;
     setTimeout(() => input.focus(), 50);
+    document.getElementById("nameCancel").onclick = () => { box.hidden = true; };
     document.getElementById("nameForm").onsubmit = e => {
       e.preventDefault();
       const v = input.value.trim().slice(0, 12);
