@@ -597,7 +597,7 @@ function readSettings() {
   config.daily = { gems: clamp($("dGems").value, 0, 1e6), coins: clamp($("dCoins").value, 0, 1e8) };
   config.starter = { gems: clamp($("sGems").value, 0, 1e9), coins: clamp($("sCoins").value, 0, 1e10) };
   config.difficulty = Math.max(0.1, Number($("diff").value) || 1);
-  config.online = { url: $("onUrl").value.trim(), key: $("onKey").value.trim() };
+  config.online = { url: $("onUrl").value.trim().replace(/\/+$/, "").replace(/\/rest\/v1$/, ""), key: $("onKey").value.trim() };
   config.raid = { hp: clamp($("raidHp").value, 1e5, 1e13), soloHp: clamp($("raidSolo").value, 1e5, 1e12) };
   // 確率は★6キャラが多いほうのガチャで確認（どちらも100%以内である必要がある）
   const g = config.gacha, n6 = Math.max(g.limited.length, g.limited2.length);

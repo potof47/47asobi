@@ -4577,7 +4577,8 @@ function applyConfig() {
   STD_RATE6 = cfgNum(g.stdRate6, 0, 0.3, 0.01);
   // オンライン（全国ランキング・スコアアタック・協力レイド）: Supabase の URL と anon キー
   const on = CFG.online || {};
-  if (on.url && on.key) { RANKING.url = String(on.url).trim().replace(/\/+$/, ""); RANKING.key = String(on.key).trim(); }
+  // URL は末尾の「/rest/v1/」付きで貼られても動くようにする
+  if (on.url && on.key) { RANKING.url = String(on.url).trim().replace(/\/+$/, "").replace(/\/rest\/v1$/, ""); RANKING.key = String(on.key).trim(); }
   // デイリーボーナス
   const d = CFG.daily || {};
   DAILY_BONUS.gems = cfgNum(d.gems, 0, 1e6, 50);
