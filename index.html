@@ -327,6 +327,27 @@ const FAM = [
   ["テンマ",     "light", 5, "reflect", "crest",  "sparkle", "thunder", "wave",   "bird"],
   ["ヨイヤミ",   "dark",  4, "reflect", "hood",   "sleepy",  "blast",   "judge",  "human"],
   ["ネビュラ",   "dark",  5, "pierce",  "horns",  "sharp",   "homing",  "meteor", "dragon"],
+  // キャラ集めステージでドロップするキャラ（ガチャには出ない。各属性4体）
+  ["ホノオウサギ", "fire",  4, "pierce",  "bunny",  "round",   "homing",  "needle"],
+  ["ヒノトリ",     "fire",  5, "reflect", "crest",  "sharp",   "blast",   "meteor", "bird"],
+  ["カジバ",       "fire",  4, "reflect", "spiky",  "sharp",   "thunder", "burst",  "human"],
+  ["マグロック",   "fire",  5, "pierce",  "horns",  "mono",    "laser",   "judge"],
+  ["アワギツネ",   "water", 4, "reflect", "fox",    "round",   "heal",    "wave",   "beast"],
+  ["シャチオー",   "water", 5, "reflect", "angler", "sharp",   "blast",   "meteor", "fish"],
+  ["ミズキ",       "water", 4, "pierce",  "long",   "sparkle", "laser",   "needle", "human"],
+  ["ユキフクロウ", "water", 5, "pierce",  "tuft",   "sleepy",  "thunder", "judge",  "bird"],
+  ["キノコロ",     "wood",  4, "reflect", "leaf",   "sleepy",  "heal",    "burst"],
+  ["モリジカ",     "wood",  5, "pierce",  "bear",   "round",   "laser",   "meteor", "beast"],
+  ["ハヤテ",       "wood",  4, "pierce",  "hood",   "sharp",   "homing",  "needle", "human"],
+  ["ツタリュウ",   "wood",  5, "reflect", "horns",  "sharp",   "thunder", "wave",   "dragon"],
+  ["ヒカリウオ",   "light", 4, "pierce",  "angler", "sparkle", "laser",   "wave",   "fish"],
+  ["コウテイ",     "light", 5, "reflect", "helmet", "sharp",   "blast",   "judge",  "human"],
+  ["ライチョウ",   "light", 4, "reflect", "tuft",   "round",   "thunder", "burst",  "bird"],
+  ["ホシノコ",     "light", 5, "pierce",  "star",   "sparkle", "homing",  "meteor"],
+  ["ヤミギツネ",   "dark",  4, "pierce",  "fox",    "sharp",   "homing",  "needle", "beast"],
+  ["ヴァンプ",     "dark",  5, "reflect", "mage",   "sharp",   "blast",   "meteor", "human"],
+  ["ヨルオオカミ", "dark",  4, "reflect", "wolf",   "sharp",   "thunder", "burst",  "beast"],
+  ["メイリュウ",   "dark",  5, "pierce",  "horns",  "sharp",   "laser",   "judge",  "dragon"],
 ].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
 // 図鑑の並び順（属性 → レア度）
 const ORDER = FAM.map(f => f.idx).sort((a, b) =>
@@ -348,6 +369,9 @@ for (const fi of PERM6) FAM[fi].boost = 1.15;
 // 降臨キャラ（ガチャには出ない）
 const EVENT_CHARS = ["嵐鳥ゼフィル", "雷獣ライガ", "氷竜グラキエス"].map(n => FAM.find(f => f.name === n).idx);
 for (const fi of EVENT_CHARS) { FAM[fi].event = true; FAM[fi].boost = 1.12; }   // 限定キャラ（1.35）より少し弱い 1.12×1.2
+// キャラ集めステージのキャラ（ガチャには出ない。重ねるとラック+1ずつ）
+const DROP_CHARS = FAM.slice(FAM.findIndex(f => f.name === "ホノオウサギ")).map(f => f.idx);
+for (const fi of DROP_CHARS) { FAM[fi].drop = true; FAM[fi].boost = 1.05; }
 
 // ---- ギミック対策の能力 ---------------------------------------------------
 // AW: ワープを無視 / MK: 地雷を回収して攻撃アップ / ADW: ダメージウォールを無効 / AGB: 重力バリアで減速しない
@@ -374,11 +398,12 @@ const ABIL_FIXED = {
 for (const f of FAM) {
   const k = (f.idx * 7 + 3) % ABIL_BASE.length;
   f.abil = ABIL_FIXED[f.name] || (f.rar === 6 ? [ABIL_BASE[k], ABIL_BASE[(k + 2) % ABIL_BASE.length]] : [ABIL_BASE[k]]);
+  if (f.drop) f.abil = [ABIL_KEYS[DROP_CHARS.indexOf(f.idx) % ABIL_KEYS.length]];   // キャラ集めのキャラは5種類を順番に
 }
 // 今の能力（進化で★6になったキャラは1つ増えて2つ）
-function abilOf(fi) {
+function abilOf(fi, rar) {
   const f = FAM[fi];
-  if (f.rar >= 6 || f.abil.length >= 2 || !save || unitRar(fi) < 6) return f.abil;
+  if (f.rar >= 6 || f.abil.length >= 2 || !save || (rar || unitRar(fi)) < 6) return f.abil;
   const k = (fi * 3 + 1) % ABIL_BASE.length;
   const extra = [...ABIL_BASE.slice(k), ...ABIL_BASE.slice(0, k)].find(x => !f.abil.includes(x));
   return [...f.abil, extra];
@@ -427,7 +452,8 @@ function newSave() {
   for (const k of EL_KEYS) cr[k] = 0;
   return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "", starterPending: true,
     rank: 1, exp: 0, stats: {}, ach: {}, towerMax: 0, abyssMax: 0,
-    login: { n: 0, last: "" }, dexClaim: 0, eventClear: {}, sa: {}, raid: {}, sound: true };
+    login: { n: 0, last: "" }, dexClaim: 0, eventClear: {}, sa: {}, raid: {}, sound: true,
+    pity: 0, titlesGot: [], title: "", talkSeen: {}, hints: {}, helperSent: "" };
 }
 function loadSave() {
   try {
@@ -477,6 +503,13 @@ function normalizeSave(s) {
   out.sa = obj(s.sa);
   out.raid = obj(s.raid);
   out.sound = s.sound !== false;
+  // 天井・称号・ストーリーの会話・チュートリアル・助っ人
+  out.pity = int(s.pity, 0, 100000, 0);
+  out.titlesGot = Array.isArray(s.titlesGot) ? s.titlesGot.map(String) : [];
+  out.title = typeof s.title === "string" ? s.title : "";
+  out.talkSeen = obj(s.talkSeen);
+  out.hints = obj(s.hints);
+  out.helperSent = typeof s.helperSent === "string" ? s.helperSent : "";
   return out;
 }
 
@@ -509,6 +542,7 @@ const ACH = [
   { key: "lvups",  name: "キャラを強化",       step: 50,   gem: 10 },
   { key: "evos",   name: "キャラを進化",       step: 1,    gem: 30 },
   { key: "dex",    name: "図鑑のキャラを集める", step: 1,  gem: 10 },
+  { key: "unk",    name: "運極を作る",         step: 1,    gem: 50 },
 ];
 // デイリーミッション（毎日リセット）
 const DAILY = [
@@ -529,7 +563,7 @@ function addStat(key, n = 1) {
   const d = dailyState();
   d.prog[key] = (d.prog[key] || 0) + n;
 }
-const statValue = key => key === "dex" ? Object.keys(save.box).length : (save.stats[key] || 0);
+const statValue = key => key === "dex" ? Object.keys(save.box).length : key === "unk" ? unkCount() : (save.stats[key] || 0);
 // まだ受け取っていない実績の段数
 const achReady = a => Math.max(0, Math.floor(statValue(a.key) / a.step) - (save.ach[a.key] || 0));
 const dailyDone = m => (dailyState().prog[m.key] || 0) >= m.goal;
@@ -584,22 +618,23 @@ function look(fi) {
   const f = FAM[fi];
   return { shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: unitRar(fi), evo: unitRar(fi) > f.rar };
 }
-function unitStats(fi) {
-  const f = FAM[fi], u = save.box[fi] || { rar: f.rar, lv: 1, awk: 0 }, b = RBASE[u.rar];
+// u: 育成状態（省略で自分のBOX）、tt: 試練の段階（助っ人は相手の値を使う）
+function unitStats(fi, u0, tt = trialTier(fi)) {
+  const f = FAM[fi], u = u0 || save.box[fi] || { rar: f.rar, lv: 1, awk: 0 }, b = RBASE[u.rar];
   const v = 1 + (((fi * 37) % 11) - 5) / 100;           // キャラごとの個性
   const lvm = 1 + (u.lv - 1) * 0.012, am = (1 + u.awk * 0.04) * (1 + (u.luck || 0) * LUCK_STAT);
   // タイプ補正 [攻撃力, HP]: 反射は攻撃力1.8倍・HP1.1倍
   const tm = f.type === "pierce" ? [1.05, 0.95] : [1.8, 1.1];
   const bo = f.boost || 1;
-  const pb = (isLimited(fi) ? 1 : PERM_BONUS) * TRIAL_MUL[trialTier(fi)];   // 恒常キャラの底上げ × 試練の強化
+  const pb = (isLimited(fi) ? 1 : PERM_BONUS) * TRIAL_MUL[tt];   // 恒常キャラの底上げ × 試練の強化
   return {
     atk: Math.round(b.atk * v * tm[0] * lvm * am * bo * pb),
     hp: Math.round(b.hp * (2 - v) * tm[1] * lvm * am * bo * pb),
     spd: b.spd + (fi % 3) * 0.4 + (bo > 1 ? 1.5 : 0),
   };
 }
-function ssTurns(fi) {
-  return Math.max(4, SS[FAM[fi].ss].turns - (unitRar(fi) - FAM[fi].rar) - TRIAL_SS[trialTier(fi)]);
+function ssTurns(fi, rar = unitRar(fi), tt = trialTier(fi)) {
+  return Math.max(4, SS[FAM[fi].ss].turns - (rar - FAM[fi].rar) - TRIAL_SS[tt]);
 }
 
 // ---- 試練（★6キャラ専用の強化クエスト）------------------------------------
@@ -646,7 +681,7 @@ function acquire(fi) {
   if (!u) { save.box[fi] = { rar: FAM[fi].rar, lv: 1, awk: 0, luck: 0 }; return { fi, kind: "new" }; }
   if (u.awk < MAX_AWK) { u.awk++; return { fi, kind: "awk" }; }
   if ((u.luck || 0) < MAX_LUCK) {
-    const add = Math.min(MAX_LUCK - (u.luck || 0), FAM[fi].rar >= 6 ? 10 : FAM[fi].rar >= 5 ? 5 : FAM[fi].rar >= 4 ? 3 : 2);
+    const add = Math.min(MAX_LUCK - (u.luck || 0), FAM[fi].drop ? 1 : FAM[fi].rar >= 6 ? 10 : FAM[fi].rar >= 5 ? 5 : FAM[fi].rar >= 4 ? 3 : 2);
     u.luck = (u.luck || 0) + add;
     return { fi, kind: "luck", luck: add, max: u.luck >= MAX_LUCK };
   }
@@ -929,7 +964,7 @@ function storyStage(n) {
     name: `${ch + 1}-${k + 1} ${chName}`, sub: `${EL[m].n}属性中心 / ${EL[ADV_BY[m]].n}属性が有利`,
     boss: bossStage || midBoss, diff: diffStars(mul), mul: 1, par: waveCount * 3 + 1,
     bg: EL_BG[m], coin: 300 + n * 40, gem: bossStage ? 20 : midBoss ? 10 : 5, crEl: m, crN: 1 + Math.floor(n / 40),
-    exp: 20 + Math.floor(n / 2), waves, gims,
+    exp: 20 + Math.floor(n / 2), waves, gims, bossName, chapter: ch, stage: k,
   };
 }
 
@@ -1073,6 +1108,7 @@ function partyProblem(q) {
   const party = save.party.map(Number);
   if (q.kind === "trial" && !party.includes(q.fi)) return `${FAM[q.fi].name}を編成に入れて挑戦しよう`;
   if (q.kind === "typed" && party.some(fi => FAM[fi].type !== q.ptype)) return `${TYPE_NAME[q.ptype]}タイプのキャラだけで編成しよう`;
+  if (q.kind === "typed" && prepHelper && prepHelperFor === q.id && FAM[prepHelper.fi].type !== q.ptype) return `助っ人も${TYPE_NAME[q.ptype]}タイプにしよう`;
   return null;
 }
 
@@ -1089,6 +1125,8 @@ function getQuest(id) {
   if (id[0] === "e") { const [b, lv] = id.slice(1).split("_").map(Number); return eventQuest(b, lv); }
   if (id[0] === "a") return scoreQuest(Number(id.slice(1)));
   if (id[0] === "h") return extremeStage(Number(id.slice(1)));
+  if (id[0] === "d") return dropStage(Number(id.slice(1)));
+  if (id[0] === "w") { const [k, lv] = id.slice(1).split("_").map(Number); return weekdayQuest(EL_KEYS[k], lv); }
   if (id[0] === "y") return typeStage(id[1] === "r" ? "reflect" : "pierce", Number(id.slice(2)));
   if (id[0] === "r") return raidQuest(Number(id.slice(1)));
   return towerFloor(Number(id.slice(1)));
@@ -1120,7 +1158,8 @@ let dragging = false, dragStart = null, dragNow = null;
 
 function showToast(text) { toast = { text, life: 90 }; }
 function go(s) {
-  state = s; particles = []; texts = []; banner = null; shareOpen = false;
+  state = s; particles = []; texts = []; banner = null; shareOpen = false; pityOpen = false; helperPickOpen = false;
+  if (save && !BATTLE.has(s)) checkTitles();
   if (s === "home" || s === "gifts") loadGifts();
 }
 
@@ -1136,6 +1175,19 @@ function makeAlly(fi, x, y) {
     abil: abilOf(fi),
   };
 }
+// 助っ人（ほかのプレイヤーのキャラ）。h = { name, fi, rar, lv, awk, luck, trial }
+function makeHelperAlly(h, x, y) {
+  const fi = h.fi, f = FAM[fi], u = { rar: h.rar, lv: h.lv, awk: h.awk, luck: h.luck };
+  const s = unitStats(fi, u, h.trial), t = ssTurns(fi, h.rar, h.trial);
+  return {
+    fi, helper: true, name: `助っ人 ${f.name}`, el: f.el, type: f.type, atk: s.atk, hp: s.hp, spd: s.spd,
+    combo: f.combo, comboName: COMBO[f.combo].name,
+    ss: f.ss, ssName: ssName(fi), ssTurns: t, ssDesc: SS[f.ss].desc, ssLeft: t,
+    look: { shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: h.rar, evo: h.rar > f.rar },
+    x, y, vx: 0, vy: 0, hurt: 0, glow: 0,
+    shin: h.trial >= TRIAL_TIERS, abil: abilOf(fi, h.rar),
+  };
+}
 
 function startQuest(i) {
   if (maintenanceOn()) { showToast("メンテナンス中です"); return; }
@@ -1146,8 +1198,11 @@ function startQuest(i) {
   questIdx = i;
   quest = q;
   waveIdx = 0;
-  const n = save.party.length;
+  // 出撃前に選んだ助っ人は5体目（最後の順番）
+  const hl = prepHelper && prepHelperFor === i ? prepHelper : null;
+  const n = save.party.length + (hl ? 1 : 0);
   allies = save.party.map((fi, k) => makeAlly(fi, W / (n + 1) * (k + 1), 505));
+  if (hl) allies.push(makeHelperAlly(hl, W / (n + 1) * n, 505));
   maxHp = hp = allies.reduce((s, a) => s + a.hp, 0);
   turn = 1;
   cur = 0;
@@ -1158,6 +1213,8 @@ function startQuest(i) {
   if (q.kind === "raid") raidBattleStart(q);
   loadWave();
   state = "aim";
+  if (q.kind === "story") storyTalk(q, "s");   // 章の最初のステージで会話
+  battleHints();
 }
 
 function loadWave() {
@@ -1180,6 +1237,7 @@ function loadWave() {
   const gsub = gl.length ? `ギミック: ${gimText(gl)}` : "";
   if (w.boss) showBanner(last ? "BOSS BATTLE" : "BOSS 出現", gsub || enemies[0].name, "#ff5b6b");
   else showBanner(`WAVE ${waveIdx + 1}`, gsub || `${waveIdx + 1} / ${quest.waves.length}`, "#ffd35c");
+  battleHints();
 }
 // 今のWAVEにあるギミック
 function waveGims() {
@@ -1839,9 +1897,14 @@ function finishQuest() {
   const crN = q.crN + Math.floor(Math.random() * 3);
   const gem = first ? Math.round(q.gem * camp.gem) : 0;
   const exp = Math.round((q.exp || 30) * camp.exp);
-  let drop = null;
+  let drop = null, dropN = 0;
   if (questIdx === IKESAKI_QUEST && first) {
     drop = acquire(LIMITED);                  // 最難関の初回クリアで★6限定キャラ
+  } else if (q.kind === "drop") {
+    // キャラ集め: 1〜5体（運極の仲間がいると増える）
+    dropN = dropCount();
+    for (let k = 0; k < dropN; k++) drop = acquire(q.dropFi);
+    addStat("dropClears");
   } else if (q.kind === "event") {
     // 降臨: ボスのキャラがドロップ（極の初回クリアは確定）
     save.eventClear[q.id] = (save.eventClear[q.id] || 0) + 1;
@@ -1854,6 +1917,16 @@ function finishQuest() {
   save.gems += gem;
   save.cr[crEl] += crN;
   save.cleared[questIdx] = true;
+  // ラックボーナス: ラックが高いキャラほど、おまけの報酬が出やすい（運極で30%）
+  const luckBonus = [];
+  for (const fi of save.party) {
+    const lk = (save.box[fi] && save.box[fi].luck) || 0;
+    if (!lk || Math.random() >= lk / MAX_LUCK * 0.3) continue;
+    const r = Math.random();
+    if (r < 0.5) { save.coins += 3000; luckBonus.push("コイン3000"); }
+    else if (r < 0.85) { save.cr[crEl] += 3; luckBonus.push(`${EL[crEl].n}の結晶×3`); }
+    else { save.gems += 10; luckBonus.push("ジェム10"); }
+  }
   if (q.kind === "tower") save.towerMax = Math.max(save.towerMax || 0, q.floor);
   if (q.kind === "abyss") save.abyssMax = Math.max(save.abyssMax || 0, q.floor);
   // 試練: 初めてクリアした段階まで、そのキャラを強化
@@ -1871,12 +1944,15 @@ function finishQuest() {
   const up = addExp(exp);
   if (up.ranks) showToast(`ランクアップ! ランク${save.rank}  ジェム+${up.gems}`);
   persist();
-  lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, netRank: undefined,
+  lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, dropN, luckBonus, netRank: undefined,
     exp, kind: q.kind, trialUp };
   if (q.kind === "score") scoreFinish(q, lastResult);
+  checkTitles();
+  if (q.kind === "story") storyTalk(q, "e");   // 章ボスを倒した時の会話
+  hint("clear", "クリア! 手に入れたコインと結晶で、BOXからキャラを強化・進化させよう");
   if (q.kind !== "special") { state = "clear"; return; }
   // ランキングに記録（スペシャルクエストのみ）
-  const leader = displayName(save.party[0]);
+  const leader = leaderLabel();
   addLocalRecord(questIdx, turn, leader);
   persist();
   if (onlineRanking()) {
@@ -1975,7 +2051,7 @@ function rollOne(guarantee4, g) {
   if (r < r6) return pick(g.limited);
   let rar = r < r6 + RATE5 ? 5 : r < r6 + RATE5 + RATE4 ? 4 : 3;
   if (guarantee4 && rar === 3) rar = 4;
-  return pick(FAM.filter(f => f.rar === rar && !f.event)).idx;   // 降臨キャラはガチャに出ない
+  return pick(FAM.filter(f => f.rar === rar && !f.event && !f.drop)).idx;   // 降臨・キャラ集めのキャラはガチャに出ない
 }
 function pullGacha(n, banner = gachaBanner) {
   const g = findGacha(banner);
@@ -1989,6 +2065,7 @@ function pullGacha(n, banner = gachaBanner) {
     res.push(acquire(rollOne(guarantee, g)));
   }
   addStat("pulls", n);
+  if (!g.std) save.pity = (save.pity || 0) + n;   // 限定ガチャは天井のカウントが進む
   persist();
   gacha = { res, i: 0, t: 0, opened: false, banner };
   go("gachaAnim");
@@ -2055,6 +2132,7 @@ function updateFx() {
 
 function update() {
   frameNo++;
+  updateHints();
   for (const t of texts) { t.y -= 0.55; t.life--; }
   texts = texts.filter(t => t.life > 0);
   for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy *= 0.94; p.life--; }
@@ -3698,36 +3776,38 @@ function drawPanel() {
   outlinedText(`HP ${hp.toLocaleString()} / ${maxHp.toLocaleString()}`, W / 2, FB + 15.5, "#fff", 11);
   ctx.restore();
 
-  const sw = W / allies.length;
+  const sw = W / allies.length, hw = Math.min(40, sw / 2 - 2);   // 5体（助っ人あり）の時は少し詰める
+  const cx = allies.length > 4 ? 9 : 12, tx0 = allies.length > 4 ? 8 : 13;
   for (let i = 0; i < allies.length; i++) {
     const a = allies[i], x = sw * (i + 0.5), y = FB + 52;
     ctx.save();
     if (i === cur) {
       ctx.fillStyle = "rgba(255,211,92,0.18)";
-      roundRect(x - 40, FB + 28, 80, 58, 10);
+      roundRect(x - hw, FB + 28, hw * 2, 58, 10);
       ctx.fill();
       ctx.strokeStyle = "#ffd35c";
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-    drawChar(a.look, x - 12, y + 2, 14);
+    drawChar(a.look, x - cx, y + 2, allies.length > 4 ? 12 : 14);
+    if (a.helper) txt("助", x - hw + 7, FB + 35, 9, "#7cf0ff", "center", "900");
     const ready = a.ssLeft === 0;
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(255,255,255,0.15)";
-    ctx.beginPath(); ctx.arc(x - 12, y + 2, 21, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x - cx, y + 2, allies.length > 4 ? 18 : 21, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = ready ? EL[a.el].l : "#7f8bd0";
     ctx.beginPath();
-    ctx.arc(x - 12, y + 2, 21, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - a.ssLeft / a.ssTurns));
+    ctx.arc(x - cx, y + 2, allies.length > 4 ? 18 : 21, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - a.ssLeft / a.ssTurns));
     ctx.stroke();
     txt(a.buff ? `強化 ${a.buff}T` : a.rally ? `応援 ${a.rally}T` : a.clap ? `拍手 ${a.clap}T` : a.type === "reflect" ? "反射" : "貫通",
-      x + 13, y - 12, 10, a.buff ? "#bfffd0" : a.rally ? "#ffb04a" : a.clap ? "#d6bcff" : "#e8ecff");
+      x + tx0, y - 12, allies.length > 4 ? 9 : 10, a.buff ? "#bfffd0" : a.rally ? "#ffb04a" : a.clap ? "#d6bcff" : "#e8ecff");
     if (ready) {
       ctx.globalAlpha = 0.7 + Math.sin(frameNo * 0.15) * 0.3;
       ctx.textAlign = "left";
-      outlinedText("SS", x + 13, y + 4, EL[a.el].l, 15);
+      outlinedText("SS", x + tx0, y + 4, EL[a.el].l, 15);
       ctx.globalAlpha = 1;
     } else {
-      txt(`あと${a.ssLeft}`, x + 13, y + 4, 11, "#9aa3d8");
+      txt(`あと${a.ssLeft}`, x + tx0, y + 4, allies.length > 4 ? 9 : 11, "#9aa3d8");
     }
     // ギミック対策の能力（今のWAVEのギミックに合うものは水色）
     // 枠の下に横並び。全部持っていれば「全ギミック対策」
@@ -3744,7 +3824,7 @@ function drawPanel() {
       });
     }
     ctx.restore();
-    button(x - 40, FB + 28, 80, 58, "", () => {
+    button(x - hw, FB + 28, hw * 2, 58, "", () => {
       if (state === "aim" && i === cur && a.ssLeft === 0) ssArmed = !ssArmed;
     }, { hidden: true });
   }
@@ -3822,8 +3902,18 @@ function drawResult() {
     txt(`EXP +${r.exp}`, 234, 356, 13, "#ffd35c");
     if (r.drop) {
       drawIcon(r.drop.fi, 70, 372, 52);
-      txt(`${FAM[r.drop.fi].name} をゲット!`, 132, 390, 13, "#fff");
-      txt(acquireTag(r.drop), 132, 410, 12, "#ffd35c");
+      if (r.dropN > 1) {
+        // キャラ集め: まとめて何体か
+        const u = save.box[r.drop.fi];
+        txt(`${FAM[r.drop.fi].name} ×${r.dropN}体 ゲット!`, 132, 390, 13, "#fff");
+        txt(isUnkyoku(r.drop.fi) ? "運極!" : u.awk < MAX_AWK ? `覚醒 ${u.awk}/${MAX_AWK}` : `ラック ${u.luck || 0}/${MAX_LUCK}`, 132, 410, 12, "#ffd35c");
+      } else {
+        txt(`${FAM[r.drop.fi].name} をゲット!`, 132, 390, 13, "#fff");
+        txt(acquireTag(r.drop), 132, 410, 12, "#ffd35c");
+      }
+    }
+    if (r.luckBonus && r.luckBonus.length) {
+      txt(`ラックボーナス: ${r.luckBonus.join("・")}`, W / 2, 276, 11, "#9dff8a", "center");
     }
   } else {
     outlinedText("全滅…", W / 2, 220, "#ff6b6b", 40);
@@ -3920,7 +4010,7 @@ function drawNav() {
   const w = W / NAV.length;
   NAV.forEach(([s, label], i) => {
     const active = state === s || (s === "box" && state === "detail")
-      || (s === "home" && ["gifts", "transfer", "missions", "news", "dex", "event"].includes(state));
+      || (s === "home" && ["gifts", "transfer", "missions", "news", "dex", "event", "titles"].includes(state));
     if (active) {
       ctx.fillStyle = "rgba(255,211,92,0.15)";
       ctx.fillRect(i * w, NAV_Y, w, H - NAV_Y);
@@ -3993,7 +4083,7 @@ function drawHome() {
   button(W / 2 - 60, 160, 120, 90, "", () => { detailFi = fi; detailBack = "home"; go("detail"); }, { hidden: true });
 
   const owns = Object.keys(save.box).length;
-  txt(`図鑑 ${owns} / ${FAM.length}`, W / 2, 364, 12, "#9aa3d8", "center");
+  txt(`図鑑 ${owns} / ${FAM.length}  ・  運極 ${unkCount()}体`, W / 2, 364, 12, "#9aa3d8", "center");
 
   // ログインボーナス（7日カレンダー）
   if (!loginClaimed()) {
@@ -4018,6 +4108,9 @@ function drawHome() {
     ctx.fillStyle = "#ff3b4e";
     ctx.beginPath(); ctx.arc(W - 16, 226, 6, 0, Math.PI * 2); ctx.fill();
   }
+  // 称号（使用中の称号を名前の下に表示）
+  button(12, 260, 78, 28, "称号", () => go("titles"), { size: 12, c1: "#ffe066", c2: "#c08a10", fg: "#3a2400" });
+  if (titleName()) txt(`【${titleName()}】`.slice(0, 9), W - 51, 262, 9, "#ffe066", "center");
   button(12, 224, 78, 28, save.sound ? "♪ 音 ON" : "♪ 音 OFF", () => setSound(!save.sound),
     { size: 11, c1: save.sound ? "#ffe066" : "#4a5280", c2: save.sound ? "#e0a020" : "#2b3158", fg: save.sound ? "#3a2400" : "#cfd6ff" });
   // お知らせ（未読があれば赤い点）
@@ -4354,6 +4447,19 @@ function drawGacha() {
   const r6 = rate6Total(B);
   txt(`提供割合  ★6: ${pct(r6)}%  ★5: ${pct(RATE5)}%  ★4: ${pct(RATE4)}%  ★3: ${pct(1 - r6 - RATE5 - RATE4)}%`, W / 2, 350, 11, "#cfd6ff", "center");
   txt("持っているキャラが出ると「覚醒」(最大5) で能力アップ", W / 2, 368, 11, "#cfd6ff", "center");
+  // 天井: 限定ガチャを PITY 回引くと、好きな限定キャラ1体と交換
+  const pt = save.pity || 0;
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  roundRect(24, 548, W - 48, 30, 10);
+  ctx.fill();
+  txt(`天井 ${Math.min(pt, PITY)} / ${PITY}`, 36, 563, 12, pt >= PITY ? "#ffe066" : "#fff");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(130, 560, 110, 6);
+  ctx.fillStyle = "#ffd23f";
+  ctx.fillRect(130, 560, 110 * Math.min(1, pt / PITY), 6);
+  button(W - 112, 551, 84, 24, pt >= PITY ? "交換する!" : "限定で貯まる", () => {
+    if ((save.pity || 0) >= PITY) pityOpen = true; else showToast(`限定ガチャを${PITY}回引くと、好きな限定キャラと交換できます`);
+  }, { size: 10, disabled: pt < PITY, c1: "#ffe066", c2: "#ff9a1f" });
   button(24, 392, W - 48, 64, fest ? "1回 お祭りガチャ" : "1回ガチャ", () => pullGacha(1),
     { size: 18, sub: `ジェム ${GACHA_1}`, disabled: save.gems < GACHA_1,
       ...(fest ? { c1: "#ffe27a", c2: "#e8890c", fg: "#5a1800" } : {}) });
@@ -4370,6 +4476,265 @@ function drawGacha() {
     ctx.restore();
   }
   drawNav();
+  if (pityOpen) drawPity();
+}
+
+// ---- ストーリーの会話（章のはじめと章ボスを倒した時。1回だけ） ---------------------------
+// N: 案内妖精ナビ / L: リーダー / B: その章のボス / K: 混沌の王
+const STORY_TALK = [
+  { s: [["N", "ようこそ！わたしは案内妖精のナビ。この世界は今、混沌の力に包まれているの"], ["L", "混沌の力…？"],
+        ["N", "各地の守護者が闇に染められちゃった。いっしょに助けに行こう！"]],
+    e: [["B", "ぐ…わたしは今まで何を…"], ["N", "闇が晴れた！この調子で次の地へ行こう！"]] },
+  { s: [["N", "ここは炎の谷。熱いから気をつけてね"], ["L", "敵の数が増えてきたな"]],
+    e: [["B", "礼を言う…混沌の王が東へ向かうのを見た"], ["N", "混沌の王…そいつが黒幕ね！"]] },
+  { s: [["N", "湖の上にふしぎな渦…ワープかも！"], ["N", "対策の能力を持つ仲間を連れていくと楽になるよ"]],
+    e: [["B", "水が…澄んでいく…"], ["L", "これで湖も元通りだ"]] },
+  { s: [["N", "まぶしい！光の守護者がいる丘だよ"], ["L", "足元の地雷に注意して進もう"]],
+    e: [["B", "光を取り戻してくれて感謝する"], ["N", "守護者の光が、道を照らしてくれてる！"]] },
+  { s: [["N", "まっくら…はぐれないでね"], ["K", "フフフ…よくここまで来たな"], ["L", "お前が混沌の王か！"]],
+    e: [["K", "まだ遊びは始まったばかりだ…"], ["N", "逃げられた…！追いかけよう！"]] },
+  { s: [["N", "木々がささやいてる…『急いで』って"]],
+    e: [["B", "森の声が…戻った"], ["L", "混沌の王はどこへ行った？"]] },
+  { s: [["N", "足元が熱い！壁にも電気が走ってる"], ["L", "ダメージウォールか…慎重にいこう"]],
+    e: [["B", "火口の怒りが静まった…"], ["N", "王の手がかり、見つけた！海の向こうだって"]] },
+  { s: [["N", "きれいな海…でも、なんだか体が重い"], ["L", "重力バリアだな"]],
+    e: [["B", "海の歌が戻ってきた…ありがとう"], ["L", "仲間も強くなってきたな"]] },
+  { s: [["N", "雲の上の神殿！動くブロックに気をつけて"]],
+    e: [["B", "天の扉が…開く"], ["N", "神殿の力で、旅がもっと楽になるよ"]] },
+  { s: [["K", "ここまで来るとは…だが、ここが貴様らの墓場だ"], ["L", "負けるもんか！"]],
+    e: [["K", "ぐぬぬ…覚えておけ！"], ["N", "これで半分！まだまだ、がんばろう！"]] },
+  { s: [["N", "星のかけらが降る浜辺。きれい…"]],
+    e: [["B", "星の輝きが…よみがえる"], ["L", "次はどこだ？"]] },
+  { s: [["N", "歯車だらけ！ギミックもいっぱいだね"]],
+    e: [["B", "機械の暴走が止まった…"], ["N", "工場の地図に、王の城の場所が！"]] },
+  { s: [["N", "この城…本物？まぼろし？"], ["L", "どっちでも、進むだけだ"]],
+    e: [["B", "幻が晴れていく…"], ["N", "本当の道が見えたよ！"]] },
+  { s: [["N", "大昔の迷宮。迷子にならないでね"]],
+    e: [["B", "古の封印が…解けた"], ["L", "封印？"], ["N", "王の力を弱める封印みたい！"]] },
+  { s: [["N", "雷が鳴りやまない塔…"], ["K", "封印に気づいたか…小賢しい"]],
+    e: [["K", "まだだ…まだ終わらん！"], ["L", "何度でも追いかける！"]] },
+  { s: [["N", "海の底の都！空気は…なんとかなる！"]],
+    e: [["B", "都に光が戻った…"], ["N", "残る守護者もあとわずか！"]] },
+  { s: [["N", "太陽の力が集まる祭壇だよ"]],
+    e: [["B", "太陽の加護を、あなたたちに"], ["L", "力がみなぎってくる…！"]] },
+  { s: [["N", "月明かりの里。静かすぎて、ちょっとこわい"]],
+    e: [["B", "月が…満ちた"], ["N", "王の城への道が開いたよ！"]] },
+  { s: [["K", "ようこそ、混沌の境界へ。ここで終わりにしてやろう"], ["L", "終わるのはお前のほうだ！"]],
+    e: [["K", "ばかな…この私が…"], ["N", "あと一つ！天空の果てで決着だよ！"]] },
+  { s: [["N", "ついに最後の地…いっしょに行こう！"], ["L", "ああ。みんなで勝つ！"]],
+    e: [["K", "これが…絆の力か…"], ["N", "やった…！世界に光が戻ったよ！ありがとう！"],
+        ["L", "まだまだ冒険は続くさ。塔も、絶級も待ってる！"]] },
+];
+let talk = null;   // { lines: [{ sp, name, text }], i, el }
+function storyTalk(q, kind) {
+  if (q.stage !== (kind === "s" ? 0 : STAGES_PER_CHAPTER - 1)) return;
+  const key = kind + q.chapter, t = STORY_TALK[q.chapter];
+  if (!t || save.talkSeen[key]) return;
+  save.talkSeen[key] = 1;
+  persist();
+  const names = { N: "ナビ", L: displayName(save.party[0]), B: q.bossName, K: "混沌の王" };
+  talk = { lines: t[kind].map(([sp, text]) => ({ sp, name: names[sp], text })), i: 0, el: CHAPTERS[q.chapter][1] };
+}
+function drawTalk() {
+  if (!talk) return;
+  button(0, 0, W, H, "", () => {
+    talk.i++;
+    if (talk.i >= talk.lines.length) talk = null;
+  }, { hidden: true });
+  const ln = talk.lines[talk.i];
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillRect(0, 0, W, H);
+  // 話している人の絵
+  const px = ln.sp === "L" || ln.sp === "N" ? 70 : W - 70, py = 390;
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = ln.sp === "K" ? "#3a1670" : ln.sp === "B" ? EL[talk.el].d : "#2a3a70";
+  ctx.beginPath(); ctx.arc(px, py, 46, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  if (ln.sp === "L") drawChar(look(save.party[0]), px, py + 4, 30);
+  else if (ln.sp === "N") drawChar({ shape: "blob", el: "light", acc: "halo", eye: "sparkle", rar: 5, evo: true }, px, py + 4, 28);
+  else drawEnemy({ x: px, y: py, r: 32, el: ln.sp === "K" ? "dark" : talk.el, boss: true, weak: null, flash: 0, wob: 0,
+    guard: false, regen: 0, cd: 9, hp: 1, maxHp: 1 });
+  // ふきだし
+  ctx.fillStyle = "rgba(10,14,40,0.95)";
+  roundRect(12, 446, W - 24, 120, 14);
+  ctx.fill();
+  ctx.strokeStyle = ln.sp === "K" ? "#9b5cff" : "#ffd35c";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = ln.sp === "K" ? "#9b5cff" : "#ffd35c";
+  roundRect(24, 434, Math.min(200, 24 + ln.name.length * 14), 24, 8);
+  ctx.fill();
+  ctx.restore();
+  txt(ln.name, 34, 446, 13, "#1a1030", "left", "900");
+  wrapText(ln.text, W - 56, 14).slice(0, 4).forEach((l, i) => txt(l, 28, 476 + i * 21, 14, "#fff", "left", "normal"));
+  txt(talk.i < talk.lines.length - 1 ? "タップで次へ ▼" : "タップで閉じる", W - 26, 552, 10, "#9aa3d8", "right", "normal");
+}
+
+// ---- チュートリアル（はじめての時に1回だけ出るヒント） ------------------------------
+let hintNow = null;
+const hintQueue = [];
+function hint(key, text) {
+  if (!save || save.hints[key] || hintQueue.some(h => h.key === key) || (hintNow && hintNow.key === key)) return;
+  hintQueue.push({ key, text });
+}
+// バトルの状況に合わせて出すヒント
+function battleHints() {
+  if (!BATTLE.has(state)) return;
+  hint("aim", "画面のどこでも引っ張って離すと、手番のキャラが反対の方向に飛ぶよ! 敵に当てて倒そう");
+  hint("combo", "飛んでいるキャラが味方に触れると「友情コンボ」が出るよ。味方の間を通るように狙おう");
+  if (enemies.some(e => e.weak !== null)) hint("weak", "黄色い照準は「弱点」。当てるとダメージ3倍!");
+  if (waveGims().length) hint("gim", "ギミック登場! 下のキャラの欄で水色の能力は、このギミックに強いよ。出撃前の編成で対策キャラを入れよう");
+  if (enemies.some(e => e.guard)) hint("guard", "六角形のバリアは「ガード」。弱点以外はダメージが1/4になるよ");
+  if (allies.some(a => a.helper)) hint("helper", "「助」のマークは助っ人。ほかのプレイヤーのキャラが一緒に戦ってくれるよ");
+}
+function updateHints() {
+  if (!hintNow && hintQueue.length && !talk && !loginOpen) hintNow = hintQueue.shift();
+  if (state === "home" && !(save.stats.clears > 0)) hint("home", "ようこそ! わたしは案内妖精のナビ。まずは「クエスト」→「ストーリー」の1-1から冒険を始めよう!");
+  if (state === "prep") hint("prep", "出撃前の編成画面だよ。下の一覧をタップで仲間を入れ替え。水色の帯は、このステージのギミックに強いキャラ!");
+  if (state === "event" && eventTab === "drop") hint("drop", "キャラ集めはクリアするたびにキャラが1〜5体もらえる! 重ねてラックを99にすると「運極」だよ");
+  if (BATTLE.has(state) && state === "aim" && allies.some(a => a.ssLeft === 0)) {
+    hint("ss", "SSが使える! 下で光っているキャラのアイコンをタップしてから撃とう");
+  }
+}
+function drawHint() {
+  if (!hintNow || talk || loginOpen) return;
+  const lines = wrapText(hintNow.text, W - 70, 13).slice(0, 4);
+  const h = 34 + lines.length * 19, y = BATTLE.has(state) ? TOP + 40 : 120;
+  button(18, y, W - 36, h, "", () => {
+    save.hints[hintNow.key] = 1;
+    persist();
+    hintNow = null;
+  }, { hidden: true });
+  ctx.save();
+  ctx.globalAlpha = 0.96;
+  ctx.fillStyle = "#fff8d6";
+  roundRect(18, y, W - 36, h, 14);
+  ctx.fill();
+  ctx.strokeStyle = "#ff9a1f";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+  drawChar({ shape: "blob", el: "light", acc: "halo", eye: "sparkle", rar: 5, evo: true }, 40, y + 20, 12);
+  txt("ナビ", 58, y + 14, 11, "#c05a00", "left", "900");
+  lines.forEach((l, i) => txt(l, 32, y + 34 + i * 19, 13, "#3a2400", "left", "bold"));
+  txt("タップで閉じる", W - 28, y + 14, 9, "#a07040", "right", "normal");
+}
+
+// ---- 称号（達成するともらえる。選んだ称号はランキングに出る。初めて取るとジェム30） -------------
+const unkCount = () => Object.keys(save.box).filter(k => isUnkyoku(Number(k))).length;
+const TITLES = [
+  { id: "first",   n: "駆け出し冒険者",   d: "クエストを1回クリア",            ok: () => (save.stats.clears || 0) >= 1 },
+  { id: "story50", n: "旅の勇者",         d: "ストーリーを50ステージクリア",    ok: () => storyProgress() >= 50 },
+  { id: "story",   n: "世界の救世主",     d: "ストーリーを全部クリア",          ok: () => storyProgress() >= STORY_COUNT },
+  { id: "tower50", n: "塔の挑戦者",       d: "無限の塔50階",                    ok: () => (save.towerMax || 0) >= 50 },
+  { id: "tower",   n: "塔の覇者",         d: "無限の塔100階",                   ok: () => (save.towerMax || 0) >= 100 },
+  { id: "abyss",   n: "深淵の探求者",     d: "深淵の塔30階",                    ok: () => (save.abyssMax || 0) >= 30 },
+  { id: "goku",    n: "極限突破",         d: "極限・神々の黄昏をクリア",        ok: () => !!save.cleared[8] },
+  { id: "zekkyu",  n: "絶級の王者",       d: "絶級Ⅹをクリア",                  ok: () => !!save.cleared["h9"] },
+  { id: "reflect", n: "反射の達人",       d: "反射専用10をクリア",              ok: () => !!save.cleared["yr9"] },
+  { id: "pierce",  n: "貫通の達人",       d: "貫通専用10をクリア",              ok: () => !!save.cleared["yp9"] },
+  { id: "shin",    n: "真の力の使い手",   d: "試練Ⅲをクリア",                  ok: () => Object.values(save.trial || {}).some(v => v >= TRIAL_TIERS) },
+  { id: "unk1",    n: "運極デビュー",     d: "運極を1体作る",                   ok: () => unkCount() >= 1 },
+  { id: "unk5",    n: "運極コレクター",   d: "運極を5体作る",                   ok: () => unkCount() >= 5 },
+  { id: "unk20",   n: "運極マスター",     d: "運極を20体作る",                  ok: () => unkCount() >= 20 },
+  { id: "drop",    n: "キャラハンター",   d: "キャラ集めを50回クリア",          ok: () => (save.stats.dropClears || 0) >= 50 },
+  { id: "dex",     n: "図鑑マスター",     d: "図鑑をコンプリート",              ok: () => dexCount() >= FAM.length },
+  { id: "raid",    n: "レイドの英雄",     d: "協力レイドの討伐報酬を受け取る",  ok: () => !!save.raidWin },
+  { id: "score",   n: "スコア王",         d: "スコアアタックで80万点",          ok: () => (save.sa && save.sa.best || 0) >= 800000 || !!save.scoreKing },
+  { id: "kills",   n: "モンスターハンター", d: "敵を10000体倒す",               ok: () => (save.stats.kills || 0) >= 10000 },
+  { id: "rank50",  n: "ベテラン",         d: "ランク50",                        ok: () => save.rank >= 50 },
+];
+const TITLE_GEM = 30;
+const titleName = () => (TITLES.find(t => t.id === save.title) || {}).n || "";
+// ランキングに出すリーダー名（称号つき）
+const leaderLabel = () => ((titleName() ? `【${titleName()}】` : "") + displayName(save.party[0])).slice(0, 30);
+// 新しく達成した称号を受け取る
+function checkTitles() {
+  if ((save.sa && save.sa.best || 0) >= 800000) save.scoreKing = true;
+  const got = TITLES.filter(t => !save.titlesGot.includes(t.id) && t.ok());
+  if (!got.length) return;
+  for (const t of got) save.titlesGot.push(t.id);
+  save.gems += got.length * TITLE_GEM;
+  if (!save.title) save.title = got[0].id;
+  persist();
+  showToast(`称号「${got[0].n}」${got.length > 1 ? `ほか${got.length - 1}つ` : ""}を手に入れた! ジェム+${got.length * TITLE_GEM}`);
+}
+let titlePage = 0;
+function drawTitles() {
+  drawMenuBg("#2a2410", "#0c0a04");
+  drawTopBar();
+  button(10, 48, 64, 28, "← 戻る", () => go("home"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("称号", W / 2, 62, "#fff", 20);
+  ctx.restore();
+  txt(`${save.titlesGot.length} / ${TITLES.length}`, W - 16, 62, 13, "#ffd35c", "right", "900");
+  txt("タップで付け替え。ランキングでリーダーの前に出ます", W / 2, 88, 10, "#cfd6ff", "center", "normal");
+  const per = 10, pages = Math.ceil(TITLES.length / per);
+  TITLES.slice(titlePage * per, titlePage * per + per).forEach((t, i) => {
+    const y = 100 + i * 44, has = save.titlesGot.includes(t.id), on = save.title === t.id;
+    ctx.fillStyle = on ? "rgba(255,211,92,0.25)" : has ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)";
+    roundRect(14, y, W - 28, 40, 10);
+    ctx.fill();
+    if (on) { ctx.strokeStyle = "#ffd35c"; ctx.lineWidth = 2; ctx.stroke(); }
+    txt(has ? `【${t.n}】` : "？？？", 24, y + 14, 13, has ? "#ffe066" : "#6a7090");
+    txt(t.d, 28, y + 31, 10, has ? "#cfd6ff" : "#8088a8", "left", "normal");
+    txt(on ? "使用中" : has ? "付ける" : "未達成", W - 26, y + 20, 11, on ? "#ffd35c" : has ? "#7cf0ff" : "#6a7090", "right");
+    if (has) button(14, y, W - 28, 40, "", () => { save.title = on ? "" : t.id; persist(); }, { hidden: true });
+  });
+  if (pages > 1) {
+    button(14, 546, 90, 30, "◀ 前", () => { titlePage = (titlePage + pages - 1) % pages; }, { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+    button(W - 104, 546, 90, 30, "次 ▶", () => { titlePage = (titlePage + 1) % pages; }, { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+    txt(`${titlePage + 1} / ${pages}`, W / 2, 561, 12, "#fff", "center");
+  }
+  drawNav();
+}
+
+// ---- 天井（限定ガチャを100回引くと、好きな限定キャラと交換） ----------------------
+const PITY = 100;
+let pityOpen = false;
+function drawPity() {
+  button(0, 0, W, H, "", () => {}, { hidden: true, silent: true });
+  ctx.fillStyle = "rgba(0,0,0,0.75)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#2a1850";
+  roundRect(16, 120, W - 32, 360, 16);
+  ctx.fill();
+  ctx.strokeStyle = "#ffd35c";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("天井交換", W / 2, 150, "#ffd35c", 22, "#5a2200");
+  ctx.restore();
+  txt("好きな限定キャラを1体選んでね", W / 2, 176, 12, "#cfd6ff", "center", "normal");
+  LIMITED_ALL.forEach((fi, i) => {
+    const x = 34 + (i % 2) * 150, y = 196 + Math.floor(i / 2) * 120;
+    drawIcon(fi, x + 33, y, 66);
+    txt(FAM[fi].name, x + 66, y + 80, 12, "#fff", "center");
+    txt(save.box[fi] ? acquireTag({ ...acquirePreview(fi) }) : "NEW", x + 66, y + 96, 10, "#ffd35c", "center");
+    button(x + 10, y, 112, 104, "", () => {
+      if ((save.pity || 0) < PITY) return;
+      save.pity -= PITY;
+      const r = acquire(fi);
+      persist();
+      pityOpen = false;
+      playSe("fanfare");
+      burst(W / 2, 300, "#ffd35c", 80, 6);
+      showToast(`${FAM[fi].name} と交換しました（${acquireTag(r)}）`);
+    }, { hidden: true });
+  });
+  button(80, 440, W - 160, 32, "閉じる", () => { pityOpen = false; }, { size: 13, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+// 交換したら何になるか（覚醒+1 / ラック+n / コイン）
+function acquirePreview(fi) {
+  const u = save.box[fi];
+  if (u.awk < MAX_AWK) return { kind: "awk" };
+  if ((u.luck || 0) < MAX_LUCK) return { kind: "luck", luck: Math.min(MAX_LUCK - (u.luck || 0), 10), max: false };
+  return { kind: "coin", coins: 500 * FAM[fi].rar };
 }
 
 // ---- 超拍手祭の豪華なバナー（提灯・花火・紙吹雪・金の額縁・スポットライト） ------------
@@ -4913,6 +5278,13 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-19-j2", date: "2026-10-19", title: "キャラ集め・曜日クエスト・天井",
+    body: "イベントに「キャラ集め」登場！20ステージのうち5つが2日ごとに入れ替わり、クリアするたびにそのキャラが1〜5体ドロップ（新キャラ20体）。"
+      + "運極のキャラを連れていくとドロップが増えます。\n「曜日」では曜日ごとの属性の結晶がたくさん手に入ります。限定ガチャは100回で好きな限定キャラと交換できる「天井」付き。" },
+  { id: "up-2026-10-19-j1", date: "2026-10-19", title: "助っ人・称号・ストーリー会話",
+    body: "出撃前の編成で「助っ人」を1体借りて5体で出撃できるように。称号（20種類）を集めるとジェム30、付けた称号はランキングに出ます。\n"
+      + "ストーリーの章のはじめと章ボスのあとに会話が入り、はじめての人にはナビがヒントを出します。"
+      + "ラックが高いキャラはクリア時に「ラックボーナス」が出ることも！" },
   { id: "up-2026-10-19-i", date: "2026-10-19", title: "スペシャル・試練にギミック",
     body: "スペシャルクエスト9つと、★6キャラの試練にもギミックが出るようになりました。\n"
       + "スペシャルは難しいクエストほど多く（最大3つ）。試練はⅠで1つ・Ⅱで2つ・Ⅲで3つ、そのキャラが対策できるギミックから順に出ます。"
@@ -5526,10 +5898,13 @@ function draw() {
     case "dex": drawDex(); break;
     case "event": drawEvent(); break;
     case "prep": drawPrep(); break;
+    case "titles": drawTitles(); break;
     default: drawBattle();
   }
   if (shareOpen) drawShare();
   if (maintenanceOn() && !BATTLE.has(state)) drawMaintenance();
+  drawTalk();
+  drawHint();
   drawToast();
 }
 
@@ -5770,6 +6145,7 @@ function claimDex() {
 // まだ持っていないキャラの手に入れ方
 function howToGet(f) {
   if (f.event) return "降臨（イベント）のボスを倒すとドロップ";
+  if (f.drop) return "イベントの「キャラ集め」ステージでドロップ（2日ごとに入れ替わり）";
   if (isLimited(f.idx)) return "限定ガチャで手に入る";
   if (PERM6.includes(f.idx)) return "常設ガチャの★6";
   if (f.rar === 3) return "ガチャ・クエストのドロップ";
@@ -5816,7 +6192,7 @@ function drawDex() {
 }
 
 // ---- イベント ----------------------------------------------------------
-const questHome = () => quest && ["event", "score", "raid"].includes(quest.kind) ? "event" : "quests";
+const questHome = () => quest && ["event", "score", "raid", "drop", "weekday"].includes(quest.kind) ? "event" : "quests";
 function fmtLeft(ms) {
   const h = Math.max(0, Math.floor(ms / 3600000)), m = Math.max(0, Math.floor(ms / 60000) % 60);
   return h >= 24 ? `あと${Math.floor(h / 24)}日${h % 24}時間` : `あと${h}時間${m}分`;
@@ -5857,6 +6233,61 @@ function eventQuest(b, lv) {
   };
 }
 
+// キャラ集め: 20ステージのうち5つが開催中（2日ごとに入れ替わり）。クリアでそのキャラが1〜5体ドロップ
+const DROP_DAYS = 2, DROP_ACTIVE = 5;
+function activeDrops() {
+  const start = dayStart(EVENT_START), n = Math.max(0, Math.floor((Date.now() - start) / (DROP_DAYS * DAY)));
+  const list = [];
+  for (let k = 0; k < DROP_ACTIVE; k++) list.push((n * DROP_ACTIVE + k) % DROP_CHARS.length);
+  const next = [];
+  for (let k = 0; k < DROP_ACTIVE; k++) next.push(((n + 1) * DROP_ACTIVE + k) % DROP_CHARS.length);
+  return { list, next, endsAt: start + (n + 1) * DROP_DAYS * DAY };
+}
+function dropStage(j) {
+  const fi = DROP_CHARS[j], f = FAM[fi], m = f.el, s = ADV_BY[ADV_BY[m]] || EL_KEYS[(j + 1) % 5];
+  const mul = f.rar >= 5 ? 3.2 : 2;
+  const gims = [GIM_KEYS[j % GIM_KEYS.length], ...(f.rar >= 5 ? [GIM_KEYS[(j + 2) % GIM_KEYS.length]] : [])];
+  const seed = w => seeded(660000 + j * 10 + w);
+  const waves = [
+    () => genWave(seed(0), m, s, 4, mul, null, false, gims),
+    () => genWave(seed(1), m, s, 5, mul, null, false, gims),
+    () => genWave(seed(2), m, s, 3, mul, { name: `野生の${f.name}`, hpMul: 1.6, r: 50 }, false, gims),
+  ];
+  return {
+    id: "d" + j, kind: "drop", name: `${f.name}の住みか`, sub: `${EL[m].n}属性 / ${EL[ADV_BY[m]].n}属性が有利`,
+    boss: true, diff: f.rar >= 5 ? 6 : 4, mul: 1, par: 10, bg: EL_BG[m], coin: 3000, gem: 30, crEl: m, crN: 3, exp: 100,
+    waves, gims, dropFi: fi,
+  };
+}
+// クリアでドロップする数（1〜5体。運極のキャラが編成にいれば1体につき+1、最大+2）
+function dropCount() {
+  const unk = save.party.filter(fi => isUnkyoku(fi)).length;
+  return 1 + Math.floor(Math.random() * 5) + Math.min(2, unk);
+}
+
+// 曜日クエスト: 曜日ごとに属性が変わり、その属性の結晶がたくさん手に入る。土日は全属性
+const WEEK_EL = [null, "fire", "water", "wood", "light", "dark", null];   // 日〜土
+const WD_LV = [
+  { n: "初級", mul: 1,   crN: 8,  coin: 3000,  diff: 3 },
+  { n: "中級", mul: 2.5, crN: 16, coin: 8000,  diff: 5 },
+  { n: "上級", mul: 5,   crN: 30, coin: 20000, diff: 7, hard: true },
+];
+const weekdayEls = () => { const e = WEEK_EL[new Date().getDay()]; return e ? [e] : EL_KEYS; };
+function weekdayQuest(el, lv) {
+  const L = WD_LV[lv], k = EL_KEYS.indexOf(el), s = ADV_BY[ADV_BY[el]] || EL_KEYS[(k + 2) % 5];
+  const gims = lv === 0 ? [] : [GIM_KEYS[(k + lv) % GIM_KEYS.length]];
+  const seed = w => seeded(680000 + k * 100 + lv * 10 + w);
+  const waves = [
+    () => genWave(seed(0), el, s, 4, L.mul, null, !!L.hard, gims),
+    () => genWave(seed(1), el, s, 3, L.mul, { name: `${EL[el].n}の結晶獣`, hpMul: 1.4, r: 48 }, !!L.hard, gims),
+  ];
+  return {
+    id: `w${k}_${lv}`, kind: "weekday", name: `${EL[el].n}の曜日クエスト【${L.n}】`, sub: `${EL[el].n}属性 / ${EL[ADV_BY[el]].n}属性が有利`,
+    boss: true, diff: L.diff, mul: 1, par: 8, bg: EL_BG[el], coin: L.coin, gem: 0, crEl: el, crN: L.crN, exp: 60 + lv * 40,
+    waves, gims,
+  };
+}
+
 // スコアアタック: 毎週ステージが変わる。スコアで報酬・ランキング
 const SA_TIERS = [{ s: 150000, gem: 50 }, { s: 300000, gem: 100 }, { s: 500000, gem: 150 }, { s: 800000, gem: 300 }];
 function scoreQuest(wk) {
@@ -5884,7 +6315,7 @@ function calcScore() {
     + bstat.hits * 60 + bstat.weak * 400 + bstat.kills * 3000 + bstat.combos * 1500 + bstat.maxHit * 800;
 }
 function scoreFinish(q, r) {
-  const sc = calcScore(), sa = saState(), leader = displayName(save.party[0]);
+  const sc = calcScore(), sa = saState(), leader = leaderLabel();
   r.score = sc;
   r.scoreBest = sc > sa.best;
   if (r.scoreBest) sa.best = sc;
@@ -6058,6 +6489,7 @@ function claimRaid() {
   const st = raidState();
   if (!raidDefeated() || st.claimed || !st.dmg) return;
   st.claimed = true;
+  save.raidWin = true;
   save.gems += RAID_REWARD.gems;
   save.coins += RAID_REWARD.coins;
   persist();
@@ -6102,12 +6534,121 @@ function drawRaidResult() {
   button(60, 458, W - 120, 46, "イベントへ", () => go("event"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 }
 
+// ---- 助っ人（ほかのプレイヤーのリーダーを1体借りて、5体目として出撃） -----------------------
+// オンライン（Supabase の helpers 表）があればみんなのリーダー、なければゲストの助っ人
+let helperList = [], helperStatus = "idle", helperAt = 0;
+let prepHelper = null, prepHelperFor = null, helperPickOpen = false;
+const GUEST_NAMES = ["旅人アルト", "剣士ミオ", "魔導士ケイ", "狩人ソラ", "騎士レン", "踊り子ルル"];
+// ゲストの助っ人（毎日入れ替わる）
+function guestHelpers() {
+  const r = seeded(Math.floor(Date.now() / DAY) * 13 + 7);
+  const pool = [...PERM6, ...EVENT_CHARS, ...FAM.filter(f => f.rar === 5 && !f.event && !f.drop).map(f => f.idx)];
+  return GUEST_NAMES.map(name => {
+    const fi = pool[Math.floor(r() * pool.length)], six = FAM[fi].rar >= 6 || r() < 0.6;
+    return { name, guest: true, title: "", fi, rar: six ? 6 : FAM[fi].rar, lv: six ? 70 + Math.floor(r() * 30) : 50 + Math.floor(r() * 20),
+      awk: Math.floor(r() * 6), luck: Math.floor(r() * 60), trial: FAM[fi].rar >= 6 && r() < 0.3 ? 1 : 0 };
+  });
+}
+async function fetchHelpers() {
+  if (!onlineRanking()) { helperStatus = "offline"; return; }
+  helperStatus = "loading";
+  try {
+    const rows = await sbGet("helpers?select=name,title,fi,rar,lv,awk,luck,trial&order=created_at.desc&limit=80");
+    const seen = new Set(), list = [];
+    for (const h of rows) {
+      if (seen.has(h.name) || h.name === save.name || !FAM[h.fi] || !RBASE[h.rar]) continue;
+      seen.add(h.name);
+      list.push({ ...h, lv: Math.min(MAXLV[h.rar], h.lv) });
+    }
+    helperList = list.slice(0, 8);
+    helperStatus = "ok";
+  } catch (e) {
+    helperStatus = "error";   // まだ表がない時など
+  }
+  helperAt = Date.now();
+}
+// 自分のリーダーを助っ人として登録（内容が変わった時だけ）
+function registerHelper() {
+  if (!onlineRanking() || !save.name) return;
+  const fi = Number(save.party[0]), u = save.box[fi];
+  if (!u) return;
+  const row = { name: save.name, title: titleName().slice(0, 20), fi, rar: u.rar, lv: u.lv, awk: u.awk, luck: u.luck || 0, trial: trialTier(fi) };
+  const sig = JSON.stringify(row) + today();
+  if (save.helperSent === sig) return;
+  save.helperSent = sig;
+  persist();
+  sbPost("helpers", row).catch(() => { save.helperSent = ""; });
+}
+// 出撃前に選べる助っ人（みんな → 足りない分はゲスト）
+function helperChoices() {
+  if (helperStatus === "idle" || Date.now() - helperAt > 120000) fetchHelpers();
+  return [...helperList, ...guestHelpers()].slice(0, 8);
+}
+function drawHelperPick(q, need) {
+  button(0, 0, W, H, "", () => {}, { hidden: true, silent: true });
+  ctx.fillStyle = "rgba(0,0,0,0.75)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#16224a";
+  roundRect(10, 60, W - 20, 540, 14);
+  ctx.fill();
+  ctx.strokeStyle = "#7cf0ff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("助っ人をえらぶ", W / 2, 84, "#7cf0ff", 18);
+  ctx.restore();
+  const online = helperStatus === "ok" && helperList.length;
+  txt(online ? "みんなのリーダーを借りられる（5体目で出撃）" : helperStatus === "loading" ? "読み込み中…"
+    : "ゲストの助っ人（オンラインの助っ人はまだいません）", W / 2, 106, 10, "#cfd6ff", "center", "normal");
+  helperChoices().forEach((h, i) => {
+    const y = 118 + i * 54, f = FAM[h.fi], bad = q.kind === "typed" && f.type !== q.ptype;
+    const ab = abilOf(h.fi, h.rar), hit = ab.filter(k => need.includes(k));
+    ctx.fillStyle = prepHelper && prepHelper.name === h.name ? "rgba(124,240,255,0.25)" : "rgba(255,255,255,0.07)";
+    roundRect(18, y, W - 36, 50, 10);
+    ctx.fill();
+    // アイコン（相手の育成状態で描く）
+    ctx.save();
+    roundRect(24, y + 4, 42, 42, 8);
+    ctx.fillStyle = EL[f.el].d;
+    ctx.fill();
+    ctx.strokeStyle = RCOL[h.rar];
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.clip();
+    drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: h.rar, evo: h.rar > f.rar }, 45, y + 28, 11);
+    ctx.restore();
+    txt(`${h.name}${h.guest ? "（ゲスト）" : ""}`, 74, y + 12, 12, h.guest ? "#cfd6ff" : "#fff");
+    if (h.title) txt(`【${h.title}】`, W - 26, y + 12, 9, "#ffe066", "right");
+    txt(`${f.name} ★${h.rar} Lv${h.lv}${h.luck >= MAX_LUCK ? " 運極" : ""}${h.trial >= TRIAL_TIERS ? " 真" : ""}`, 74, y + 28, 10, "#cfd6ff", "left", "normal");
+    txt(ab.map(k => ABIL[k].s).join(" "), 74, y + 42, 9, hit.length ? "#7cf0ff" : "#8088b0", "left", "900");
+    txt(f.type === "reflect" ? "反射" : "貫通", W - 26, y + 34, 10, bad ? "#ff6b8b" : "#cfd6ff", "right");
+    if (bad) {
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      roundRect(18, y, W - 36, 50, 10);
+      ctx.fill();
+    }
+    button(18, y, W - 36, 50, "", () => {
+      if (bad) { showToast(`${TYPE_NAME[q.ptype]}タイプの助っ人を選ぼう`); return; }
+      prepHelper = h;
+      prepHelperFor = prepId;
+      helperPickOpen = false;
+    }, { hidden: true });
+  });
+  button(24, 556, 150, 34, "助っ人なし", () => { prepHelper = null; helperPickOpen = false; }, { size: 13, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(186, 556, 150, 34, "閉じる", () => { helperPickOpen = false; }, { size: 13, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+}
+
 // ---- 出撃前の編成画面（ギミックに対応できるキャラを表示） ------------------------------
 let prepId = null, prepBack = "quests";
 function openPrep(id) {
   if (maintenanceOn()) { showToast("メンテナンス中です"); return; }
   prepBack = BATTLE.has(state) ? questHome() : state;
+  if (prepHelperFor !== id) { prepHelper = null; prepHelperFor = id; }
   prepId = id;
+  registerHelper();
+  helperChoices();
   go("prep");
 }
 // このクエストのギミックに効く能力
@@ -6133,7 +6674,7 @@ function drawPrep() {
     need.length ? "#7cf0ff" : "#cfd6ff", "left", "normal");
   // 編成（タップで外す）
   const ng = partyProblem(q);
-  const s = 58, gap = 14, x0 = (W - (4 * s + 3 * gap)) / 2, py = 134;
+  const s = 54, gap = 10, x0 = (W - (5 * s + 4 * gap)) / 2, py = 134;   // 4体＋助っ人
   let ok = 0;
   for (let i = 0; i < 4; i++) {
     const x = x0 + i * (s + gap), fi = save.party[i];
@@ -6171,8 +6712,41 @@ function drawPrep() {
       persist();
     }, { hidden: true });
   }
+  // 5枠目: 助っ人（タップでえらぶ）
+  {
+    const x = x0 + 4 * (s + gap), h = prepHelper;
+    if (h) {
+      const f = FAM[h.fi];
+      ctx.save();
+      roundRect(x, py, s, s, 9);
+      ctx.fillStyle = EL[f.el].d;
+      ctx.fill();
+      ctx.strokeStyle = "#7cf0ff";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.clip();
+      drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: h.rar, evo: h.rar > f.rar }, x + s / 2, py + s * 0.56, s * 0.25);
+      ctx.restore();
+      const ab = abilOf(h.fi, h.rar);
+      if (ab.some(k => need.includes(k))) ok++;
+      txt(ab.map(k => ABIL[k].s).join(" "), x + s / 2, py + s + 9, 8, ab.some(k => need.includes(k)) ? "#7cf0ff" : "#8088b0", "center", "900");
+      txt(h.name.slice(0, 6), x + s / 2, py + s + 21, 9, "#7cf0ff", "center", "normal");
+    } else {
+      ctx.strokeStyle = "#7cf0ff";
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 2;
+      roundRect(x, py, s, s, 10);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      txt("＋", x + s / 2, py + s / 2 - 6, 20, "#7cf0ff", "center", "900");
+      txt("助っ人", x + s / 2, py + s / 2 + 14, 10, "#7cf0ff", "center");
+      txt("えらぶ", x + s / 2, py + s + 21, 9, "#7cf0ff", "center", "normal");
+    }
+    button(x, py, s, s, "", () => { helperPickOpen = true; }, { hidden: true });
+  }
   const total = save.party.reduce((t, fi) => t + unitStats(fi).hp, 0);
-  txt(need.length ? `対策できるキャラ ${ok} / ${save.party.length}` : "ギミックなし", 16, 226, 12, need.length ? (ok ? "#7cf0ff" : "#ff9ab8") : "#9aa3d8");
+  const members = save.party.length + (prepHelper ? 1 : 0);
+  txt(need.length ? `対策できるキャラ ${ok} / ${members}` : "ギミックなし", 16, 226, 12, need.length ? (ok ? "#7cf0ff" : "#ff9ab8") : "#9aa3d8");
   txt(`合計HP ${total.toLocaleString()}`, W - 16, 226, 12, "#7dffa0", "right");
   // キャラ一覧（対策キャラに水色の帯、タップで入れる/外す）
   drawGrid(238, fi => {
@@ -6196,6 +6770,7 @@ function drawPrep() {
   if (ng) txt(ng, W / 2, 596, 12, "#ff9ab8", "center");
   button(40, ng ? 606 : 592, W - 80, ng ? 30 : 42, "出撃!", () => startQuest(prepId),
     { size: ng ? 13 : 18, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", disabled: !!ng });
+  if (helperPickOpen) drawHelperPick(q, need);
 }
 
 // ---- イベント画面 -------------------------------------------------------
@@ -6204,21 +6779,84 @@ function drawEvent() {
   drawMenuBg("#3a1a12", "#0c0606");
   drawTopBar();
   header("イベント", "");
-  const tabs = [["descent", "降臨"], ["score", "スコアアタック"], ["raid", "協力レイド"]];
+  const tabs = [["descent", "降臨"], ["drop", "キャラ集め"], ["weekday", "曜日"], ["score", "スコア"], ["raid", "協力レイド"]];
   const tw = (W - 28) / tabs.length;
   tabs.forEach(([k, label], i) => {
     const x = 14 + i * tw, active = eventTab === k;
     ctx.fillStyle = active ? "#ffd35c" : "rgba(255,255,255,0.08)";
     roundRect(x + 2, 78, tw - 4, 30, 9);
     ctx.fill();
-    txt(label, x + tw / 2, 93, 12, active ? "#1a1030" : "#cfd6ff", "center");
+    txt(label, x + tw / 2, 93, 11, active ? "#1a1030" : "#cfd6ff", "center");
     button(x, 78, tw, 30, "", () => { eventTab = k; }, { hidden: true });
   });
   if (eventTab === "descent") drawDescent();
   else if (eventTab === "score") drawScoreAttack();
+  else if (eventTab === "drop") drawDropList();
+  else if (eventTab === "weekday") drawWeekday();
   else drawRaid();
   drawParticles();
   drawNav();
+}
+// キャラ集め（開催中の5ステージ）
+function drawDropList() {
+  const ad = activeDrops();
+  txt(`クリアでそのキャラが1〜5体ドロップ!  入れ替えまで ${fmtLeft(ad.endsAt - Date.now()).replace("あと", "")}`, W / 2, 122, 10, "#ffd35c", "center");
+  ad.list.forEach((j, k) => {
+    const q = dropStage(j), fi = q.dropFi, f = FAM[fi], u = save.box[fi], y = 134 + k * 72;
+    button(14, y, W - 28, 66, "", () => openPrep(q.id), { c1: EL[f.el].d, c2: "#151a33" });
+    drawIcon(fi, 22, y + 7, 52);   // まだ持っていなくても姿は見せる
+    txt(`${f.name}  ★${f.rar}`, 84, y + 15, 13, "#fff");
+    txt(u ? (isUnkyoku(fi) ? "運極!" : u.awk < MAX_AWK ? `覚醒 ${u.awk}/${MAX_AWK}` : `ラック ${u.luck || 0}/${MAX_LUCK}`) : "未所持",
+      84, y + 33, 11, u ? (isUnkyoku(fi) ? "#ffe066" : "#9dff8a") : "#9aa3d8");
+    // ラックのゲージ
+    ctx.fillStyle = "#000";
+    ctx.fillRect(170, y + 30, 90, 5);
+    ctx.fillStyle = "#ffd23f";
+    ctx.fillRect(170, y + 30, 90 * Math.min(1, ((u ? u.awk : 0) + (u ? u.luck || 0 : 0)) / (MAX_AWK + MAX_LUCK)), 5);
+    txt(`能力: ${ABIL[f.abil[0]].s}  ギミック: ${gimText(q.gims)}`, 84, y + 51, 9, "#cfd6ff", "left", "normal");
+    txt(`★${q.diff}`, W - 24, y + 15, 11, "#ffd35c", "right");
+  });
+  txt(`次回: ${ad.next.map(j => FAM[DROP_CHARS[j]].name).join("・")}`, W / 2, 506, 10, "#9aa3d8", "center", "normal");
+  txt("運極のキャラを編成すると、1体につきドロップ+1（最大+2）", W / 2, 524, 10, "#ffe066", "center", "normal");
+}
+// 曜日クエスト
+let weekdayEl = null;
+function drawWeekday() {
+  const els = weekdayEls();
+  if (!weekdayEl || !els.includes(weekdayEl)) weekdayEl = els[0];
+  const days = ["日", "月", "火", "水", "木", "金", "土"], d = new Date().getDay();
+  txt(`今日は${days[d]}曜日: ${els.length > 1 ? "全属性の結晶" : EL[els[0]].n + "の結晶"}がたくさん手に入る!`, W / 2, 124, 12, "#ffd35c", "center");
+  txt("月=火  火=水  水=木  木=光  金=闇  土日=全属性", W / 2, 142, 10, "#9aa3d8", "center", "normal");
+  if (els.length > 1) {
+    els.forEach((el, i) => {
+      const x = 22 + i * 64, on = weekdayEl === el;
+      button(x, 154, 56, 30, EL[el].n, () => { weekdayEl = el; },
+        { size: 13, c1: on ? EL[el].c : "#4a5280", c2: on ? EL[el].d : "#2b3158", fg: "#fff" });
+    });
+  }
+  const el = weekdayEl, y0 = els.length > 1 ? 196 : 162;
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = EL[el].c;
+  ctx.beginPath(); ctx.arc(W / 2, y0 + 44, 40, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  crystalIcon(el, W / 2, y0 + 44, 26);
+  WD_LV.forEach((L, lv) => {
+    const q = weekdayQuest(el, lv), y = y0 + 98 + lv * 66;
+    button(14, y, W - 28, 58, "", () => openPrep(q.id), { c1: lv === 2 ? "#5a1a2a" : EL[el].d, c2: "#151a33" });
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    outlinedText(L.n, 28, y + 19, "#fff", 16);
+    ctx.textAlign = "right";
+    outlinedText("★".repeat(L.diff), W - 26, y + 19, "#ffd35c", 9);
+    ctx.restore();
+    crystalIcon(el, 34, y + 42, 7);
+    txt(`×${L.crN}〜${L.crN + 2}`, 46, y + 42, 12, "#fff");
+    coinIcon(130, y + 42, 6);
+    txt(`${L.coin.toLocaleString()}`, 142, y + 42, 11, "#fff", "left", "normal");
+    txt(q.gims.length ? `ギミック: ${gimText(q.gims)}` : "ギミックなし", W - 26, y + 42, 10, q.gims.length ? "#ff9ab8" : "#9aa3b8", "right", "normal");
+  });
 }
 function gimLine(gims, y) {
   txt(`ギミック: ${gimText(gims)}`, 24, y, 11, "#ff9ab8", "left", "normal");
