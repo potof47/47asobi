@@ -6544,7 +6544,7 @@ function guestHelpers() {
   const r = seeded(Math.floor(Date.now() / DAY) * 13 + 7);
   const pool = [...PERM6, ...EVENT_CHARS, ...FAM.filter(f => f.rar === 5 && !f.event && !f.drop).map(f => f.idx)];
   return GUEST_NAMES.map(name => {
-    const fi = pool[Math.floor(r() * pool.length)], six = FAM[fi].rar >= 6 || r() < 0.6;
+    const fi = pool.splice(Math.floor(r() * pool.length), 1)[0], six = FAM[fi].rar >= 6 || r() < 0.6;   // 同じキャラは出さない
     return { name, guest: true, title: "", fi, rar: six ? 6 : FAM[fi].rar, lv: six ? 70 + Math.floor(r() * 30) : 50 + Math.floor(r() * 20),
       awk: Math.floor(r() * 6), luck: Math.floor(r() * 60), trial: FAM[fi].rar >= 6 && r() < 0.3 ? 1 : 0 };
   });
