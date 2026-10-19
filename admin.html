@@ -248,6 +248,22 @@
       <label for="diff">敵の強さ（全クエスト共通の倍率。1 = 標準、2 = 2倍強い、0.5 = 半分）</label>
       <input id="diff" type="number" min="0.1" max="100" step="0.1" value="1">
     </section>
+    <section>
+      <h2>オンライン（みんなで遊ぶ機能）</h2>
+      <p class="note">
+        Supabase（無料）の Project URL と anon public キーを入れると、全国ランキング・スコアアタックの全国ランキング・
+        協力レイド（みんなで同じボスのHPを削る）が使えるようになります。準備のしかたは README の「オンライン機能」を見てください。
+        空欄のままなら、ひとり用（この端末の記録・ひとりで討伐）で動きます。
+      </p>
+      <label for="onUrl">Project URL</label>
+      <input id="onUrl" placeholder="https://xxxx.supabase.co">
+      <label for="onKey">anon public キー</label>
+      <input id="onKey" placeholder="eyJ...">
+      <div class="row">
+        <div><label for="raidHp">協力レイドのボスHP（オンライン）</label><input id="raidHp" type="number" min="100000" value="30000000"></div>
+        <div><label for="raidSolo">ボスHP（ひとりで討伐）</label><input id="raidSolo" type="number" min="100000" value="5000000"></div>
+      </div>
+    </section>
   </div>
 
   <!-- ===== キャラ調整 ===== -->
@@ -496,6 +512,11 @@ function fillSettings() {
   $("sGems").value = s.gems ?? 500;
   $("sCoins").value = s.coins ?? 3000;
   $("diff").value = config.difficulty ?? 1;
+  const on = config.online || {}, rd = config.raid || {};
+  $("onUrl").value = on.url || "";
+  $("onKey").value = on.key || "";
+  $("raidHp").value = rd.hp ?? 30000000;
+  $("raidSolo").value = rd.soloHp ?? 5000000;
   // ★6枠のキャラ（ガチャごとのチェックボックス）
   fillLimited("gaLimited", g.limited || DEFAULT_LIMITED);
   fillLimited("gaLimited2", g.limited2 || DEFAULT_LIMITED2);
@@ -576,6 +597,8 @@ function readSettings() {
   config.daily = { gems: clamp($("dGems").value, 0, 1e6), coins: clamp($("dCoins").value, 0, 1e8) };
   config.starter = { gems: clamp($("sGems").value, 0, 1e9), coins: clamp($("sCoins").value, 0, 1e10) };
   config.difficulty = Math.max(0.1, Number($("diff").value) || 1);
+  config.online = { url: $("onUrl").value.trim(), key: $("onKey").value.trim() };
+  config.raid = { hp: clamp($("raidHp").value, 1e5, 1e13), soloHp: clamp($("raidSolo").value, 1e5, 1e12) };
   // 確率は★6キャラが多いほうのガチャで確認（どちらも100%以内である必要がある）
   const g = config.gacha, n6 = Math.max(g.limited.length, g.limited2.length);
   const total = g.rate6 * n6 + g.rate5 + g.rate4;
