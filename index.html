@@ -190,6 +190,8 @@ const COMBO = {
   kikou:   { name: "気功波", desc: "敵を追尾するレーザー10本" },
   // パニパニ 専用
   ssboom:  { name: "加速爆発", desc: "フィールド1/4の大爆発＋味方全員のSSを1ターン短縮" },
+  // ムスビ 専用（神域Ⅴのドロップ）
+  tether:  { name: "絆レーザー", desc: "触れた味方との間にレーザーを張り、何度もヒット" },
   // 拍手する猫 専用
   clap:    { name: "拍手", desc: "触れた味方の攻撃力を3ターン1.3倍＋HP回復" },
   // 降臨キャラ専用（限定キャラよりは控えめ）
@@ -209,6 +211,8 @@ const SS = {
   haou: { name: "覇王天翔波", turns: 8, fixed: true, desc: "狙った方向に特大レーザー(攻撃力50倍)＋5T能力2.5倍" },
   // パニパニ 専用
   rally: { name: "全力応援", turns: 9, fixed: true, desc: "触れた味方の攻撃力・友情コンボを3ターン2.5倍" },
+  // ムスビ 専用
+  gourei:  { name: "大号令", turns: 11, fixed: true, desc: "味方全員の友情コンボを2回ずつ発動（威力1.5倍）" },
   // 拍手する猫 専用
   handshake: { name: "握手", turns: 8, fixed: true, desc: "触れた敵が爆発＋敵に触れるたびに加速してまた動き出す" },
   smileburst: { name: "フルスマイル・バースト", turns: 8, fixed: true,
@@ -359,6 +363,8 @@ const FAM = [
   ["ペガス",     "light", 4, "pierce",  "crest",  "round",   "laser",   "wave",   "bird"],
   ["カゲロウ",   "dark",  5, "pierce",  "hood",   "sharp",   "thunder", "meteor", "human"],
   ["ドクロン",   "dark",  4, "reflect", "spikes", "mono",    "blast",   "needle"],
+  // 神域Ⅴのドロップキャラ（★6。ガチャには出ない）
+  ["ムスビ",     "light", 6, "pierce",  "long",   "sparkle", "tether",  "gourei", "human"],
 ].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
 // 図鑑の並び順（属性 → レア度）
 const ORDER = FAM.map(f => f.idx).sort((a, b) =>
@@ -406,6 +412,7 @@ const ABIL_FIXED = {
   "ヒエン": ["AB"], "レオバーン": ["ADW"], "スイレン": ["AB"], "マンタロス": ["AGB"], "コノハ": ["AB"],
   "ミドリワシ": ["AW"], "キララ": ["AB"], "テンマ": ["MK"], "ヨイヤミ": ["AB"], "ネビュラ": ["ADW"],
   "ヒバチ": ["AB"], "ササメ": ["AB"], "ペガス": ["AW"], "ドクロン": ["MK"], "カッパロ": ["AGB"],
+  "ムスビ": ["AW", "AGB"],
 };
 // ふつうは1つ、恒常★6は2つ、限定★6は3つ（キャラごとに決まっている）
 for (const f of FAM) {
@@ -431,6 +438,10 @@ function abilText(fi) {
   return ab.length > 2 ? s : ab.map(k => ABIL[k].n).join("・");
 }
 // 管理者設定で上書きする前の値（すべての boost を決めた後に記録する）
+// 神域Ⅴのドロップキャラ: 一番難しいステージのごほうびなので、限定キャラに近い強さ
+const GOD_CHAR = FAM.find(f => f.name === "ムスビ").idx;
+FAM[GOD_CHAR].god = true;
+FAM[GOD_CHAR].boost = 1.25;   // 恒常の1.2倍とかけて約1.5倍（限定は1.35〜1.55倍）
 const BASE_BOOST = FAM.map(f => f.boost || 1);
 // 限定キャラ以外（恒常キャラ）はすべて能力1.2倍
 const PERM_BONUS = 1.2;
@@ -1202,9 +1213,11 @@ function drawGodList() {
     ctx.textAlign = "right";
     outlinedText(`★${q.diff}`, W - 26, y + 18, unlocked ? "#ff6b8b" : "#777", 13);
     ctx.restore();
+    // 神域Ⅴはムスビがドロップ（ロック中も見せる）
+    if (i === GOD.length - 1) txt("クリアで★6「ムスビ」が必ずドロップ!", W - 26, y + 58, 10, "#ff9ae6", "right", "900");
     if (!unlocked) { txt("LOCK", 26, y + 44, 11, "#777"); return; }
     txt(cleared ? `CLEAR ベスト${save.best[q.id]}T` : `初回ジェム${q.gem}`, 26, y + 42, 11, cleared ? "#7dffa0" : "#5ef0ff");
-    txt(`${q.sub}`, 26, y + 58, 9, "#cfd6ff", "left", "normal");
+    if (i !== GOD.length - 1) txt(`${q.sub}`, 26, y + 58, 9, "#cfd6ff", "left", "normal");
     txt(gimText(q.gims), W - 26, y + 42, 9, "#ff9ab8", "right", "normal");
   });
 }
@@ -1700,6 +1713,14 @@ function triggerCombo(a) {
       healParty(Math.round(a.hp * 0.15), a.x, a.y);
       break;
     }
+    case "tether": {
+      // 絆レーザー: 触れてきた味方と自分の間にレーザーを張る。味方が動くとレーザーも動き、0.1秒ごとにヒット
+      const mate = shot && shot.ally && shot.ally !== a ? shot.ally : allies.find(o => o !== a);
+      if (!mate) break;
+      fx.push({ kind: "tether", a, b: mate, life: 48, max: 48, tick: 0, base: a.atk * 2.4, el: a.el, src: a });
+      burst(a.x, a.y, "#ffb0e0", 16, 4);
+      break;
+    }
     case "tornado": {
       // 竜巻: 半径110の敵に2回ダメージ
       const rad = 110;
@@ -1842,6 +1863,21 @@ function fire(dx, dy) {
       case "meteor":
         for (let i = 0; i < 8; i++) addBolt(rand(30, W - 30), TOP - 20 - i * 25, 0, 6, a.atk * 2.2, a.el, 9);
         break;
+      case "gourei": {
+        // 大号令: 味方全員の友情コンボを2回ずつ（威力1.5倍）
+        fx.push({ kind: "ring", x: a.x, y: a.y, r0: 10, r1: 260, life: 30, max: 30, color: "#ffe066", w: 12 });
+        addText(a.x, a.y - 40, "大号令!!", "#ffe066", 20);
+        for (let n = 0; n < 2; n++) {
+          for (const o of allies) {
+            if (o === a) continue;
+            o.atk *= 1.5;
+            triggerCombo(o);
+            o.atk /= 1.5;
+          }
+        }
+        shake = Math.max(shake, 10);
+        break;
+      }
       case "storm":
         // 嵐の翼: 攻撃力3.5倍で突撃＋追尾する風の刃12発
         shot.atkMul = 3.5;
@@ -1952,7 +1988,7 @@ function updateShot() {
       resolveOverlap(a);
     }
   }
-  if (s.stopped && !bolts.length && !fx.some(f => f.kind === "wave")) endShot();
+  if (s.stopped && !bolts.length && !fx.some(f => f.kind === "wave" || f.kind === "tether")) endShot();
 }
 
 function endShot() {
@@ -2130,6 +2166,10 @@ function finishQuest() {
   let drop = null, dropN = 0;
   if (questIdx === IKESAKI_QUEST && first) {
     drop = acquire(LIMITED);                  // 最難関の初回クリアで★6限定キャラ
+  } else if (q.kind === "god" && q.idx === GOD.length - 1) {
+    // 神域Ⅴ: ムスビが必ず1〜2体（運極の仲間がいれば+1）。周回すれば運極にできる
+    dropN = 1 + (Math.random() < 0.5 ? 1 : 0) + (save.party.some(fi => isUnkyoku(fi)) ? 1 : 0);
+    for (let k = 0; k < dropN; k++) drop = acquire(GOD_CHAR);
   } else if (q.kind === "drop") {
     // キャラ集め: 1〜5体（運極の仲間がいると増える）
     dropN = dropCount();
@@ -2356,6 +2396,16 @@ function updateBolts() {
 function updateFx() {
   for (const f of fx) {
     f.life--;
+    // 絆レーザー: 2人の間の線に重なる敵に、8フレームごとにダメージ
+    if (f.kind === "tether" && ++f.tick % 8 === 0) {
+      for (const e of alive()) {
+        if (segDist(e.x, e.y, f.a.x, f.a.y, f.b.x, f.b.y) < e.r + 9) {
+          dmgSrc = f.src;
+          damageEnemy(e, f.base, f.el, false);
+          dmgSrc = null;
+        }
+      }
+    }
     if (f.kind === "wave") {
       f.y = FB - (FB - TOP + 40) * (1 - f.life / f.max);
       for (const e of alive()) {
@@ -3838,6 +3888,27 @@ function drawFx() {
   for (const f of fx) {
     const t = f.life / f.max;
     ctx.save();
+    if (f.kind === "tether") {
+      // 絆レーザー（ピンクと白の太い光の線）
+      const w = 16 * Math.min(1, t * 3);
+      ctx.globalAlpha = Math.min(1, t * 3);
+      ctx.lineCap = "round";
+      ctx.shadowColor = "#ff8ae6";
+      ctx.shadowBlur = 16;
+      ctx.strokeStyle = "rgba(255,138,230,0.85)";
+      ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(f.a.x, f.a.y); ctx.lineTo(f.b.x, f.b.y); ctx.stroke();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = w * 0.35;
+      ctx.beginPath(); ctx.moveTo(f.a.x, f.a.y); ctx.lineTo(f.b.x, f.b.y); ctx.stroke();
+      // 線の上を流れるハート
+      for (let k = 0; k < 3; k++) {
+        const u = ((frameNo * 0.04) + k / 3) % 1;
+        drawHeart(f.a.x + (f.b.x - f.a.x) * u, f.a.y + (f.b.y - f.a.y) * u, 6);
+      }
+      ctx.restore();
+      continue;
+    }
     if (f.kind === "ring") {
       ctx.globalAlpha = t;
       ctx.strokeStyle = f.color;
@@ -4627,33 +4698,33 @@ function drawSpecialList() {
 function drawTrialList() {
   txt("★6キャラ専用。クリアするとそのキャラが永久に強化!", W / 2, 122, 11, "#ffd35c", "center");
   trialChars().forEach((f, i) => {
-    const y = 134 + i * 49, own = owned(f.idx), t = trialTier(f.idx);
+    const y = 132 + i * 44, own = owned(f.idx), t = trialTier(f.idx);   // 10体入るように少しつめる
     ctx.fillStyle = t >= TRIAL_TIERS ? "rgba(255,211,92,0.14)" : "rgba(255,255,255,0.07)";
-    roundRect(14, y, W - 28, 45, 10);
+    roundRect(14, y, W - 28, 41, 10);
     ctx.fill();
-    drawIcon(f.idx, 18, y + 2, 41, { silhouette: true });
-    txt(own ? displayName(f.idx) : f.name, 66, y + 14, 13, own ? "#fff" : "#8a90b0");
+    drawIcon(f.idx, 18, y + 2, 37, { silhouette: true });
+    txt(own ? displayName(f.idx) : f.name, 62, y + 12, 12, own ? "#fff" : "#8a90b0");
     // 強化の段階（●=クリア済み）
     for (let k = 1; k <= TRIAL_TIERS; k++) {
       ctx.fillStyle = k <= t ? "#ffd35c" : "rgba(255,255,255,0.18)";
-      ctx.beginPath(); ctx.arc(72 + (k - 1) * 14, y + 32, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(68 + (k - 1) * 14, y + 29, 5, 0, Math.PI * 2); ctx.fill();
     }
-    txt(t ? `能力×${TRIAL_MUL[t]}${TRIAL_SS[t] ? `・SS-${TRIAL_SS[t]}` : ""}` : "未強化", 116, y + 32, 10, "#cfd6ff", "left", "normal");
+    txt(t ? `能力×${TRIAL_MUL[t]}${TRIAL_SS[t] ? `・SS-${TRIAL_SS[t]}` : ""}` : "未強化", 112, y + 29, 10, "#cfd6ff", "left", "normal");
     if (!own) {
-      button(W - 108, y + 8, 88, 29, "未所持", () => showToast("ガチャで手に入れると挑戦できます"),
+      button(W - 108, y + 6, 88, 29, "未所持", () => showToast(howToGet(f)),
         { size: 12, disabled: true });
     } else if (t >= TRIAL_TIERS) {
       // 試練Ⅲのあとは超進化（★7）に挑戦できる
       if (canSuper(f.idx)) {
-        button(W - 108, y + 8, 88, 29, "超進化", () => openPrep("v" + f.idx),
+        button(W - 108, y + 6, 88, 29, "超進化", () => openPrep("v" + f.idx),
           { size: 13, c1: "#fff2a0", c2: "#e0a020", fg: "#3a2400" });
       } else {
-        txt("★7 超進化済み", W - 66, y + 18, 12, "#fff2a0", "center", "900");
-        txt("真の力・能力+1", W - 66, y + 35, 9, "#ffe9a8", "center", "normal");
+        txt("★7 超進化済み", W - 66, y + 14, 12, "#fff2a0", "center", "900");
+        txt("真の力・能力+1", W - 66, y + 30, 9, "#ffe9a8", "center", "normal");
       }
     } else {
       const q = trialQuest(f.idx, t + 1);
-      button(W - 108, y + 8, 88, 29, `試練${TRIAL_ROMAN[t + 1]}`, () => openPrep(q.id),
+      button(W - 108, y + 6, 88, 29, `試練${TRIAL_ROMAN[t + 1]}`, () => openPrep(q.id),
         { size: 13, c1: "#d6bcff", c2: "#6a2ad6", fg: "#fff" });
     }
   });
@@ -6572,6 +6643,10 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-h", date: "2026-10-20", title: "神域Ⅴのごほうび「ムスビ」",
+    body: "神域Ⅴをクリアすると★6「ムスビ」（光・貫通）が必ずドロップ！周回して重ねると運極にもできます。試練・超進化（★7）にも対応。\n"
+      + "友情コンボ「絆レーザー」は触れた味方との間にレーザーを張って何度もヒット。SS「大号令」は味方全員の友情コンボを2回ずつ（威力1.5倍）発動！\n"
+      + "マナーモードの時は音が鳴らないようにしました。" },
   { id: "up-2026-10-20-g", date: "2026-10-20", title: "新BGM・神域・WAVEの演出",
     body: "BGMを全部作り直しました（ホーム・バトル・ボス戦、高難易度のボス戦は専用の決戦曲）。スマホで音が出なかった問題も直しました。"
       + "音が出ない時は、ホームの「♪ 音」がONか確認してね。\n次のWAVEへ進む時、マップが流れて前に進む演出が入ります。"
@@ -7236,8 +7311,9 @@ const seLast = {};
 function audioUnlock() {
   if (!save || !save.sound) return;
   try {
-    // iPhone のマナーモードでも鳴るようにする（対応しているブラウザだけ）
-    if (navigator.audioSession && navigator.audioSession.type !== "playback") navigator.audioSession.type = "playback";
+
+    // マナーモードの時は鳴らさない（iPhone の消音スイッチにしたがう）
+    if (navigator.audioSession && navigator.audioSession.type !== "ambient") navigator.audioSession.type = "ambient";
     if (!actx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
@@ -7535,6 +7611,7 @@ function claimDex() {
 }
 // まだ持っていないキャラの手に入れ方
 function howToGet(f) {
+  if (f.god) return "神域Ⅴ（いちばん難しいステージ）をクリアするとドロップ";
   if (f.event) return "降臨（イベント）のボスを倒すとドロップ";
   if (f.drop) return "イベントの「キャラ集め」ステージでドロップ（2日ごとに入れ替わり）";
   if (isLimited(f.idx)) return "限定ガチャで手に入る";
