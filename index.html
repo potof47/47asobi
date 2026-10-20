@@ -130,7 +130,7 @@
 <canvas id="c"></canvas>
 <div id="nameBox" hidden>
   <form id="nameForm">
-    <div>プレイヤー名（ランキング・協力レイドに表示）</div>
+    <div id="nameLabel">プレイヤー名（ランキング・協力プレイに表示）</div>
     <input id="nameInput" maxlength="12" autocomplete="off" placeholder="12文字まで">
     <button type="submit">決定</button>
     <button type="button" id="nameCancel" class="sub">やめる</button>
@@ -1601,7 +1601,7 @@ function damageParty(dmg, x, y) {
     events = [];
     // 協力レイドは全滅しても与えたダメージは記録される
     if (coop.inBattle && !coop.host) return;   // 協力プレイはホストが結果を決める
-    if (quest && quest.kind === "coop") { coopSend("end", { clear: false }); coop.inBattle = false; }
+    if (quest && quest.coop) { coopSend("end", { clear: false }); coop.inBattle = false; }
     if (quest && quest.kind === "raid") schedule(40, finishRaid);
     else if (quest && quest.kind === "rush") schedule(40, () => finishRush(false));
     else schedule(40, () => { state = "over"; lastResult = null; playSe("lose"); });
@@ -2177,7 +2177,7 @@ function waveClear() {
   playSe(last ? "clear" : "wave");
   schedule(last ? 80 : 60, () => {
     if (last) {
-      if (quest.kind === "coop") { coopSend("end", { clear: true }); coop.inBattle = false; }
+      if (quest.coop) { coopSend("end", { clear: true }); coop.inBattle = false; }
       if (quest.kind === "rush") finishRush(true); else finishQuest();
       return;
     }
@@ -2196,7 +2196,8 @@ let waveScroll = null;
 
 // クリア報酬
 function finishQuest() {
-  const q = quest, first = !save.cleared[questIdx];
+  // 協力プレイで、まだ自分では行けないところは報酬だけ（クリア済みにはしない＝先へ飛ばない）
+  const q = quest, own = !q.coop || ownUnlocked(questIdx), first = own && !save.cleared[questIdx];
   const best = save.best[questIdx];
   const isBest = best === undefined || turn < best;
   if (isBest) save.best[questIdx] = turn;
@@ -2231,7 +2232,7 @@ function finishQuest() {
   save.coins += coin;
   save.gems += gem;
   save.cr[crEl] += crN;
-  save.cleared[questIdx] = true;
+  if (own) save.cleared[questIdx] = true;
   // ラックボーナス: ラックが高いキャラほど、おまけの報酬が出やすい（運極で30%）
   const luckBonus = [];
   for (const fi of save.party) {
@@ -2264,7 +2265,7 @@ function finishQuest() {
   }
   addStat("clears");
   if (rank === "S") addStat("srank");
-  addSeason(10 + (rank === "S" ? 5 : 0) + (["guerrilla", "coop", "extreme", "super"].includes(q.kind) ? 20 : 0));   // シーズンパス
+  addSeason(10 + (rank === "S" ? 5 : 0) + (["guerrilla", "extreme", "super"].includes(q.kind) || q.coop ? 20 : 0));   // シーズンパス
   const up = addExp(exp);
   if (up.ranks) showToast(`ランクアップ! ランク${save.rank}  ジェム+${up.gems}`);
   persist();
@@ -2272,11 +2273,11 @@ function finishQuest() {
     exp, kind: q.kind, trialUp };
   thankHelper();
   if (q.kind === "score") scoreFinish(q, lastResult);
-  if (q.kind === "coop") addStat("coopClears");
+  if (q.coop) addStat("coopClears");
   checkTitles();
-  if (q.kind === "story") storyTalk(q, "e");   // 章ボスを倒した時の会話
+  if (q.kind === "story" && !q.coop) storyTalk(q, "e");   // 章ボスを倒した時の会話
   hint("clear", "クリア! 手に入れたコインと結晶で、BOXからキャラを強化・進化させよう");
-  if (q.kind !== "special") { state = "clear"; return; }
+  if (q.kind !== "special" || q.coop) { state = "clear"; return; }   // ランキングはひとりで遊んだ時だけ
   // ランキングに記録（スペシャルクエストのみ）
   const leader = leaderLabel();
   addLocalRecord(questIdx, turn, leader);
@@ -4474,7 +4475,7 @@ function drawHud() {
   txt(`WAVE ${waveIdx + 1}/${quest.waves.length}`, 10, 29, 13, "#ffd35c", "left", "900");
   txt(quest.turnLimit ? `TURN ${turn}/${quest.turnLimit}` : `TURN ${turn}`, W / 2, TOP / 2, 16, quest.turnLimit && quest.turnLimit - turn <= 3 ? "#ff6b6b" : "#fff", "center", "900");
   ctx.restore();
-  button(W - 62, 8, 54, 24, quest.kind === "raid" || quest.kind === "rush" ? "終了" : "やめる", () => { if (quest.kind === "coop") { coopLeave(); go("coop"); } else if (quest.kind === "raid" && state !== "clear") finishRaid(); else if (quest.kind === "rush" && state !== "clear") finishRush(false); else go(questHome()); }, { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(W - 62, 8, 54, 24, quest.kind === "raid" || quest.kind === "rush" ? "終了" : "やめる", () => { if (quest.coop) { coopLeave(); go("coop"); } else if (quest.kind === "raid" && state !== "clear") finishRaid(); else if (quest.kind === "rush" && state !== "clear") finishRush(false); else go(questHome()); }, { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 
   const b = enemies.find(e => e.boss && !e.dead);
   if (b) {
@@ -4701,8 +4702,9 @@ function drawResult() {
       () => openPrep(next),
       { size: 16, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
   }
+  if (quest.coop) next = null;   // 協力プレイは部屋にもどって次を選ぶ
   const y0 = next ? 498 : 456;
-  if (quest.kind === "coop") button(60, y0, W - 120, next ? 40 : 48, "部屋にもどる", () => go("coop"), { c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
+  if (quest.coop) button(60, y0, W - 120, next ? 40 : 48, "部屋にもどる", () => go("coop"), { c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
   else button(60, y0, W - 120, next ? 40 : 48, state === "clear" ? "もう一度" : "リトライ", () => startQuest(questIdx));
   button(60, y0 + (next ? 48 : 60), W - 120, next ? 40 : 48, questHome() === "event" ? "イベントへ" : "クエスト選択", () => go(questHome()), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 }
@@ -5952,8 +5954,8 @@ async function setTeam(team) {
     showToast("通信に失敗しました（チームの表がまだないかも）");
   }
 }
-function createTeam() {
-  const t = (window.prompt("新しいチームの名前（12文字まで）") || "").trim().slice(0, 12);
+async function createTeam() {
+  const t = ((await askText("新しいチームの名前", { max: 12, placeholder: "12文字まで" })) || "").slice(0, 12);
   if (!t) return;
   if (teamInfo.members[t]) { showToast("その名前のチームはもうあります（一覧から入れます）"); return; }
   setTeam(t);
@@ -6034,7 +6036,26 @@ function coopQuest(lv) {
   };
 }
 const coop = { ws: null, room: "", topic: "", id: Math.random().toString(36).slice(2, 10), host: false, hostId: "",
-  members: [], status: "off", inBattle: false, ref: 1, hb: 0, beat: 0, seen: {}, lv: 0, pending: null, full: false };
+  members: [], status: "off", inBattle: false, ref: 1, hb: 0, beat: 0, seen: {}, qid: "c0", pending: null, full: false };
+// 協力プレイで遊べるクエスト（ホストが遊べるところまで）。試練・タイプ専用など編成に条件があるものは出さない
+const COOP_TABS = [
+  { n: "協力", list: () => COOP_LV.map((_, i) => "c" + i) },
+  { n: "ストーリー", list: () => Array.from({ length: Math.min(STORY_COUNT, storyProgress() + 1) }, (_, i) => "s" + i) },
+  { n: "スペシャル", list: () => QUESTS.map((_, i) => i).filter(questUnlocked) },
+  { n: "絶級・神域", list: () => [...EXTREME.map((_, i) => "h" + i).filter((_, i) => extremeUnlocked(i)), ...GOD.map((_, i) => "gd" + i).filter((_, i) => godUnlocked(i))] },
+];
+const coopTabOf = qid => typeof qid === "number" ? 2 : qid[0] === "s" ? 1 : qid[0] === "h" || qid.startsWith("gd") ? 3 : 0;
+// 自分でも挑戦できるところか（まだのところは、クリア済みにしない＝ストーリーなどを飛ばせない）
+function ownUnlocked(qid) {
+  if (typeof qid === "number") return questUnlocked(qid);
+  if (qid[0] === "s") return storyUnlocked(Number(qid.slice(1)));
+  if (qid[0] === "h") return extremeUnlocked(Number(qid.slice(1)));
+  if (qid.startsWith("gd")) return godUnlocked(Number(qid.slice(2)));
+  return true;
+}
+function coopQuestOf(qid) {
+  try { const q = getQuest(qid); return q && q.waves ? { ...q, coop: true } : null; } catch (e) { return null; }
+}
 function coopUnits() {
   return save.party.slice(0, 4).map(fi => {
     const u = save.box[fi];
@@ -6049,7 +6070,7 @@ function coopConnect(room, host) {
   coopLeave();
   const url = RANKING.url.replace(/^http/, "ws") + `/realtime/v1/websocket?apikey=${encodeURIComponent(RANKING.key)}&vsn=1.0.0`;
   Object.assign(coop, { room, topic: `realtime:mflick-coop-${room}`, host, hostId: host ? coop.id : "", status: "connecting",
-    members: host ? [coopMe()] : [], seen: {}, lv: 0, pending: null, full: false, inBattle: false });
+    members: host ? [coopMe()] : [], seen: {}, pending: null, full: false, inBattle: false });
   const ws = new WebSocket(url);
   coop.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ topic: coop.topic, event: "phx_join", payload: { config: { broadcast: { self: false } } }, ref: String(coop.ref++) }));
@@ -6083,7 +6104,7 @@ function coopSend(event, payload) {
 }
 function coopHello() {
   coopSend("hello", { name: coopMe().name, units: coopUnits(), host: coop.host });
-  if (coop.host) coopSend("lobby", { members: coop.members, lv: coop.lv, hostId: coop.id, inBattle: coop.inBattle });
+  if (coop.host) coopSend("lobby", { members: coop.members, qid: coop.qid, hostId: coop.id, inBattle: coop.inBattle });
 }
 function coopTick() {
   if (!coop.ws) return;
@@ -6112,10 +6133,10 @@ function coopOnMessage(ev, p) {
   if (ev === "lobby" && !coop.host) {
     coop.hostId = p.hostId;
     coop.members = p.members || [];
-    coop.lv = p.lv || 0;
+    coop.qid = p.qid !== undefined ? p.qid : "c" + (p.lv || 0);
     coop.full = coop.members.length >= 4 && !coop.members.some(m => m.id === coop.id);
   }
-  if (ev === "start" && !coop.host && (p.members || []).some(m => m.id === coop.id)) coopBegin(p.lv, p.members);
+  if (ev === "start" && !coop.host && (p.members || []).some(m => m.id === coop.id)) coopBegin(p.qid !== undefined ? p.qid : "c" + (p.lv || 0), p.members);
   if (ev === "state" && !coop.host && coop.inBattle) coopApply(p);
   if (ev === "shot" && coop.inBattle) coopRecvShot(p);
   if (ev === "end" && !coop.host && coop.inBattle) coopEnd(p.clear);
@@ -6125,8 +6146,9 @@ function coopOnMessage(ev, p) {
   }
 }
 // バトル開始（全員）: 4枠を順番に分ける（2人なら2体ずつ、3人なら最初の人が2体）
-function coopBegin(lv, members) {
-  const q = coopQuest(lv), n = members.length, slots = [];
+function coopBegin(qid, members) {
+  const q = coopQuestOf(qid), n = members.length, slots = [];
+  if (!q) { showToast("このクエストは遊べません（ゲームを最新にしてね）"); return; }
   for (let i = 0; i < 4; i++) {
     const m = members[i % n], u = m.units[Math.floor(i / n)];
     if (u && FAM[u.fi] && RBASE[u.rar]) slots.push({ m, u });
@@ -6161,8 +6183,8 @@ function coopBegin(lv, members) {
 }
 function coopStartGame() {
   if (!coop.host || coop.status !== "on") return;
-  coopSend("start", { lv: coop.lv, members: coop.members });
-  coopBegin(coop.lv, coop.members);
+  coopSend("start", { qid: coop.qid, members: coop.members });
+  coopBegin(coop.qid, coop.members);
 }
 // ホスト → みんな: 今の盤面
 function coopSendState() {
@@ -6211,66 +6233,91 @@ function drawCoop() {
   ctx.restore();
   if (!onlineRanking()) { txt("協力プレイはオンラインの時だけ遊べます", W / 2, 240, 13, "#cfd6ff", "center"); drawNav(); return; }
   const join = host => {
-    const go2 = () => {
-      if (host) coopConnect(String(1000 + Math.floor(Math.random() * 9000)), true);
-      else {
-        const c = (window.prompt("友だちのルームコード（4けたの数字）") || "").trim();
-        if (/^\d{4}$/.test(c)) coopConnect(c, false); else if (c) showToast("4けたの数字を入れてね");
-      }
+    const go2 = async () => {
+      if (host) { coopConnect(String(1000 + Math.floor(Math.random() * 9000)), true); return; }
+      const c = ((await askText("友だちのルームコード（4けたの数字）", { max: 4, placeholder: "例: 1234", numeric: true })) || "")
+        .replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xfee0));   // 全角の数字もOK
+      if (/^\d{4}$/.test(c)) coopConnect(c, false); else if (c) showToast("4けたの数字を入れてね");
     };
     if (save.name) go2(); else askName().then(go2);
   };
   if (!coop.ws) {
     ["2〜4人で同じステージに入って、順番にキャラを弾いて戦う!", "1人がホストになって部屋を作り、ルームコードを友だちに教えよう。",
-      "自分の編成の先頭から、人数に合わせて1〜4体が出撃します。"].forEach((l, i) => txt(l, W / 2, 110 + i * 20, 11, "#cfd6ff", "center", "normal"));
+      "ホストは協力クエスト・ストーリー・スペシャルなどから選べます。"].forEach((l, i) => txt(l, W / 2, 110 + i * 20, 11, "#cfd6ff", "center", "normal"));
     button(40, 190, W - 80, 64, "部屋を作る（ホスト）", () => join(true), { size: 17, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", sub: "ルームコードが出ます" });
     button(40, 270, W - 80, 64, "部屋に入る", () => join(false), { size: 17, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a", sub: "友だちのルームコードを入れる" });
+    txt("自分の編成の先頭から、人数に合わせて1〜4体が出撃します。", W / 2, 360, 10, "#9aa3d8", "center", "normal");
     drawNav();
     return;
   }
   ctx.fillStyle = "rgba(0,0,0,0.35)";
-  roundRect(14, 88, W - 28, 64, 12);
+  roundRect(14, 88, W - 28, 60, 12);
   ctx.fill();
-  txt("ルームコード", W / 2, 102, 11, "#cfd6ff", "center");
+  txt("ルームコード", W / 2, 100, 11, "#cfd6ff", "center");
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  outlinedText(coop.room, W / 2, 130, "#ffe066", 30);
+  outlinedText(coop.room, W / 2, 126, "#ffe066", 28);
   ctx.restore();
   txt(coop.status === "on" ? (coop.host ? "あなたがホスト" : "参加中") : coop.status === "connecting" ? "つないでいます…" : "通信エラー",
-    W - 26, 102, 10, coop.status === "on" ? "#7dffa0" : "#ff9a9a", "right");
+    W - 26, 100, 10, coop.status === "on" ? "#7dffa0" : "#ff9a9a", "right");
   // メンバー
   for (let i = 0; i < 4; i++) {
-    const m = coop.members[i], y = 162 + i * 52;
+    const m = coop.members[i], y = 154 + i * 44;
     ctx.fillStyle = m ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)";
-    roundRect(14, y, W - 28, 46, 10);
+    roundRect(14, y, W - 28, 40, 10);
     ctx.fill();
-    if (!m) { txt("あき（友だちを待っています）", 30, y + 23, 11, "#6a7090", "left", "normal"); continue; }
+    if (!m) { txt("あき（友だちを待っています）", 30, y + 20, 11, "#6a7090", "left", "normal"); continue; }
     const u = m.units[0];
     if (u && FAM[u.fi]) {
       const f = FAM[u.fi];
-      drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: u.rar, evo: u.rar > f.rar }, 40, y + 25, 14);
+      drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: u.rar, evo: u.rar > f.rar }, 38, y + 21, 13);
     }
-    txt(`${m.name}${m.id === coop.id ? "（あなた）" : ""}`, 64, y + 15, 13, m.id === coop.id ? "#ffd35c" : "#fff");
-    txt(m.units.map(x => FAM[x.fi] ? FAM[x.fi].name : "").join("・").slice(0, 26), 64, y + 33, 9, "#9aa3d8", "left", "normal");
-    if (i === 0) txt("ホスト", W - 26, y + 15, 10, "#ff9a5a", "right", "900");
+    txt(`${m.name}${m.id === coop.id ? "（あなた）" : ""}`, 60, y + 13, 12, m.id === coop.id ? "#ffd35c" : "#fff");
+    txt(m.units.map(x => FAM[x.fi] ? FAM[x.fi].name : "").join("・").slice(0, 26), 60, y + 29, 9, "#9aa3d8", "left", "normal");
+    if (i === 0) txt("ホスト", W - 26, y + 13, 10, "#ff9a5a", "right", "900");
   }
   const n = coop.members.length, per = n ? Math.ceil(4 / n) : 0;
-  if (n) txt(`${n}人で出撃: 1人${per}体まで（自分の編成の先頭から）`, W / 2, 378, 10, "#cfd6ff", "center", "normal");
+  if (n) txt(`${n}人で出撃: 1人${per}体まで（自分の編成の先頭から）`, W / 2, 338, 10, "#cfd6ff", "center", "normal");
+  // 選んでいるクエスト
+  const q = coopQuestOf(coop.qid);
+  const card = y => {
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    roundRect(50, y, W - 100, 52, 10);
+    ctx.fill();
+    if (!q) { txt("（このクエストは選べません）", W / 2, y + 26, 11, "#ff9a9a", "center"); return; }
+    txt(q.name, W / 2, y + 15, 12, "#fff", "center");
+    txt(`★${q.diff}  ${q.sub || ""}`.slice(0, 30), W / 2, y + 33, 9, "#ffd35c", "center", "normal");
+    if (!ownUnlocked(coop.qid)) txt("まだ自分では行けないところ（報酬はもらえる）", W / 2, y + 46, 8, "#9ad8ff", "center", "normal");
+  };
   if (coop.host) {
-    txt("むずかしさ", 20, 398, 12, "#ffd35c");
-    COOP_LV.forEach((L, i) => {
-      const on = coop.lv === i;
-      button(14 + i * 84, 408, 78, 40, L.n, () => { coop.lv = i; coopHello(); },
-        { size: 13, c1: on ? "#ffe066" : "#4a5280", c2: on ? "#e0a020" : "#2b3158", fg: on ? "#3a2400" : "#fff", sub: `★${L.diff}` });
+    // 種類のタブ
+    const tab = coopTabOf(coop.qid), tw = (W - 28) / COOP_TABS.length;
+    COOP_TABS.forEach((T, i) => {
+      const on = tab === i, list = T.list();
+      button(14 + i * tw, 350, tw - 4, 28, T.n, () => {
+        if (!list.length) { showToast(i === 3 ? "スペシャルの最難関をクリアすると選べます" : "まだ選べるクエストがありません"); return; }
+        coop.qid = i === 1 ? list[list.length - 1] : list[0];   // ストーリーは今いちばん先のステージから
+        coopHello();
+      }, { size: 11, c1: on ? "#ffe066" : "#4a5280", c2: on ? "#e0a020" : "#2b3158", fg: on ? "#3a2400" : "#fff", disabled: !list.length });
     });
-    button(40, 460, W - 80, 54, "出発!", coopStartGame,
-      { size: 19, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", disabled: coop.status !== "on", sub: n < 2 ? "1人でも出発できる" : `${n}人で協力クエスト【${COOP_LV[coop.lv].n}】` });
+    // ◀ ▶ でクエストを選ぶ（«» は10個とばし）
+    const list = COOP_TABS[tab].list(), at = Math.max(0, list.indexOf(coop.qid));
+    const step = d => { if (!list.length) return; coop.qid = list[Math.max(0, Math.min(list.length - 1, at + d))]; coopHello(); };
+    card(386);
+    button(4, 390, 22, 44, "«", () => step(-10), { size: 13, c1: "#4a5280", c2: "#2b3158", fg: "#fff", disabled: at === 0 });
+    button(26, 390, 22, 44, "‹", () => step(-1), { size: 15, c1: "#4a5280", c2: "#2b3158", fg: "#fff", disabled: at === 0 });
+    button(W - 48, 390, 22, 44, "›", () => step(1), { size: 15, c1: "#4a5280", c2: "#2b3158", fg: "#fff", disabled: at >= list.length - 1 });
+    button(W - 26, 390, 22, 44, "»", () => step(10), { size: 13, c1: "#4a5280", c2: "#2b3158", fg: "#fff", disabled: at >= list.length - 1 });
+    button(40, 448, W - 80, 52, "出発!", coopStartGame,
+      { size: 19, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", disabled: coop.status !== "on" || !q, sub: n < 2 ? "1人でも出発できる" : `${n}人で出発` });
   } else {
-    txt(coop.full ? "この部屋は満員でした" : coop.members.length ? `ホストの出発を待っています（${COOP_LV[coop.lv].n}）` : "ホストを探しています…",
-      W / 2, 440, 13, coop.full ? "#ff9a9a" : "#ffe066", "center");
+    txt("ホストが選んだクエスト", W / 2, 362, 11, "#cfd6ff", "center");
+    card(374);
+    txt(coop.full ? "この部屋は満員でした" : coop.members.length ? "ホストの出発を待っています…" : "ホストを探しています…",
+      W / 2, 460, 13, coop.full ? "#ff9a9a" : "#ffe066", "center");
   }
-  button(80, 526, W - 160, 32, "部屋を出る", () => coopLeave(), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(80, 514, W - 160, 32, "部屋を出る", () => coopLeave(), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
   drawNav();
 }
 
@@ -6974,6 +7021,9 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-n", date: "2026-10-20", title: "協力プレイでいろんなクエストが遊べるように",
+    body: "協力プレイで、ホストが「協力クエスト・ストーリー・スペシャル・絶級／神域」から好きなクエストを選んでみんなで遊べるようになりました（ホストが行けるところまで）。\n"
+      + "「部屋に入る」でルームコードを入れる画面が開かないことがあったのを直しました。" },
   { id: "up-2026-10-20-m", date: "2026-10-20", title: "アステリアの見た目を元に戻しました",
     body: "戦姫アステリアの見た目を、鋭い目・刃の翼・翼のかぶと・深紅のマント・構えた大槍の、かっこいい姿に戻しました。" },
   { id: "up-2026-10-20-l", date: "2026-10-20", title: "アステリアがより美しく",
@@ -7520,23 +7570,37 @@ async function submitScore(q, turns, leader) {
   }
 }
 
-function askName() {
+// 文字を入れてもらう小さな画面（window.prompt はスマホのアプリ内ブラウザ等で開けないことがあるので使わない）
+// やめた時は null
+function askText(label, { value = "", max = 12, placeholder = "", numeric = false } = {}) {
   return new Promise(resolve => {
     const box = document.getElementById("nameBox"), input = document.getElementById("nameInput");
-    input.value = save.name || "";
+    document.getElementById("nameLabel").textContent = label;
+    input.value = value;
+    input.maxLength = max;
+    input.placeholder = placeholder;
+    input.inputMode = numeric ? "numeric" : "text";   // 数字のキーボードを出す（全角の数字も受け付けるので pattern は付けない）
     box.hidden = false;
     setTimeout(() => input.focus(), 50);
-    document.getElementById("nameCancel").onclick = () => { box.hidden = true; };
+    document.getElementById("nameCancel").onclick = () => { box.hidden = true; resolve(null); };
     document.getElementById("nameForm").onsubmit = e => {
       e.preventDefault();
-      const v = input.value.trim().slice(0, 12);
+      const v = input.value.trim().slice(0, max);
       if (!v) return;
-      save.name = v;
-      persist();
       box.hidden = true;
       resolve(v);
     };
   });
+}
+// 名前を決める（やめた時は先へ進まない）
+function askName() {
+  return askText("プレイヤー名（ランキング・協力プレイに表示）", { value: save.name || "", max: 12, placeholder: "12文字まで" })
+    .then(v => {
+      if (!v) return new Promise(() => {});
+      save.name = v;
+      persist();
+      return v;
+    });
 }
 
 function drawRanking() {
@@ -8003,7 +8067,7 @@ function drawDex() {
 }
 
 // ---- イベント ----------------------------------------------------------
-const questHome = () => !quest ? "quests" : quest.kind === "coop" ? "coop"
+const questHome = () => !quest ? "quests" : quest.coop ? "coop"
   : ["event", "score", "raid", "drop", "weekday", "guerrilla"].includes(quest.kind) ? "event" : "quests";
 function fmtLeft(ms) {
   const h = Math.max(0, Math.floor(ms / 3600000)), m = Math.max(0, Math.floor(ms / 60000) % 60);
