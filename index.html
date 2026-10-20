@@ -212,7 +212,7 @@ const SS = {
   // パニパニ 専用
   rally: { name: "全力応援", turns: 9, fixed: true, desc: "触れた味方の攻撃力・友情コンボを3ターン2.5倍" },
   // 戦姫アステリア 専用
-  gourei:  { name: "大号令", turns: 11, fixed: true, desc: "味方全員の友情コンボを2回ずつ発動（威力1.5倍）" },
+  gourei:  { name: "大号令", turns: 11, fixed: true, desc: "味方全員が一緒に飛び出し、友情コンボを2回ずつ発動（威力1.5倍）" },
   // 拍手する猫 専用
   handshake: { name: "握手", turns: 8, fixed: true, desc: "触れた敵が爆発＋敵に触れるたびに加速してまた動き出す" },
   smileburst: { name: "フルスマイル・バースト", turns: 8, fixed: true,
@@ -1875,6 +1875,16 @@ function fire(dx, dy) {
             o.atk /= 1.5;
           }
         }
+        // 味方全員も一緒に飛び出す（それぞれ一番近い敵へ）
+        shot.followers = allies.filter(o => o !== a).map(o => {
+          const e = alive().sort((p, q) => Math.hypot(p.x - o.x, p.y - o.y) - Math.hypot(q.x - o.x, q.y - o.y))[0];
+          const ang = e ? Math.atan2(e.y - o.y, e.x - o.x) : Math.atan2(dy, dx);
+          const v = o.spd * 1.1;
+          o.vx = Math.cos(ang) * v;
+          o.vy = Math.sin(ang) * v;
+          burst(o.x, o.y, "#ffe066", 10, 3);
+          return { a: o, cool: new Map(), stopped: false };
+        });
         shake = Math.max(shake, 10);
         break;
       }
@@ -1988,7 +1998,42 @@ function updateShot() {
       resolveOverlap(a);
     }
   }
-  if (s.stopped && !bolts.length && !fx.some(f => f.kind === "wave" || f.kind === "tether")) endShot();
+  // 大号令で一緒に飛んでいる味方
+  if (s.followers) for (const f of s.followers) if (!f.stopped) moveFollower(f);
+  const followersDone = !s.followers || s.followers.every(f => f.stopped);
+  if (s.stopped && followersDone && !bolts.length && !fx.some(f => f.kind === "wave" || f.kind === "tether")) endShot();
+}
+
+// 大号令で一緒に飛ぶ味方の1フレーム分（壁・岩で跳ね返り、敵に体当たり。反射は跳ね返り、貫通はすり抜ける）
+function moveFollower(f) {
+  const o = f.a;
+  const steps = Math.max(SUB, Math.ceil(Math.hypot(o.vx, o.vy) / 6));
+  for (let k = 0; k < steps; k++) {
+    o.x += o.vx / steps;
+    o.y += o.vy / steps;
+    walls(o);
+    for (const rk of rocks) bounce(o, rk.x, rk.y, rk.r);
+    for (const e of enemies) {
+      if (e.dead) continue;
+      const hit = o.type === "reflect" ? bounce(o, e.x, e.y, e.r) : overlap(o, e.x, e.y, e.r);
+      if (hit && !f.cool.has(e.id)) {
+        f.cool.set(e.id, o.type === "reflect" ? 6 : 10);
+        let weak = false;
+        if (e.weak !== null) { const w = weakPos(e); weak = Math.hypot(o.x - w.x, o.y - w.y) < R + w.r; }
+        dmgSrc = o;
+        damageEnemy(e, o.atk, o.el, weak);
+        dmgSrc = null;
+      }
+    }
+  }
+  for (const [id, v] of f.cool) { if (v <= 1) f.cool.delete(id); else f.cool.set(id, v - 1); }
+  o.vx *= FRICTION;
+  o.vy *= FRICTION;
+  if (Math.hypot(o.vx, o.vy) < STOP) {
+    f.stopped = true;
+    o.vx = o.vy = 0;
+    resolveOverlap(o);
+  }
 }
 
 function endShot() {
@@ -2962,222 +3007,282 @@ function shade(x, y, r, c1, c2) {
 // 背中の魔法陣・光の翼・なびく髪・よろい・光の槍・翼の冠。着せ替えの色（k.el）にも合わせて色が変わる
 function drawValkyrie(k, x, y, r) {
   const c = EL[k.el], t = frameNo;
-  const glow = k.el === "light" ? "#fff6c8" : c.l, deep = k.el === "light" ? "#e0a020" : c.c;
+  const glow = k.el === "light" ? "#fff2b0" : c.l, deep = k.el === "light" ? "#e0a020" : c.c;
+  const gold = "#e8b030", goldL = "#ffe28a", steel = "#c9d3e8", dark = "#1c1830";
+  const capeC = k.el === "light" ? "#7a1426" : c.d;   // マントは深い赤（着せ替えの時はその属性の濃い色）
   ctx.save();
   // 背中の魔法陣（ゆっくり回る）
   ctx.save();
-  ctx.translate(x, y - r * 0.1);
+  ctx.translate(x, y - r * 0.05);
   ctx.rotate(t * 0.01);
-  ctx.globalAlpha = 0.75;
+  ctx.globalAlpha = 0.7;
   ctx.strokeStyle = k.el === "light" ? "#ffd86a" : glow;
   ctx.shadowColor = deep;
   ctx.shadowBlur = r * 0.2;
-  ctx.lineWidth = Math.max(1, r * 0.04);
+  ctx.lineWidth = Math.max(1, r * 0.035);
   ctx.beginPath(); ctx.arc(0, 0, r * 1.45, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(0, 0, r * 1.25, 0, Math.PI * 2); ctx.stroke();
-  for (let i = 0; i < 6; i++) {   // 六芒星
+  for (let i = 0; i < 6; i++) {
     const a = i * Math.PI / 3;
     ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 1.25, Math.sin(a) * r * 1.25);
     ctx.lineTo(Math.cos(a + Math.PI * 2 / 3) * r * 1.25, Math.sin(a + Math.PI * 2 / 3) * r * 1.25); ctx.stroke();
   }
-  ctx.fillStyle = glow;
-  for (let i = 0; i < 12; i++) {   // 文字のような点
-    const a = i * Math.PI / 6;
-    ctx.beginPath(); ctx.arc(Math.cos(a) * r * 1.35, Math.sin(a) * r * 1.35, Math.max(0.8, r * 0.04), 0, Math.PI * 2); ctx.fill();
-  }
   ctx.restore();
-  // 光の翼（左右に大きく広がる羽根6枚ずつ。羽ばたく）
-  const flap = Math.sin(t * 0.08) * 0.1;
+  // 刃のような翼（とがった羽根を扇形に。ゆっくり羽ばたく）
+  const flap = Math.sin(t * 0.07) * 0.08;
   for (const s of [-1, 1]) {
     for (let j = 5; j >= 0; j--) {
-      // ほぼ真上から横向きまで、扇のように並べる
-      const ang = -Math.PI / 2 + s * (0.25 + j * 0.24 + flap);
+      const ang = -Math.PI / 2 + s * (0.3 + j * 0.23 + flap);
       ctx.save();
-      ctx.translate(x + s * r * 0.28, y + r * 0.02);
+      ctx.translate(x + s * r * 0.26, y - r * 0.05);
       ctx.rotate(ang + Math.PI / 2);
-      const len = r * (1.75 - j * 0.12), wd = r * (0.3 - j * 0.015);
+      const len = r * (1.85 - j * 0.13), wd = r * 0.2;
       const g = ctx.createLinearGradient(0, 0, 0, -len);
-      g.addColorStop(0, "#ffffff");
-      g.addColorStop(0.55, k.el === "light" ? "#fff2c0" : glow);
-      g.addColorStop(1, k.el === "light" ? "#ffd86a" : c.c);
+      g.addColorStop(0, k.el === "light" ? "#c8a050" : c.d);
+      g.addColorStop(0.35, "#ffffff");
+      g.addColorStop(1, k.el === "light" ? "#ffe9a0" : c.l);
       ctx.fillStyle = g;
       ctx.shadowColor = deep;
-      ctx.shadowBlur = r * 0.3;
-      ctx.beginPath();
-      ctx.moveTo(-wd * 0.35, 0);
-      ctx.quadraticCurveTo(-wd, -len * 0.55, 0, -len);
-      ctx.quadraticCurveTo(wd, -len * 0.55, wd * 0.35, 0);
+      ctx.shadowBlur = r * 0.25;
+      ctx.beginPath();   // 直線的なとがった羽根
+      ctx.moveTo(-wd * 0.5, 0);
+      ctx.lineTo(-wd, -len * 0.55);
+      ctx.lineTo(0, -len);
+      ctx.lineTo(wd * 0.55, -len * 0.62);
+      ctx.lineTo(wd * 0.5, 0);
       ctx.closePath();
       ctx.fill();
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = "rgba(224,160,32,0.75)";
-      ctx.lineWidth = Math.max(0.8, r * 0.025);
+      ctx.strokeStyle = gold;
+      ctx.lineWidth = Math.max(0.8, r * 0.03);
       ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, -len * 0.08); ctx.lineTo(0, -len * 0.85); ctx.stroke();   // 羽根の軸
       ctx.restore();
     }
   }
-  ctx.shadowBlur = 0;
-  const hx = x, hy = y - r * 0.32, hr = r * 0.52;
-  // 後ろ髪（長く、風になびく）
+  // マント（深い色、金のふち、風になびく）
   const sway = Math.sin(t * 0.06) * r * 0.08;
-  const hairG = ctx.createLinearGradient(0, hy - hr, 0, y + r);
-  hairG.addColorStop(0, "#fffbe8");
-  hairG.addColorStop(1, k.el === "light" ? "#ffd86a" : c.l);
+  ctx.fillStyle = shade(x, y + r * 0.4, r, capeC, "#2a0610");
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.32, y - r * 0.05);
+  ctx.lineTo(x + r * 0.32, y - r * 0.05);
+  ctx.quadraticCurveTo(x + r * 0.8 + sway, y + r * 0.6, x + r * 0.68 + sway, y + r * 1.15);
+  ctx.lineTo(x + r * 0.2 + sway * 0.5, y + r * 1.05);
+  ctx.lineTo(x - r * 0.2 + sway * 0.5, y + r * 1.12);
+  ctx.lineTo(x - r * 0.7 + sway, y + r * 1.05);
+  ctx.quadraticCurveTo(x - r * 0.8 + sway, y + r * 0.6, x - r * 0.32, y - r * 0.05);
+  ctx.fill();
+  ctx.strokeStyle = gold;
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  ctx.stroke();
+  const hx = x, hy = y - r * 0.5, hr = r * 0.4;
+  // 後ろ髪（長く鋭い毛先が流れる）
+  const hairTop = "#f4f1ff", hairEnd = k.el === "light" ? "#c9c2e8" : c.l;
+  const hairG = ctx.createLinearGradient(0, hy - hr, 0, y + r * 0.8);
+  hairG.addColorStop(0, hairTop);
+  hairG.addColorStop(1, hairEnd);
   ctx.fillStyle = hairG;
   ctx.beginPath();
-  ctx.moveTo(hx - hr * 1.0, hy - hr * 0.2);
-  ctx.quadraticCurveTo(hx - hr * 1.5 + sway, y + r * 0.5, hx - hr * 0.7 + sway, y + r * 1.05);
-  ctx.lineTo(hx + hr * 0.7 + sway, y + r * 1.05);
-  ctx.quadraticCurveTo(hx + hr * 1.5 + sway, y + r * 0.5, hx + hr * 1.0, hy - hr * 0.2);
+  ctx.moveTo(hx - hr * 1.05, hy - hr * 0.3);
+  ctx.lineTo(hx - hr * 1.35 + sway, y + r * 0.25);
+  ctx.lineTo(hx - hr * 1.0 + sway, y + r * 0.1);
+  ctx.lineTo(hx - hr * 1.2 + sway * 1.3, y + r * 0.7);
+  ctx.lineTo(hx - hr * 0.5 + sway, y + r * 0.2);
+  ctx.lineTo(hx + hr * 0.5 + sway, y + r * 0.2);
+  ctx.lineTo(hx + hr * 1.2 + sway * 1.3, y + r * 0.7);
+  ctx.lineTo(hx + hr * 1.0 + sway, y + r * 0.1);
+  ctx.lineTo(hx + hr * 1.35 + sway, y + r * 0.25);
+  ctx.lineTo(hx + hr * 1.05, hy - hr * 0.3);
   ctx.closePath();
   ctx.fill();
-  // マント
-  ctx.fillStyle = shade(x, y + r * 0.5, r * 0.8, c.c, c.d);
-  ctx.beginPath();
-  ctx.moveTo(x - r * 0.38, y + r * 0.12); ctx.lineTo(x + r * 0.38, y + r * 0.12);
-  ctx.lineTo(x + r * 0.62 + sway * 0.5, y + r * 1.02); ctx.lineTo(x - r * 0.62 + sway * 0.5, y + r * 1.02);
-  ctx.fill();
-  // スカート（よろいの板が重なる）
-  for (let i = 0; i < 3; i++) {
-    ctx.fillStyle = i % 2 ? "#dfe6f3" : "#ffffff";
+  // 脚（すね当て）
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = shade(x + s * r * 0.15, y + r * 0.85, r * 0.2, "#ffffff", steel);
     ctx.beginPath();
-    ctx.moveTo(x - r * (0.3 + i * 0.06), y + r * (0.55 + i * 0.12));
-    ctx.lineTo(x + r * (0.3 + i * 0.06), y + r * (0.55 + i * 0.12));
-    ctx.lineTo(x + r * (0.42 + i * 0.06), y + r * (0.72 + i * 0.12));
-    ctx.lineTo(x - r * (0.42 + i * 0.06), y + r * (0.72 + i * 0.12));
+    ctx.moveTo(x + s * r * 0.06, y + r * 0.62); ctx.lineTo(x + s * r * 0.26, y + r * 0.62);
+    ctx.lineTo(x + s * r * 0.24, y + r * 1.02); ctx.lineTo(x + s * r * 0.08, y + r * 1.02);
     ctx.fill();
+    ctx.strokeStyle = gold; ctx.lineWidth = Math.max(0.8, r * 0.03); ctx.stroke();
   }
-  // 胸当て（金と銀）
-  const armor = ctx.createLinearGradient(x - r * 0.35, 0, x + r * 0.35, 0);
-  armor.addColorStop(0, "#c8d2e6"); armor.addColorStop(0.5, "#ffffff"); armor.addColorStop(1, "#aab6d0");
+  // よろいのスカート（とがった板）
+  ctx.fillStyle = shade(x, y + r * 0.5, r * 0.5, "#ffffff", steel);
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.3, y + r * 0.36);
+  ctx.lineTo(x + r * 0.3, y + r * 0.36);
+  ctx.lineTo(x + r * 0.4, y + r * 0.7);
+  ctx.lineTo(x + r * 0.15, y + r * 0.6);
+  ctx.lineTo(x, y + r * 0.74);
+  ctx.lineTo(x - r * 0.15, y + r * 0.6);
+  ctx.lineTo(x - r * 0.4, y + r * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = gold; ctx.lineWidth = Math.max(1, r * 0.035); ctx.stroke();
+  // 胴のよろい（鋭いV字の胸当て）
+  const armor = ctx.createLinearGradient(x - r * 0.3, 0, x + r * 0.3, 0);
+  armor.addColorStop(0, "#9aa6c4"); armor.addColorStop(0.5, "#ffffff"); armor.addColorStop(1, "#8e9aba");
   ctx.fillStyle = armor;
   ctx.beginPath();
-  ctx.moveTo(x - r * 0.34, y + r * 0.12); ctx.lineTo(x + r * 0.34, y + r * 0.12);
-  ctx.lineTo(x + r * 0.28, y + r * 0.58); ctx.lineTo(x, y + r * 0.66); ctx.lineTo(x - r * 0.28, y + r * 0.58);
+  ctx.moveTo(x - r * 0.3, y - r * 0.08);
+  ctx.lineTo(x + r * 0.3, y - r * 0.08);
+  ctx.lineTo(x + r * 0.24, y + r * 0.38);
+  ctx.lineTo(x, y + r * 0.46);
+  ctx.lineTo(x - r * 0.24, y + r * 0.38);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "#e0a020";
-  ctx.lineWidth = Math.max(1, r * 0.05);
-  ctx.stroke();
+  ctx.strokeStyle = gold; ctx.lineWidth = Math.max(1, r * 0.04); ctx.stroke();
+  ctx.strokeStyle = "rgba(232,176,48,0.8)";
+  ctx.beginPath(); ctx.moveTo(x - r * 0.2, y + r * 0.0); ctx.lineTo(x, y + r * 0.22); ctx.lineTo(x + r * 0.2, y + r * 0.0); ctx.stroke();
   // 胸の宝石
   ctx.fillStyle = deep;
   ctx.shadowColor = glow;
-  ctx.shadowBlur = r * 0.4;
-  ctx.beginPath(); ctx.moveTo(x, y + r * 0.24); ctx.lineTo(x + r * 0.09, y + r * 0.34); ctx.lineTo(x, y + r * 0.46); ctx.lineTo(x - r * 0.09, y + r * 0.34); ctx.fill();
+  ctx.shadowBlur = r * 0.45;
+  ctx.beginPath(); ctx.moveTo(x, y + r * 0.08); ctx.lineTo(x + r * 0.07, y + r * 0.2); ctx.lineTo(x, y + r * 0.32); ctx.lineTo(x - r * 0.07, y + r * 0.2); ctx.fill();
   ctx.shadowBlur = 0;
-  // 肩当て
+  // とがった肩当て
   for (const s of [-1, 1]) {
-    ctx.fillStyle = "#e9eef8";
-    ctx.beginPath(); ctx.ellipse(x + s * r * 0.36, y + r * 0.16, r * 0.17, r * 0.11, s * 0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#e0a020"; ctx.stroke();
+    ctx.fillStyle = shade(x + s * r * 0.36, y - r * 0.05, r * 0.2, "#ffffff", steel);
+    ctx.beginPath();
+    ctx.moveTo(x + s * r * 0.2, y - r * 0.12);
+    ctx.lineTo(x + s * r * 0.56, y - r * 0.2);
+    ctx.lineTo(x + s * r * 0.48, y + r * 0.06);
+    ctx.lineTo(x + s * r * 0.26, y + r * 0.08);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = gold; ctx.lineWidth = Math.max(0.8, r * 0.035); ctx.stroke();
   }
-  // 光の槍（右手。金の柄と、光る大きな穂先）
+  // 腕（ガントレット）
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = steel;
+    ctx.beginPath(); ctx.arc(x + s * r * 0.42, y + r * 0.3, r * 0.09, 0, Math.PI * 2); ctx.fill();
+  }
+  // 大きな光の槍（体の前で斜めに構える）
   ctx.save();
-  ctx.translate(x + r * 0.55, y + r * 0.45);
-  ctx.rotate(-0.3);
+  ctx.translate(x + r * 0.05, y + r * 0.3);
+  ctx.rotate(0.62);
   const sg = ctx.createLinearGradient(-r * 0.06, 0, r * 0.06, 0);
-  sg.addColorStop(0, "#a07818"); sg.addColorStop(0.5, "#ffe58a"); sg.addColorStop(1, "#a07818");
+  sg.addColorStop(0, "#8a6410"); sg.addColorStop(0.5, goldL); sg.addColorStop(1, "#8a6410");
   ctx.fillStyle = sg;
-  ctx.fillRect(-r * 0.06, -r * 1.15, r * 0.12, r * 1.75);
-  ctx.fillStyle = "#e0a020";
-  for (const yy of [-0.2, 0.25]) ctx.fillRect(-r * 0.09, r * yy, r * 0.18, r * 0.06);   // 柄の飾り
-  // 穂先
+  ctx.fillRect(-r * 0.055, -r * 1.25, r * 0.11, r * 2.0);
+  ctx.fillStyle = gold;
+  for (const yy of [-0.3, 0.35]) ctx.fillRect(-r * 0.09, r * yy, r * 0.18, r * 0.06);
   ctx.shadowColor = k.el === "light" ? "#ffe066" : c.c;
-  ctx.shadowBlur = r * 0.9;
-  const tg = ctx.createLinearGradient(0, -r * 1.75, 0, -r * 1.1);
+  ctx.shadowBlur = r * 1.0;
+  const tg = ctx.createLinearGradient(0, -r * 1.95, 0, -r * 1.2);
   tg.addColorStop(0, "#ffffff"); tg.addColorStop(1, glow);
   ctx.fillStyle = tg;
-  ctx.beginPath(); ctx.moveTo(0, -r * 1.8); ctx.lineTo(r * 0.2, -r * 1.2); ctx.lineTo(0, -r * 1.08); ctx.lineTo(-r * 0.2, -r * 1.2); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0, -r * 2.0); ctx.lineTo(r * 0.17, -r * 1.35); ctx.lineTo(0, -r * 1.22); ctx.lineTo(-r * 0.17, -r * 1.35); ctx.closePath(); ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = "#e0a020";
-  ctx.lineWidth = Math.max(1, r * 0.04);
-  ctx.stroke();
-  // 穂先の根元の翼の飾り
-  ctx.fillStyle = "#ffd23f";
+  ctx.strokeStyle = gold; ctx.lineWidth = Math.max(1, r * 0.035); ctx.stroke();
+  ctx.fillStyle = gold;   // 穂先の根元の刃
   for (const s of [-1, 1]) {
-    ctx.beginPath(); ctx.moveTo(0, -r * 1.12); ctx.quadraticCurveTo(s * r * 0.35, -r * 1.25, s * r * 0.28, -r * 0.95); ctx.lineTo(0, -r * 1.02); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, -r * 1.25); ctx.lineTo(s * r * 0.3, -r * 1.42); ctx.lineTo(s * r * 0.2, -r * 1.12); ctx.closePath(); ctx.fill();
   }
   ctx.restore();
-  // 手
-  ctx.fillStyle = SKIN;
-  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * r * 0.48, y + r * 0.46, r * 0.1, 0, Math.PI * 2); ctx.fill(); }
-  // 顔
-  ctx.fillStyle = shade(hx, hy, hr, "#fff6ef", SKIN);
-  ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
-  // 目（大きくて、光が入った瞳）
-  for (const s of [-1, 1]) {
-    const ex = hx + s * hr * 0.38, ey = hy + hr * 0.12;
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath(); ctx.ellipse(ex, ey, hr * 0.2, hr * 0.26, 0, 0, Math.PI * 2); ctx.fill();
-    const ig = ctx.createLinearGradient(0, ey - hr * 0.22, 0, ey + hr * 0.22);
-    ig.addColorStop(0, "#2a1a4a"); ig.addColorStop(1, deep);
-    ctx.fillStyle = ig;
-    ctx.beginPath(); ctx.ellipse(ex, ey + hr * 0.02, hr * 0.15, hr * 0.21, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath(); ctx.arc(ex - hr * 0.05, ey - hr * 0.08, hr * 0.06, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(ex + hr * 0.05, ey + hr * 0.08, hr * 0.03, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#3a2440";
-    ctx.lineWidth = Math.max(1, hr * 0.07);
-    ctx.beginPath(); ctx.moveTo(ex - hr * 0.22, ey - hr * 0.24); ctx.quadraticCurveTo(ex, ey - hr * 0.34, ex + hr * 0.22, ey - hr * 0.22); ctx.stroke();
-  }
-  // ほお・口
-  ctx.fillStyle = "rgba(255,140,170,0.45)";
-  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(hx + s * hr * 0.55, hy + hr * 0.42, hr * 0.13, hr * 0.07, 0, 0, Math.PI * 2); ctx.fill(); }
-  ctx.strokeStyle = "#c0506a";
-  ctx.lineWidth = Math.max(1, hr * 0.06);
-  ctx.beginPath(); ctx.arc(hx, hy + hr * 0.5, hr * 0.12, 0.2, Math.PI - 0.2); ctx.stroke();
-  // 前髪（とがった毛先）
-  ctx.fillStyle = "#fffbe8";
+  // 首・顔（細めのあごのライン）
+  ctx.fillStyle = SKIN_D;
+  ctx.fillRect(hx - hr * 0.2, hy + hr * 0.7, hr * 0.4, hr * 0.5);
+  ctx.fillStyle = shade(hx, hy, hr, "#fff4ec", SKIN);
   ctx.beginPath();
-  ctx.moveTo(hx - hr * 1.02, hy + hr * 0.05);
-  ctx.quadraticCurveTo(hx - hr * 0.9, hy - hr * 1.15, hx, hy - hr * 1.05);
-  ctx.quadraticCurveTo(hx + hr * 0.9, hy - hr * 1.15, hx + hr * 1.02, hy + hr * 0.05);
-  for (let i = 4; i >= 0; i--) {
-    const px = hx - hr * 0.8 + i * hr * 0.4;
-    ctx.lineTo(px + hr * 0.2, hy - hr * 0.25);
-    ctx.lineTo(px, hy - hr * (i % 2 ? 0.05 : -0.08));
+  ctx.moveTo(hx - hr * 0.95, hy - hr * 0.1);
+  ctx.quadraticCurveTo(hx - hr * 0.95, hy + hr * 0.6, hx, hy + hr * 1.05);
+  ctx.quadraticCurveTo(hx + hr * 0.95, hy + hr * 0.6, hx + hr * 0.95, hy - hr * 0.1);
+  ctx.quadraticCurveTo(hx, hy - hr * 1.1, hx - hr * 0.95, hy - hr * 0.1);
+  ctx.fill();
+  // 目（鋭く切れ長。光る瞳）
+  for (const s of [-1, 1]) {
+    // 目尻が上がった切れ長の目（内側 → 外側へ少しつり上がる）
+    const ex = hx + s * hr * 0.42, ey = hy + hr * 0.2;
+    const inX = ex - s * hr * 0.27, outX = ex + s * hr * 0.3;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(inX, ey + hr * 0.04);
+    ctx.quadraticCurveTo(ex, ey - hr * 0.3, outX, ey - hr * 0.14);
+    ctx.quadraticCurveTo(ex + s * hr * 0.04, ey + hr * 0.2, inX, ey + hr * 0.04);
+    ctx.fill();
+    // 光る瞳と、縦長のひとみ
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = deep;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = hr * 0.6;
+    ctx.beginPath(); ctx.ellipse(ex + s * hr * 0.02, ey - hr * 0.03, hr * 0.13, hr * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = k.el === "light" ? "#fff2b0" : glow;
+    ctx.beginPath(); ctx.ellipse(ex + s * hr * 0.02, ey + hr * 0.04, hr * 0.08, hr * 0.06, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = dark;
+    ctx.beginPath(); ctx.ellipse(ex + s * hr * 0.02, ey - hr * 0.03, hr * 0.035, hr * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath(); ctx.arc(ex - s * hr * 0.03, ey - hr * 0.1, hr * 0.035, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    // 上まぶたの太い線（目尻を長く）と、つり上がった眉
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = Math.max(1.2, hr * 0.09);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(inX, ey + hr * 0.02);
+    ctx.quadraticCurveTo(ex, ey - hr * 0.3, outX + s * hr * 0.08, ey - hr * 0.2);
+    ctx.stroke();
+    ctx.lineWidth = Math.max(1, hr * 0.08);
+    ctx.beginPath(); ctx.moveTo(ex - s * hr * 0.22, ey - hr * 0.3); ctx.lineTo(ex + s * hr * 0.32, ey - hr * 0.46); ctx.stroke();
   }
+  // 口（きりっと一文字）
+  ctx.strokeStyle = "#9a4a50";
+  ctx.lineWidth = Math.max(0.8, hr * 0.05);
+  ctx.beginPath(); ctx.moveTo(hx - hr * 0.1, hy + hr * 0.66); ctx.lineTo(hx + hr * 0.1, hy + hr * 0.64); ctx.stroke();
+  // 前髪（鋭い毛束が目にかかる）
+  ctx.fillStyle = hairTop;
+  ctx.beginPath();
+  ctx.moveTo(hx - hr * 1.05, hy + hr * 0.25);
+  ctx.quadraticCurveTo(hx - hr * 1.0, hy - hr * 1.2, hx + hr * 0.1, hy - hr * 1.1);
+  ctx.quadraticCurveTo(hx + hr * 1.0, hy - hr * 1.15, hx + hr * 1.05, hy + hr * 0.25);
+  ctx.lineTo(hx + hr * 0.75, hy - hr * 0.3);
+  ctx.lineTo(hx + hr * 0.55, hy + hr * 0.15);
+  ctx.lineTo(hx + hr * 0.3, hy - hr * 0.35);
+  ctx.lineTo(hx + hr * 0.05, hy + hr * 0.05);
+  ctx.lineTo(hx - hr * 0.15, hy - hr * 0.4);
+  ctx.lineTo(hx - hr * 0.45, hy + hr * 0.1);
+  ctx.lineTo(hx - hr * 0.7, hy - hr * 0.3);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "rgba(224,160,32,0.6)";
+  ctx.strokeStyle = "rgba(150,140,200,0.7)";
   ctx.lineWidth = Math.max(0.8, hr * 0.04);
   ctx.stroke();
-  // 翼の冠（頭の両側に小さな羽根を3枚ずつ、まん中に星の宝石）
+  // 翼のかぶと（額の金の冠から、後ろへ鋭く伸びる刃の翼。まん中に宝石）
+  ctx.fillStyle = shade(hx, hy - hr * 0.7, hr, goldL, gold);
+  ctx.beginPath();
+  ctx.moveTo(hx - hr * 0.95, hy - hr * 0.35);
+  ctx.quadraticCurveTo(hx, hy - hr * 1.05, hx + hr * 0.95, hy - hr * 0.35);
+  ctx.lineTo(hx + hr * 0.85, hy - hr * 0.55);
+  ctx.quadraticCurveTo(hx, hy - hr * 1.2, hx - hr * 0.85, hy - hr * 0.55);
+  ctx.closePath();
+  ctx.fill();
+  // まん中の鋭いトサカ
+  ctx.beginPath(); ctx.moveTo(hx - hr * 0.18, hy - hr * 0.78); ctx.lineTo(hx, hy - hr * 1.55); ctx.lineTo(hx + hr * 0.18, hy - hr * 0.78); ctx.fill();
   for (const s of [-1, 1]) {
     for (let j = 0; j < 3; j++) {
       ctx.save();
-      ctx.translate(hx + s * hr * 0.82, hy - hr * 0.45);
-      ctx.rotate(s * (0.5 + j * 0.42));
-      const fl = hr * (0.75 - j * 0.12);
-      ctx.fillStyle = j === 0 ? "#ffffff" : "#f4f7ff";
+      ctx.translate(hx + s * hr * 0.88, hy - hr * 0.5);
+      ctx.rotate(s * (0.95 + j * 0.28));
+      const bl = hr * (1.05 - j * 0.22);
+      ctx.fillStyle = j === 0 ? "#ffffff" : "#e8edf8";
       ctx.beginPath();
-      ctx.moveTo(-hr * 0.08, 0);
-      ctx.quadraticCurveTo(-hr * 0.17, -fl * 0.6, 0, -fl);
-      ctx.quadraticCurveTo(hr * 0.17, -fl * 0.6, hr * 0.08, 0);
-      ctx.closePath();
+      ctx.moveTo(-hr * 0.07, 0); ctx.lineTo(0, -bl); ctx.lineTo(hr * 0.12, -bl * 0.35); ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = "#e0a020";
-      ctx.lineWidth = Math.max(0.8, hr * 0.05);
-      ctx.stroke();
+      ctx.strokeStyle = gold; ctx.lineWidth = Math.max(0.8, hr * 0.05); ctx.stroke();
       ctx.restore();
     }
   }
-  ctx.fillStyle = "#ffd23f";
-  ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.88, hr * 0.62, hr * 0.12, 0, Math.PI, Math.PI * 2); ctx.fill();
   ctx.save();
   ctx.fillStyle = deep;
   ctx.shadowColor = glow;
   ctx.shadowBlur = r * 0.5;
-  starPath(hx, hy - hr * 1.02, hr * 0.22);
-  ctx.fill();
+  ctx.beginPath(); ctx.moveTo(hx, hy - hr * 0.95); ctx.lineTo(hx + hr * 0.12, hy - hr * 0.78); ctx.lineTo(hx, hy - hr * 0.6); ctx.lineTo(hx - hr * 0.12, hy - hr * 0.78); ctx.fill();
   ctx.restore();
-  // きらめき
+  // 光の粒
   for (let i = 0; i < 4; i++) {
-    const a = t * 0.03 + i * Math.PI / 2, d = r * (1.0 + 0.15 * Math.sin(t * 0.1 + i));
+    const a = t * 0.03 + i * Math.PI / 2, d = r * (1.05 + 0.15 * Math.sin(t * 0.1 + i));
     ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 0.15 + i * 1.7);
     ctx.fillStyle = "#ffffff";
-    starPath(x + Math.cos(a) * d, y - r * 0.2 + Math.sin(a) * d * 0.8, Math.max(1.2, r * 0.08));
+    starPath(x + Math.cos(a) * d, y - r * 0.2 + Math.sin(a) * d * 0.8, Math.max(1.2, r * 0.07));
     ctx.fill();
   }
   ctx.restore();
@@ -6869,6 +6974,9 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-j", date: "2026-10-20", title: "アステリアがかっこよく・大号令",
+    body: "戦姫アステリアの見た目をかっこよく描き直しました（鋭い目・刃の翼・翼のかぶと・深紅のマント・構えた大槍）。\n"
+      + "SS「大号令」は、味方全員が一緒に飛び出して敵に体当たりするようになりました（友情コンボ2回ずつ・威力1.5倍もそのまま）。" },
   { id: "up-2026-10-20-i", date: "2026-10-20", title: "戦姫アステリア 登場",
     body: "神域Ⅴのごほうびキャラが「戦姫アステリア」に生まれ変わりました！光の翼・翼の冠・光の槍・背中の魔法陣と、専用に描いた特別な見た目です。"
       + "（前の名前で手に入れていた人も、そのまま戦姫アステリアになっています）" },
