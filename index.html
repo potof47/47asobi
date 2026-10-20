@@ -6177,7 +6177,10 @@ function drawGrid(y0, onTap, opt = {}) {
     txt(t === "all" ? "全て" : EL[t].n, tx + tw / 2, y0 + 13, 12, active ? "#1a1030" : "#cfd6ff", "center");
     button(tx, y0, tw, 26, "", () => { gridEl = t; gridPage = 0; }, { hidden: true });
   });
-  const all = ORDER.filter(fi => gridEl === "all" || FAM[fi].el === gridEl);
+  const inTab = fi => gridEl === "all" || FAM[fi].el === gridEl;
+  // first: 先頭に出すキャラ（出撃前の編成ではおすすめキャラ）
+  const first = (opt.first || []).filter(inTab);
+  const all = [...first, ...ORDER.filter(fi => inTab(fi) && !first.includes(fi))];
   const pages = Math.max(1, Math.ceil(all.length / GRID_PAGE));
   if (gridPage >= pages) gridPage = pages - 1;
   const gy = y0 + 34;
@@ -6191,6 +6194,22 @@ function drawGrid(y0, onTap, opt = {}) {
   list.forEach((f, i) => {
     const x = x0 + (i % cols) * (s + gap), y = gy + Math.floor(i / cols) * (s + gap);
     drawIcon(f.idx, x, y, s, { silhouette: true, lv: true });
+    // おすすめキャラは金色の枠と「おすすめ」
+    if (opt.rec && opt.rec(f.idx)) {
+      ctx.save();
+      ctx.strokeStyle = `hsl(${45 + Math.sin(frameNo * 0.1) * 8},100%,60%)`;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = "#ffd35c";
+      ctx.shadowBlur = 8;
+      roundRect(x - 1, y - 1, s + 2, s + 2, s * 0.16);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#ffd35c";
+      roundRect(x + s / 2 - 17, y - 6, 34, 12, 5);
+      ctx.fill();
+      ctx.restore();
+      txt("おすすめ", x + s / 2, y, 8, "#3a2400", "center", "900");
+    }
     // 編成できないキャラは暗く
     if (opt.dim && owned(f.idx) && opt.dim(f.idx)) {
       ctx.save();
@@ -6442,6 +6461,9 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-f", date: "2026-10-20", title: "出撃前のおすすめキャラ",
+    body: "出撃前の編成画面に、そのクエストのおすすめキャラが金色の枠で出るようになりました。"
+      + "敵の属性に有利か・ギミック対策の能力があるか・強さから選びます。有利な属性も表示。\n右上の「おすすめ編成」を押すと、一発でおすすめの4体に編成できます。" },
   { id: "up-2026-10-20-e", date: "2026-10-20", title: "紋章・着せ替え・シーズンパス",
     body: "キャラ詳細から「紋章」（攻撃・体力・加速・友情・SS・属性キラー）を付けられるように。コイン3万で作れます。\n"
       + "「着せ替え」で色違いやゴールド（運極）・シャドウの見た目に。ホームの「シーズン」は30日間のパスで、遊ぶほど報酬（紋章・着せ替え券・ジェム）がもらえます。" },
@@ -7939,17 +7961,69 @@ function openPrep(id) {
 }
 // このクエストのギミックに効く能力
 const prepNeed = q => (q.gims || []).slice(0, MAX_GIMS).map(k => GIM[k].abil).filter(Boolean);
+// ---- おすすめキャラ（敵の属性に有利・ギミック対策・強さで選ぶ） ------------------------------
+// そのクエストに出る敵の属性の割合（ボスは3倍に数える）。クエストごとに覚えておく
+const enemyElCache = {};
+function questEnemyEls(q) {
+  if (enemyElCache[q.id]) return enemyElCache[q.id];
+  const cnt = {};
+  for (const w of q.waves.slice(0, 30)) {
+    for (const e of w().enemies) cnt[e.el] = (cnt[e.el] || 0) + (e.boss ? 3 : 1);
+  }
+  return (enemyElCache[q.id] = cnt);
+}
+// 敵に有利な属性（多い順に最大2つ）
+function advantageEls(q) {
+  const els = questEnemyEls(q), tot = Object.values(els).reduce((a, b) => a + b, 0) || 1;
+  return EL_KEYS.map(a => [a, Object.entries(els).reduce((s, [el, w]) => s + elemMult(a, el) * w, 0) / tot])
+    .filter(([, v]) => v > 1.05).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([a]) => a);
+}
+let recCache = { key: "", list: [] };
+function recommend(q) {
+  const need = prepNeed(q), key = `${q.id}|${Object.keys(save.box).length}|${JSON.stringify(save.box).length}`;
+  if (recCache.key === key) return recCache.list;
+  const els = questEnemyEls(q), tot = Object.values(els).reduce((a, b) => a + b, 0) || 1;
+  const score = fi => {
+    const f = FAM[fi], s = unitStats(fi);
+    if (q.kind === "typed" && f.type !== q.ptype) return -1;
+    const em = Object.entries(els).reduce((t, [el, w]) => t + elemMult(f.el, el) * w, 0) / tot;   // 属性の有利さ
+    const ab = abilOf(fi).filter(k => need.includes(k)).length;                                  // ギミック対策
+    return (s.atk + s.hp * 0.15) * em * (1 + 0.45 * ab);
+  };
+  const cand = Object.keys(save.box).map(Number).map(fi => ({ fi, sc: score(fi) })).filter(c => c.sc > 0).sort((a, b) => b.sc - a.sc);
+  const picks = [];
+  // 試練・超進化はそのキャラが必要
+  if ((q.kind === "trial" || q.kind === "super") && save.box[q.fi]) picks.push(q.fi);
+  // ギミックごとに、対策できるキャラを1体は入れる
+  for (const k of need) {
+    if (picks.length >= 4 || picks.some(fi => abilOf(fi).includes(k))) continue;
+    const c = cand.find(c => !picks.includes(c.fi) && abilOf(c.fi).includes(k));
+    if (c) picks.push(c.fi);
+  }
+  for (const c of cand) { if (picks.length >= 4) break; if (!picks.includes(c.fi)) picks.push(c.fi); }
+  recCache = { key, list: picks };
+  return picks;
+}
 function drawPrep() {
-  const q = getQuest(prepId), need = prepNeed(q);
+  const q = getQuest(prepId), need = prepNeed(q), rec = recommend(q), adv = advantageEls(q);
   drawMenuBg(q.bg[0], "#070b16");
   drawTopBar();
   button(10, 46, 64, 28, "← 戻る", () => go(prepBack), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
   ctx.save();
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  outlinedText(String(q.name).slice(0, 15), 82, 60, "#fff", 15);
+  outlinedText(String(q.name).slice(0, 11), 82, 58, "#fff", 14);
   ctx.restore();
-  txt(`★${q.diff}`, W - 14, 60, 11, "#ffd35c", "right");
+  txt(`★${q.diff}${adv.length ? `  有利: ${adv.map(e => EL[e].n).join("・")}属性` : ""}`, 82, 74, 9, "#ffd35c", "left", "normal");
+  // おすすめ編成（金色の枠のキャラ）
+  const same = rec.length && rec.every(fi => save.party.includes(fi)) && save.party.length === rec.length;
+  button(W - 100, 44, 92, 30, same ? "おすすめ編成中" : "おすすめ編成", () => {
+    if (!rec.length) { showToast("おすすめできるキャラがいません"); return; }
+    save.party = [...rec];
+    persist();
+    playSe("heal");
+    showToast(`おすすめ編成にしました: ${rec.map(fi => FAM[fi].name).join("・")}`);
+  }, { size: 11, c1: same ? "#4a5280" : "#ffe066", c2: same ? "#2b3158" : "#e0a020", fg: same ? "#cfd6ff" : "#3a2400" });
   // ギミックと対策
   const gl = (q.gims || []).slice(0, MAX_GIMS);
   ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -8052,6 +8126,8 @@ function drawPrep() {
     mark: fi => { const k = save.party.indexOf(fi); return k >= 0 ? (k === 0 ? "L" : String(k + 1)) : ""; },
     badge: fi => abilOf(fi).filter(k => need.includes(k)).map(k => ABIL[k].s).join("・"),
     dim: fi => q.kind === "typed" && FAM[fi].type !== q.ptype,
+    rec: fi => rec.includes(fi),
+    first: rec,
   });
   if (ng) txt(ng, W / 2, 596, 12, "#ff9ab8", "center");
   button(40, ng ? 606 : 592, W - 80, ng ? 30 : 42, "出撃!", () => startQuest(prepId),
