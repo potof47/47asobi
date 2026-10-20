@@ -15,6 +15,9 @@ patch("<title>モンスター・フリック</title>", "<title>モンスター�
 // 無制限版でランキングへスコアを送らない
 patch('const RANKING = { url: "", key: "" };', 'const RANKING = { url: "", key: "" }; // 無制限版では常に無効', "RANKING");
 
+// config.json の online 設定（Supabase）を読まない → 全国ランキング・スコアアタック・協力レイド・助っ人のオンライン送信を無効にする
+patch("if (on.url && on.key) {", "if (false && on.url && on.key) {", "online config");
+
 // ジェム・コイン・結晶を常に満タンにする
 const refill = `
 // ---- 無制限版: ジェム・コイン・結晶が減らない -----------------------------------
