@@ -260,8 +260,8 @@
       <label for="onKey">anon public キー</label>
       <input id="onKey" placeholder="eyJ...">
       <div class="row">
-        <div><label for="raidHp">協力レイドのボスHP（オンライン）</label><input id="raidHp" type="number" min="100000" value="30000000"></div>
-        <div><label for="raidSolo">ボスHP（ひとりで討伐）</label><input id="raidSolo" type="number" min="100000" value="5000000"></div>
+        <div><label for="raidHp">協力レイドのボスHP（オンライン）</label><input id="raidHp" type="number" min="100000" value="500000000"></div>
+        <div><label for="raidSolo">ボスHP（ひとりで討伐）</label><input id="raidSolo" type="number" min="100000" value="30000000"></div>
       </div>
     </section>
   </div>
@@ -515,8 +515,8 @@ function fillSettings() {
   const on = config.online || {}, rd = config.raid || {};
   $("onUrl").value = on.url || "";
   $("onKey").value = on.key || "";
-  $("raidHp").value = rd.hp ?? 30000000;
-  $("raidSolo").value = rd.soloHp ?? 5000000;
+  $("raidHp").value = rd.hp ?? 500000000;
+  $("raidSolo").value = rd.soloHp ?? 30000000;
   // ★6枠のキャラ（ガチャごとのチェックボックス）
   fillLimited("gaLimited", g.limited || DEFAULT_LIMITED);
   fillLimited("gaLimited2", g.limited2 || DEFAULT_LIMITED2);

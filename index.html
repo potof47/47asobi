@@ -5278,6 +5278,9 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-a", date: "2026-10-20", title: "協力レイドのボスが強くなった",
+    body: "協力レイドのボスがすぐに倒されてしまったので、HPを3000万から5億に増やしました（ひとりで討伐は500万→3000万）。"
+      + "今週のボスもこのHPで続きます。みんなで力を合わせて倒そう！討伐されるとダメージを与えた人全員にジェム300・コイン50000。" },
   { id: "up-2026-10-19-j2", date: "2026-10-19", title: "キャラ集め・曜日クエスト・天井",
     body: "イベントに「キャラ集め」登場！20ステージのうち5つが2日ごとに入れ替わり、クリアするたびにそのキャラが1〜5体ドロップ（新キャラ20体）。"
       + "運極のキャラを連れていくとドロップが増えます。\n「曜日」では曜日ごとの属性の結晶がたくさん手に入ります。限定ガチャは100回で好きな限定キャラと交換できる「天井」付き。" },
@@ -6386,8 +6389,8 @@ const raidOnline = () => onlineRanking();
 const raidId = () => "r" + weekIdx();
 const raidBoss = wk => RAID_BOSSES[wk % RAID_BOSSES.length];
 const raidMaxHp = () => raidOnline()
-  ? cfgNum(CFG.raid && CFG.raid.hp, 1e5, 1e13, 30000000)
-  : cfgNum(CFG.raid && CFG.raid.soloHp, 1e5, 1e12, 5000000);
+  ? cfgNum(CFG.raid && CFG.raid.hp, 1e5, 1e13, 500000000)
+  : cfgNum(CFG.raid && CFG.raid.soloHp, 1e5, 1e12, 30000000);
 let raidInfo = { id: null, maxHp: 0, total: 0, players: 0, top: [], status: "idle" };
 let raidBattle = { dmg: 0, others: 0, startTotal: 0, pollT: 0, done: true, busy: false };
 function raidState() {

@@ -11,5 +11,5 @@
   "difficulty": 1,
   "charBoost": {},
   "online": { "url": "https://tktyuphpbdqweiqokmtj.supabase.co", "key": "sb_publishable_SXvLuwDYA77QsFV8o80o6w_RJ_vgq9b" },
-  "raid": { "hp": 30000000, "soloHp": 5000000 }
+  "raid": { "hp": 500000000, "soloHp": 30000000 }
 }
