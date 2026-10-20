@@ -192,7 +192,7 @@ const COMBO = {
   // パニパニ 専用
   ssboom:  { name: "加速爆発", desc: "フィールド1/4の大爆発＋味方全員のSSを1ターン短縮" },
   // 戦姫アステリア 専用（神域Ⅴのドロップ）
-  tether:  { name: "絆レーザー", desc: "触れた味方との間にレーザーを張り、何度もヒット" },
+  tether:  { name: "絆レーザー", desc: "触れた味方との間に、止まるまでレーザーを張り続けて何度もヒット" },
   // 拍手する猫 専用
   clap:    { name: "拍手", desc: "触れた味方の攻撃力を3ターン1.3倍＋HP回復" },
   // 降臨キャラ専用（限定キャラよりは控えめ）
@@ -1715,10 +1715,13 @@ function triggerCombo(a) {
       break;
     }
     case "tether": {
-      // 絆レーザー: 触れてきた味方と自分の間にレーザーを張る。味方が動くとレーザーも動き、0.1秒ごとにヒット
+      // 絆レーザー: 触れてきた味方と自分の間にレーザーを張る。味方が動くとレーザーも動き、0.13秒ごとにヒット
+      // 触れた味方（または自分）が止まるまで出し続ける
       const mate = shot && shot.ally && shot.ally !== a ? shot.ally : allies.find(o => o !== a);
       if (!mate) break;
-      fx.push({ kind: "tether", a, b: mate, life: 48, max: 48, tick: 0, base: a.atk * 2.4, el: a.el, src: a });
+      const same = fx.find(f => f.kind === "tether" && f.a === a && f.b === mate);
+      if (same) { same.life = same.max; same.base = Math.max(same.base, a.atk * 2.4); break; }   // もう張っていれば延長
+      fx.push({ kind: "tether", a, b: mate, life: 48, max: 48, tick: 0, held: 0, base: a.atk * 2.4, el: a.el, src: a });
       burst(a.x, a.y, "#ffb0e0", 16, 4);
       break;
     }
@@ -2440,9 +2443,16 @@ function updateBolts() {
   bolts = bolts.filter(b => b.life > 0);
 }
 
+// その味方が今、弾かれて動いているか（大号令で一緒に飛んでいる味方も含む）
+const isMoving = o => !!shot && ((shot.ally === o && !shot.stopped) || (!!shot.followers && shot.followers.some(f => f.a === o && !f.stopped)));
 function updateFx() {
   for (const f of fx) {
     f.life--;
+    // 絆レーザーは、どちらかが動いている間は消えない（止まったら少しで消える。念のため15秒まで）
+    if (f.kind === "tether") {
+      if ((isMoving(f.a) || isMoving(f.b)) && f.held < 900) { f.life = f.max; f.held++; f.moving = true; }
+      else if (f.moving) { f.moving = false; f.life = Math.min(f.life, 16); }
+    }
     // 絆レーザー: 2人の間の線に重なる敵に、8フレームごとにダメージ
     if (f.kind === "tether" && ++f.tick % 8 === 0) {
       for (const e of alive()) {
@@ -7022,6 +7032,8 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-p", date: "2026-10-20", title: "絆レーザーが止まるまで続くように",
+    body: "戦姫アステリアの友情コンボ「絆レーザー」が、触れた味方が止まるまでずっと出続けるようになりました。味方が動き回るほど、レーザーが敵をなぎ払います!" },
   { id: "up-2026-10-20-o", date: "2026-10-20", title: "チームが作れない問題を修正",
     body: "「チームを作る」で名前を入れる画面が開かないことがあったのを直しました。チームを抜ける時の確認もゲーム内の画面になりました。" },
   { id: "up-2026-10-20-n", date: "2026-10-20", title: "協力プレイでいろんなクエストが遊べるように",
