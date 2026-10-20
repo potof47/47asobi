@@ -192,7 +192,7 @@ const COMBO = {
   // パニパニ 専用
   ssboom:  { name: "加速爆発", desc: "フィールド1/4の大爆発＋味方全員のSSを1ターン短縮" },
   // 戦姫アステリア 専用（神域Ⅴのドロップ）
-  tether:  { name: "絆レーザー", desc: "触れた味方との間に、止まるまでレーザーを張り続けて何度もヒット" },
+  tether:  { name: "絆レーザー", desc: "止まるまで続く連鎖レーザー" },   // 触れた味方との間に止まるまでレーザー。その味方が次に触れた味方からも出る
   // 拍手する猫 専用
   clap:    { name: "拍手", desc: "触れた味方の攻撃力を3ターン1.3倍＋HP回復" },
   // 降臨キャラ専用（限定キャラよりは控えめ）
@@ -1967,6 +1967,7 @@ function updateShot() {
           s.touched.add(o);
           if (s.rally) applyRally(o);   // 応援を受けてから友情コンボ
           triggerCombo(o);
+          chainTether(a, o);
         }
       }
       for (const h of hearts) {
@@ -2443,6 +2444,16 @@ function updateBolts() {
   bolts = bolts.filter(b => b.life > 0);
 }
 
+// 絆レーザーのつながり: 戦姫アステリアのレーザーがついた味方が、そのあと別の味方に触れると
+// その味方との間にもレーザーが張られる（威力・属性はアステリアのレーザーと同じ。止まるまで出続ける）
+function chainTether(mover, o) {
+  const src = fx.find(f => f.kind === "tether" && f.b === mover && f.life > 0 && !f.chain);
+  if (!src || o === src.a || o.combo === "tether") return;   // アステリア本人に触れた時は、本人の友情コンボが出る
+  if (fx.some(f => f.kind === "tether" && f.a === o && f.b === mover)) return;
+  fx.push({ kind: "tether", a: o, b: mover, life: 48, max: 48, tick: 0, held: 0, base: src.base, el: src.el, src: src.src, chain: true });
+  burst(o.x, o.y, "#ffb0e0", 12, 3);
+  addText(o.x, o.y - 44, "絆レーザー!", "#ff9ae6", 12);
+}
 // その味方が今、弾かれて動いているか（大号令で一緒に飛んでいる味方も含む）
 const isMoving = o => !!shot && ((shot.ally === o && !shot.stopped) || (!!shot.followers && shot.followers.some(f => f.a === o && !f.stopped)));
 function updateFx() {
@@ -2609,12 +2620,12 @@ function outlinedText(text, x, y, color, size, stroke = "#000") {
   ctx.fillText(text, x, y);
 }
 
-function txt(text, x, y, size, color, align = "left", weight = "bold") {
+function txt(text, x, y, size, color, align = "left", weight = "bold", maxW) {
   ctx.font = `${weight} ${size}px system-ui, sans-serif`;
   ctx.fillStyle = color;
   ctx.textAlign = align;
   ctx.textBaseline = "middle";
-  ctx.fillText(text, x, y);
+  if (maxW) ctx.fillText(text, x, y, maxW); else ctx.fillText(text, x, y);   // maxW: はみ出す時は横に縮める
 }
 
 function starPath(x, y, r) {
@@ -6923,7 +6934,7 @@ function drawDetail() {
   txt(`HP ${st.hp.toLocaleString()}`, 140, 334, 13, "#9dff8a");
   txt(`SPD ${st.spd.toFixed(1)}`, 252, 334, 13, "#a6d4ff");
   txt(`能力: ${abilText(fi)}${f.rar < 6 && u.rar >= 6 && abilOf(fi).length > f.abil.length ? "（★6で+1）" : ""}`, 28, 353, 11, "#7cf0ff");
-  txt(`友情コンボ: ${COMBO[f.combo].name}（${COMBO[f.combo].desc}）`, 28, 369, 11, "#fff");
+  txt(`友情コンボ: ${COMBO[f.combo].name}（${COMBO[f.combo].desc}）`, 28, 369, 11, "#fff", "left", "bold", W - 56);
   txt(`SS: ${ssName(fi)}（${ssTurns(fi)}ターン）`, 28, 386, 11, "#fff");
   txt(SS[f.ss].desc, 40, 402, 10, "#cfd6ff");
   if (u.rar < 6) {
@@ -7032,6 +7043,8 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-q", date: "2026-10-20", title: "絆レーザーがつながるように",
+    body: "戦姫アステリアに触れた味方が、そのあとほかの味方に触れると、その味方との間にもレーザーが張られるようになりました（止まるまで出続けます）。アステリアに触れてから仲間をめぐるように弾くと、レーザーが何本も張られます!" },
   { id: "up-2026-10-20-p", date: "2026-10-20", title: "絆レーザーが止まるまで続くように",
     body: "戦姫アステリアの友情コンボ「絆レーザー」が、触れた味方が止まるまでずっと出続けるようになりました。味方が動き回るほど、レーザーが敵をなぎ払います!" },
   { id: "up-2026-10-20-o", date: "2026-10-20", title: "チームが作れない問題を修正",
