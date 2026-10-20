@@ -348,6 +348,17 @@ const FAM = [
   ["ヴァンプ",     "dark",  5, "reflect", "mage",   "sharp",   "blast",   "meteor", "human"],
   ["ヨルオオカミ", "dark",  4, "reflect", "wolf",   "sharp",   "thunder", "burst",  "beast"],
   ["メイリュウ",   "dark",  5, "pierce",  "horns",  "sharp",   "laser",   "judge",  "dragon"],
+  // 恒常キャラ追加（ガチャ）
+  ["ホムラマル", "fire",  5, "reflect", "spiky",  "sharp",   "blast",   "burst",  "human"],
+  ["ヒバチ",     "fire",  4, "pierce",  "horns",  "round",   "homing",  "needle"],
+  ["ミナギ",     "water", 5, "pierce",  "twin",   "sparkle", "laser",   "judge",  "human"],
+  ["カッパロ",   "water", 4, "reflect", "fin",    "round",   "heal",    "wave"],
+  ["コダマ",     "wood",  5, "pierce",  "leaf",   "sleepy",  "homing",  "meteor"],
+  ["ササメ",     "wood",  4, "reflect", "long",   "sharp",   "thunder", "burst",  "human"],
+  ["ヒカリヒメ", "light", 5, "reflect", "twin",   "sparkle", "heal",    "judge",  "human"],
+  ["ペガス",     "light", 4, "pierce",  "crest",  "round",   "laser",   "wave",   "bird"],
+  ["カゲロウ",   "dark",  5, "pierce",  "hood",   "sharp",   "thunder", "meteor", "human"],
+  ["ドクロン",   "dark",  4, "reflect", "spikes", "mono",    "blast",   "needle"],
 ].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
 // 図鑑の並び順（属性 → レア度）
 const ORDER = FAM.map(f => f.idx).sort((a, b) =>
@@ -370,7 +381,8 @@ for (const fi of PERM6) FAM[fi].boost = 1.15;
 const EVENT_CHARS = ["嵐鳥ゼフィル", "雷獣ライガ", "氷竜グラキエス"].map(n => FAM.find(f => f.name === n).idx);
 for (const fi of EVENT_CHARS) { FAM[fi].event = true; FAM[fi].boost = 1.12; }   // 限定キャラ（1.35）より少し弱い 1.12×1.2
 // キャラ集めステージのキャラ（ガチャには出ない。重ねるとラック+1ずつ）
-const DROP_CHARS = FAM.slice(FAM.findIndex(f => f.name === "ホノオウサギ")).map(f => f.idx);
+const DROP_START = FAM.findIndex(f => f.name === "ホノオウサギ");
+const DROP_CHARS = FAM.slice(DROP_START, DROP_START + 20).map(f => f.idx);   // 20体（あとに足したキャラは含めない）
 for (const fi of DROP_CHARS) { FAM[fi].drop = true; FAM[fi].boost = 1.05; }
 
 // ---- ギミック対策の能力 ---------------------------------------------------
@@ -393,6 +405,7 @@ const ABIL_FIXED = {
   // ギミック対策要員（恒常キャラ）
   "ヒエン": ["AB"], "レオバーン": ["ADW"], "スイレン": ["AB"], "マンタロス": ["AGB"], "コノハ": ["AB"],
   "ミドリワシ": ["AW"], "キララ": ["AB"], "テンマ": ["MK"], "ヨイヤミ": ["AB"], "ネビュラ": ["ADW"],
+  "ヒバチ": ["AB"], "ササメ": ["AB"], "ペガス": ["AW"], "ドクロン": ["MK"], "カッパロ": ["AGB"],
 };
 // ふつうは1つ、恒常★6は2つ、限定★6は3つ（キャラごとに決まっている）
 for (const f of FAM) {
@@ -401,12 +414,14 @@ for (const f of FAM) {
   if (f.drop) f.abil = [ABIL_KEYS[DROP_CHARS.indexOf(f.idx) % ABIL_KEYS.length]];   // キャラ集めのキャラは5種類を順番に
 }
 // 今の能力（進化で★6になったキャラは1つ増えて2つ）
+// 今の能力（進化で★6になったキャラは+1、超進化（★7）でさらに+1）
 function abilOf(fi, rar) {
-  const f = FAM[fi];
-  if (f.rar >= 6 || f.abil.length >= 2 || !save || (rar || unitRar(fi)) < 6) return f.abil;
-  const k = (fi * 3 + 1) % ABIL_BASE.length;
-  const extra = [...ABIL_BASE.slice(k), ...ABIL_BASE.slice(0, k)].find(x => !f.abil.includes(x));
-  return [...f.abil, extra];
+  const f = FAM[fi], r = rar || (save ? unitRar(fi) : f.rar);
+  const extraFrom = (keys, ab) => { const k = (fi * 3 + 1) % keys.length; return [...keys.slice(k), ...keys.slice(0, k)].find(x => !ab.includes(x)); };
+  let ab = f.abil;
+  if (f.rar < 6 && ab.length < 2 && r >= 6) ab = [...ab, extraFrom(ABIL_BASE, ab)];
+  if (r >= 7) { const x = extraFrom(ABIL_KEYS, ab); if (x) ab = [...ab, x]; }
+  return ab;
 }
 const hasAbil = (a, k) => a.abil.includes(k);
 // 能力の表示（多い時は短い名前、全部そろっていれば「全ギミック対策」）
@@ -426,14 +441,15 @@ const RBASE = {
   4: { atk: 2000, hp: 14000, spd: 14 },
   5: { atk: 2450, hp: 17000, spd: 14.8 },
   6: { atk: 3000, hp: 21000, spd: 15.5 },
+  7: { atk: 3600, hp: 25000, spd: 16.2 },   // 超進化（★6の試練Ⅲクリア後の専用ステージで）
 };
-const MAXLV = { 3: 30, 4: 50, 5: 70, 6: 99 };
+const MAXLV = { 3: 30, 4: 50, 5: 70, 6: 99, 7: 120 };
 const MAX_AWK = 5;                                  // 覚醒（ガチャで被ると上がる）
 const MAX_LUCK = 99;                                // 覚醒MAXのあとに重ねると上がる「ラック」（99で運極）
 const LUCK_STAT = 0.003;                            // ラック1につき能力+0.3%（運極で+29.7%）
 const EVO_CR = { 3: 5, 4: 12, 5: 25 };              // 進化に必要な結晶
 const EVO_COIN = { 3: 2000, 4: 6000, 5: 15000 };    // 進化に必要なコイン
-const RCOL = { 3: "#d39a5a", 4: "#d8e0f0", 5: "#ffd23f", 6: "#ff8ae6" };
+const RCOL = { 3: "#d39a5a", 4: "#d8e0f0", 5: "#ffd23f", 6: "#ff8ae6", 7: "#fff2a0" };
 const lvCost = lv => 20 + lv * 8;
 
 // ---- ガチャ -----------------------------------------------------------
@@ -453,7 +469,7 @@ function newSave() {
   return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "", starterPending: true,
     rank: 1, exp: 0, stats: {}, ach: {}, towerMax: 0, abyssMax: 0,
     login: { n: 0, last: "" }, dexClaim: 0, eventClear: {}, sa: {}, raid: {}, sound: true,
-    pity: 0, titlesGot: [], title: "", talkSeen: {}, hints: {}, helperSent: "" };
+    pity: 0, titlesGot: [], title: "", talkSeen: {}, hints: {}, helperSent: "", friends: [], thanksId: 0 };
 }
 function loadSave() {
   try {
@@ -477,7 +493,7 @@ function normalizeSave(s) {
   for (const [k, u] of Object.entries(s.box || {})) {
     const f = FAM[k];
     if (!f || !u) continue;
-    const rar = int(u.rar, f.rar, 6, f.rar);
+    const rar = int(u.rar, f.rar, f.rar >= 6 ? 7 : 6, f.rar);   // ★7は生まれつき★6だけ
     out.box[k] = { rar, lv: int(u.lv, 1, MAXLV[rar], 1), awk: int(u.awk, 0, MAX_AWK, 0), luck: int(u.luck, 0, MAX_LUCK, 0) };
   }
   if (!Object.keys(out.box).length) out.box = d.box;
@@ -510,6 +526,8 @@ function normalizeSave(s) {
   out.talkSeen = obj(s.talkSeen);
   out.hints = obj(s.hints);
   out.helperSent = typeof s.helperSent === "string" ? s.helperSent : "";
+  out.friends = (Array.isArray(s.friends) ? s.friends : []).map(String).slice(0, 30);
+  out.thanksId = int(s.thanksId, 0, 1e15, 0);
   return out;
 }
 
@@ -611,6 +629,7 @@ const owned = fi => !!save.box[fi];
 function unitRar(fi) { return save.box[fi] ? save.box[fi].rar : FAM[fi].rar; }
 function displayName(fi) {
   const f = FAM[fi], rar = unitRar(fi);
+  if (rar >= 7) return "超・" + f.name;   // 超進化
   const base = rar > f.rar ? EL[f.el].p[rar - 4] + f.name : f.name;
   return trialTier(fi) >= TRIAL_TIERS ? "真・" + base : base;   // 試練Ⅲクリアで「真・」
 }
@@ -669,6 +688,26 @@ function trialQuest(fi, tier) {
     exp: 150 * tier, waves, gims,
   };
 }
+// 超進化: 試練Ⅲをクリアした★6だけが挑める、とても難しいステージ。クリアで★7に
+const canSuper = fi => FAM[fi].rar === 6 && !!save.box[fi] && trialTier(fi) >= TRIAL_TIERS && unitRar(fi) < 7;
+function superQuest(fi) {
+  const f = FAM[fi], m = f.el, s = ADV_BY[f.el];
+  const own = f.abil.map(k => GIM_KEYS.find(g => GIM[g].abil === k)).filter(Boolean);
+  const gims = [...GIM_KEYS.filter(g => !own.includes(g)), ...own].slice(0, MAX_GIMS);   // 対策できないギミックが中心
+  const mul = 34;
+  const seed = w => seeded(730000 + fi * 10 + w);
+  const waves = [
+    () => genWave(seed(0), m, s, 5, mul, null, true, gims),
+    () => genWave(seed(1), s, m, 6, mul, null, true, gims),
+    () => genWave(seed(2), m, s, 3, mul, { name: `${f.name}の守護神`, hpMul: 2, r: 54, cd: 2 }, true, gims),
+    () => genWave(seed(3), m, s, 2, mul, { name: `超・${f.name}の化身`, hpMul: 3.5, r: 62, cd: 2 }, true, gims),
+  ];
+  return {
+    id: "v" + fi, kind: "super", fi, name: `${f.name}の超進化`,
+    sub: `${EL[m].n}・${EL[s].n}属性 / ガード・再生 / ギミック3つ`, boss: true, diff: 14, mul: 1, par: 18,
+    bg: ["#3a2a06", "#0a0600"], coin: 100000, gem: 500, crEl: f.el, crN: 30, exp: 800, waves, gims,
+  };
+}
 function ssName(fi) {
   const s = SS[FAM[fi].ss];
   return s.fixed ? s.name : EL[FAM[fi].el].w + "の" + s.name;
@@ -704,6 +743,8 @@ function mob(x, y, el, hp, atk, cd, o = {}) {
     atkType: o.atkType || "single", flash: 0, dead: false, wob: Math.random() * 6,
     // guard: 弱点以外のダメージを1/4に / regen: 毎ターン最大HPのこの割合だけ回復
     guard: !!o.guard, regen: o.regen || 0,
+    // kind: normal / bomb（爆弾） / healer（ヒーラー） / shield（盾持ち） / split（分裂） / turret（砲台）
+    kind: o.kind || "normal", child: !!o.child,
   };
 }
 const boss = (x, y, el, hp, atk, cd, name, o = {}) =>
@@ -876,7 +917,46 @@ function genWave(r, m, s, n, mul, bossOpt, hard = false, gims = []) {
   const nr = Math.floor(r() * 3.2);
   for (let i = 0; i < nr; i++) { const p = place(13); rocks.push(rock(p.x, p.y)); }
   const gim = makeGimmicks(r, gims, place, enemies, rocks);
+  // 特殊な敵（強いステージほど多い）。配置は変えずに種類だけ決める
+  const kr = seeded(Math.floor(r() * 1e9));
+  const p = hard ? 0.45 : mul >= 1.6 ? 0.3 : mul >= 0.8 ? 0.15 : 0;
+  for (const e of enemies) {
+    if (e.boss || kr() >= p) continue;
+    e.kind = ENEMY_KINDS[Math.floor(kr() * ENEMY_KINDS.length)];
+    if (e.kind === "turret") e.weak = e.weak === null ? DOWN : e.weak;
+  }
   return { boss: !!bossOpt, enemies, rocks, gim };
+}
+
+// ---- 特殊な敵 -----------------------------------------------------------
+// bomb: 自分の番に自爆して大ダメージ。先に倒すと爆発してまわりの敵を巻き込む
+// healer: 攻撃のかわりに仲間の敵を回復 / shield: 下（正面）からの攻撃を大きく減らす
+// split: 倒すと小さい2体に分かれる / turret: 横一直線のレーザー（強い攻撃）
+const ENEMY_KINDS = ["bomb", "healer", "shield", "split", "turret"];
+const ENEMY_KIND_NAME = { bomb: "爆弾", healer: "ヒーラー", shield: "盾持ち", split: "分裂", turret: "砲台" };
+const ENEMY_KIND_HINT = {
+  bomb: "爆弾の敵！ほうっておくと自爆して大ダメージ。先に倒すと爆発してまわりの敵を巻き込むよ",
+  healer: "緑の十字はヒーラー。仲間の敵を回復するから、先に倒そう",
+  shield: "盾持ちは下（正面）からの攻撃をほとんど防ぐ。横や上から当てよう",
+  split: "分裂する敵は、倒すと小さい2体に分かれるよ",
+  turret: "砲台は横一直線の強いレーザーを撃ってくる。弱点を狙って早めに倒そう",
+};
+function onEnemyDeath(e) {
+  if (e.kind === "bomb") {
+    // 爆発してまわりの敵を巻き込む
+    fx.push({ kind: "ring", x: e.x, y: e.y, r0: 10, r1: 100, life: 20, max: 20, color: "#ff8a3c", w: 10 });
+    burst(e.x, e.y, "#ffb04a", 30, 6);
+    playSe("mine");
+    for (const o of alive()) if (o !== e && Math.hypot(o.x - e.x, o.y - e.y) < 100 + o.r) damageEnemy(o, e.maxHp * 0.3, e.el, false);
+  }
+  if (e.kind === "split" && !e.child) {
+    for (const s of [-1, 1]) {
+      const c = mob(Math.min(W - 20, Math.max(20, e.x + s * e.r * 0.8)), e.y, e.el, Math.round(e.maxHp * 0.35), Math.round(e.atk * 0.6), 2,
+        { r: Math.max(14, Math.round(e.r * 0.7)), child: true, kind: "split" });
+      enemies.push(c);
+    }
+    addText(e.x, e.y + e.r, "分裂!", "#9dff8a", 14);
+  }
 }
 
 // ---- ギミック ----------------------------------------------------------
@@ -1106,7 +1186,7 @@ function typeStage(type, i) {
 // 編成の条件（試練はそのキャラ入り、タイプ専用はそのタイプだけ）。問題なければ null
 function partyProblem(q) {
   const party = save.party.map(Number);
-  if (q.kind === "trial" && !party.includes(q.fi)) return `${FAM[q.fi].name}を編成に入れて挑戦しよう`;
+  if ((q.kind === "trial" || q.kind === "super") && !party.includes(q.fi)) return `${FAM[q.fi].name}を編成に入れて挑戦しよう`;
   if (q.kind === "typed" && party.some(fi => FAM[fi].type !== q.ptype)) return `${TYPE_NAME[q.ptype]}タイプのキャラだけで編成しよう`;
   if (q.kind === "typed" && prepHelper && prepHelperFor === q.id && FAM[prepHelper.fi].type !== q.ptype) return `助っ人も${TYPE_NAME[q.ptype]}タイプにしよう`;
   return null;
@@ -1125,7 +1205,10 @@ function getQuest(id) {
   if (id[0] === "e") { const [b, lv] = id.slice(1).split("_").map(Number); return eventQuest(b, lv); }
   if (id[0] === "a") return scoreQuest(Number(id.slice(1)));
   if (id[0] === "h") return extremeStage(Number(id.slice(1)));
+  if (id[0] === "v") return superQuest(Number(id.slice(1)));
+  if (id[0] === "b") return rushQuest(Number(id.slice(1)));
   if (id[0] === "d") return dropStage(Number(id.slice(1)));
+  if (id[0] === "g") { const [d, sl] = id.slice(1).split("_").map(Number); return guerrillaQuest(d, sl); }
   if (id[0] === "w") { const [k, lv] = id.slice(1).split("_").map(Number); return weekdayQuest(EL_KEYS[k], lv); }
   if (id[0] === "y") return typeStage(id[1] === "r" ? "reflect" : "pierce", Number(id.slice(2)));
   if (id[0] === "r") return raidQuest(Number(id.slice(1)));
@@ -1158,8 +1241,9 @@ let dragging = false, dragStart = null, dragNow = null;
 
 function showToast(text) { toast = { text, life: 90 }; }
 function go(s) {
-  state = s; particles = []; texts = []; banner = null; shareOpen = false; pityOpen = false; helperPickOpen = false;
+  state = s; particles = []; texts = []; banner = null; shareOpen = false; pityOpen = false; helperPickOpen = false; profileOpen = false;
   if (save && !BATTLE.has(s)) checkTitles();
+  if (save && s === "home") claimThanks();
   if (s === "home" || s === "gifts") loadGifts();
 }
 
@@ -1180,7 +1264,7 @@ function makeHelperAlly(h, x, y) {
   const fi = h.fi, f = FAM[fi], u = { rar: h.rar, lv: h.lv, awk: h.awk, luck: h.luck };
   const s = unitStats(fi, u, h.trial), t = ssTurns(fi, h.rar, h.trial);
   return {
-    fi, helper: true, name: `助っ人 ${f.name}`, el: f.el, type: f.type, atk: s.atk, hp: s.hp, spd: s.spd,
+    fi, helper: true, hname: h.name, guest: !!h.guest, name: `助っ人 ${f.name}`, el: f.el, type: f.type, atk: s.atk, hp: s.hp, spd: s.spd,
     combo: f.combo, comboName: COMBO[f.combo].name,
     ss: f.ss, ssName: ssName(fi), ssTurns: t, ssDesc: SS[f.ss].desc, ssLeft: t,
     look: { shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: h.rar, evo: h.rar > f.rar },
@@ -1211,6 +1295,7 @@ function startQuest(i) {
   bolts = []; fx = []; particles = []; texts = []; events = [];
   bstat = { hits: 0, weak: 0, kills: 0, combos: 0, maxHit: 0, dmg: 0 };
   if (q.kind === "raid") raidBattleStart(q);
+  if (q.kind === "rush") rushDone = false;
   loadWave();
   state = "aim";
   if (q.kind === "story") storyTalk(q, "s");   // 章の最初のステージで会話
@@ -1377,9 +1462,12 @@ function damageEnemy(e, base, el, weak) {
   if (e.dead) return;
   const shin = !!(dmgSrc && dmgSrc.shin);   // 試練Ⅲクリアの「真の力」
   const guarded = e.guard && !weak && !shin;   // ガード持ちは弱点以外 1/4（真の力なら無効）
-  const m = elemMult(el, e.el) * (weak ? 3 : 1) * (guarded ? 0.25 : 1) * (shin && e.boss ? SHIN_BOSS_MUL : 1);
+  // 盾持ち: 下（正面）から当たると大きく減る（真の力なら無効）
+  const shielded = e.kind === "shield" && !weak && !shin && dmgSrc && dmgSrc.y > e.y + e.r * 0.2;
+  const m = elemMult(el, e.el) * (weak ? 3 : 1) * (guarded ? 0.25 : 1) * (shielded ? 0.2 : 1) * (shin && e.boss ? SHIN_BOSS_MUL : 1);
   const dmg = Math.round(base * m * rand(0.92, 1.08));
   if (guarded && Math.random() < 0.25) addText(e.x, e.y + e.r + 8, "ガード", "#9ad5ff", 11);
+  if (shielded && Math.random() < 0.3) addText(e.x, e.y + e.r + 8, "シールド", "#9ad5ff", 11);
   e.hp -= dmg;
   e.flash = 6;
   hitCount++;
@@ -1405,6 +1493,7 @@ function damageEnemy(e, base, el, weak) {
     addStat("kills");
     bstat.kills++;
     playSe("kill");
+    onEnemyDeath(e);
   }
 }
 
@@ -1418,6 +1507,7 @@ function damageParty(dmg, x, y) {
     events = [];
     // 協力レイドは全滅しても与えたダメージは記録される
     if (quest && quest.kind === "raid") schedule(40, finishRaid);
+    else if (quest && quest.kind === "rush") schedule(40, () => finishRush(false));
     else schedule(40, () => { state = "over"; lastResult = null; playSe("lose"); });
   }
 }
@@ -1802,6 +1892,38 @@ function enemyPhase() {
 function enemyAttack(e) {
   if (e.dead || hp <= 0) return;
   e.flash = 10;
+  if (e.kind === "healer") {
+    // 攻撃のかわりに仲間を回復
+    fx.push({ kind: "ring", x: e.x, y: e.y, r0: e.r, r1: 140, life: 24, max: 24, color: "#7dffa0", w: 6 });
+    for (const o of alive()) {
+      if (o.raid) continue;
+      const v = Math.round(o.maxHp * 0.15);
+      o.hp = Math.min(o.maxHp, o.hp + v);
+      addText(o.x, o.y - o.r - 6, `+${v.toLocaleString()}`, "#7dffa0", 12);
+    }
+    playSe("heal");
+    return;
+  }
+  if (e.kind === "bomb") {
+    // 自爆: 大ダメージ
+    fx.push({ kind: "ring", x: e.x, y: e.y, r0: e.r, r1: 300, life: 26, max: 26, color: "#ff8a3c", w: 14 });
+    burst(e.x, e.y, "#ffb04a", 40, 7);
+    addText(e.x, e.y + e.r + 12, "自爆!", "#ff8b5b", 16);
+    for (const a of allies) a.hurt = 16;
+    e.dead = true;
+    playSe("mine");
+    damageParty(Math.round(e.atk * 2.5), W / 2, FB - 10);
+    return;
+  }
+  if (e.kind === "turret") {
+    // 横一直線のレーザー
+    fx.push({ kind: "line", x1: 0, y1: e.y, x2: W, y2: e.y, w: 16, life: 22, max: 22, color: "#ff5b6b" });
+    fx.push({ kind: "line", x1: 0, y1: FB - 40, x2: W, y2: FB - 40, w: 22, life: 22, max: 22, color: "#ff8b9b" });
+    for (const a of allies) a.hurt = 16;
+    addText(e.x, e.y + e.r + 12, "レーザー", "#ff8b9b", 14);
+    damageParty(Math.round(e.atk * 1.6), W / 2, FB - 10);
+    return;
+  }
   if (e.atkType === "all") {
     fx.push({ kind: "ring", x: e.x, y: e.y, r0: e.r, r1: 560, life: 30, max: 30, color: "#ff4d6d", w: 12 });
     for (const a of allies) a.hurt = 16;
@@ -1820,6 +1942,7 @@ function startTurn() {
   if (hp <= 0) return;
   // 協力レイドはターン制限で終了
   if (quest.kind === "raid" && turn >= quest.turnLimit) { finishRaid(); return; }
+  if (!alive().length) { waveClear(); return; }   // 爆弾の自爆などで敵がいなくなった時
   turn++;
   cur = (cur + 1) % allies.length;
   for (const a of allies) a.ssLeft = Math.max(0, a.ssLeft - 1);
@@ -1876,7 +1999,8 @@ function waveClear() {
   showBanner(last ? "QUEST CLEAR!" : "WAVE CLEAR", "", "#7dffa0");
   playSe(last ? "clear" : "wave");
   schedule(last ? 80 : 60, () => {
-    if (last) { finishQuest(); return; }
+    if (last) { if (quest.kind === "rush") finishRush(true); else finishQuest(); return; }
+    if (quest.kind === "rush") healParty(Math.round(maxHp * 0.2), W / 2, FB - 20);   // ボスラッシュは倒すたびに20%回復
     waveIdx++;
     loadWave();
     startTurn();
@@ -1939,6 +2063,14 @@ function finishQuest() {
       ? `${FAM[q.fi].name} が真の力に目覚めた! ガード無効・ボス×${SHIN_BOSS_MUL}`
       : `${FAM[q.fi].name} が強化された! 能力×${TRIAL_MUL[q.tier]}${TRIAL_SS[q.tier] ? `・SS-${TRIAL_SS[q.tier]}` : ""}`);
   }
+  // 超進化: 初めてクリアすると★7に
+  if (q.kind === "super" && save.box[q.fi] && save.box[q.fi].rar < 7) {
+    save.box[q.fi].rar = 7;
+    trialUp = { fi: q.fi, tier: "super" };
+    showBanner("超進化!!", `${displayName(q.fi)}  ★7`, "#fff2a0");
+    showToast(`${FAM[q.fi].name} が超進化! ★7・能力+1・Lv上限120`);
+    playSe("fanfare");
+  }
   addStat("clears");
   if (rank === "S") addStat("srank");
   const up = addExp(exp);
@@ -1946,6 +2078,7 @@ function finishQuest() {
   persist();
   lastResult = { turn, rank, best: isBest ? turn : best, isBest, coin, gem, crEl, crN, drop, dropN, luckBonus, netRank: undefined,
     exp, kind: q.kind, trialUp };
+  thankHelper();
   if (q.kind === "score") scoreFinish(q, lastResult);
   checkTitles();
   if (q.kind === "story") storyTalk(q, "e");   // 章ボスを倒した時の会話
@@ -2325,6 +2458,7 @@ function crystalIcon(el, x, y, s) {
 // キャラ（すべてコードで描くオリジナルデザイン）
 // k: { shape, el, acc, eye, rar, evo }
 function drawChar(k, x, y, r) {
+  if (k.rar >= 7) drawSuperAura(x, y, r);   // 超進化（★7）は金色の光輪と回る光
   if (k.shape && k.shape !== "blob") { drawCreature(k, x, y, r); return; }
   const c = EL[k.el];
   ctx.save();
@@ -2440,6 +2574,24 @@ function drawChar(k, x, y, r) {
   // 頭の飾り（前側）
   drawFrontAcc(k, x, y, r);
   if (k.rar >= 6 && k.acc !== "hat") drawCrown(x - r * 0.55, y - r * 0.95, r, -0.4);
+  ctx.restore();
+}
+
+function drawSuperAura(x, y, r) {
+  ctx.save();
+  const g = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 1.9);
+  g.addColorStop(0, "rgba(255,240,160,0.55)");
+  g.addColorStop(1, "rgba(255,200,60,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = `hsla(${(frameNo * 3) % 360},95%,70%,0.9)`;
+  ctx.lineWidth = Math.max(1.5, r * 0.08);
+  ctx.beginPath(); ctx.ellipse(x, y - r * 1.25, r * 0.6, r * 0.18, 0, 0, Math.PI * 2); ctx.stroke();
+  for (let i = 0; i < 6; i++) {
+    const a = frameNo * 0.04 + i * Math.PI / 3;
+    ctx.fillStyle = `hsl(${(frameNo * 4 + i * 60) % 360},95%,72%)`;
+    ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 1.45, y + Math.sin(a) * r * 1.2, Math.max(1.2, r * 0.09), 0, Math.PI * 2); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -3279,6 +3431,7 @@ function drawEnemy(e) {
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
+  if (e.kind !== "normal") drawEnemyKind(e, x, y, r);
   // ガード（六角形のバリア）と再生（緑の＋マーク）
   if (e.guard) {
     ctx.save();
@@ -3330,6 +3483,79 @@ function drawEnemy(e) {
   txt(String(e.cd), cx, cy + 1, 13, e.cd <= 1 ? "#fff" : "#111", "center", "900");
   drawElemIcon(e.el, x + r * 0.8, y + r * 0.75, 8);
   ctx.restore();
+}
+
+// 特殊な敵の見た目
+function drawEnemyKind(e, x, y, r) {
+  ctx.save();
+  switch (e.kind) {
+    case "bomb": {
+      // 導火線と火花、自爆が近いと赤く点滅
+      ctx.strokeStyle = "#5a3a1a";
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x + r * 0.4, y - r * 0.85); ctx.quadraticCurveTo(x + r * 0.9, y - r * 1.3, x + r * 0.7, y - r * 1.55); ctx.stroke();
+      ctx.fillStyle = frameNo % 10 < 5 ? "#ffe066" : "#ff5b3a";
+      ctx.beginPath(); ctx.arc(x + r * 0.7, y - r * 1.55, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(30,20,20,0.55)";
+      ctx.beginPath(); ctx.arc(x, y + r * 0.1, r * 0.95, Math.PI * 0.15, Math.PI * 0.85); ctx.fill();
+      if (e.cd <= 1) {
+        ctx.globalAlpha = 0.35 + Math.sin(frameNo * 0.4) * 0.3;
+        ctx.fillStyle = "#ff3b3b";
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    case "healer": {
+      ctx.strokeStyle = "rgba(125,255,160,0.7)";
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(x, y - r * 1.15, r * 0.5, r * 0.15, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(x - r * 0.75, y + r * 0.55, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#2ec05a";
+      ctx.fillRect(x - r * 0.75 - 6, y + r * 0.55 - 2, 12, 4);
+      ctx.fillRect(x - r * 0.75 - 2, y + r * 0.55 - 6, 4, 12);
+      break;
+    }
+    case "shield": {
+      // 下側（正面）の盾
+      ctx.strokeStyle = "#9ad5ff";
+      ctx.lineWidth = 7;
+      ctx.shadowColor = "#9ad5ff";
+      ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(x, y, r + 6, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+      ctx.strokeStyle = "#e6f4ff";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r + 6, Math.PI * 0.2, Math.PI * 0.8); ctx.stroke();
+      break;
+    }
+    case "split": {
+      // ぷるぷるのスライム（半透明の膜と小さい泡）
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = "#b6ffb0";
+      const w = Math.sin(frameNo * 0.15 + e.wob) * r * 0.08;
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.1, r + 4 + w, r + 2 - w, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.9;
+      for (const [ox, oy, s] of [[-0.7, -0.6, 0.18], [0.75, -0.4, 0.13], [0.6, 0.7, 0.15]]) {
+        ctx.beginPath(); ctx.arc(x + ox * r, y + oy * r, r * s, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    }
+    case "turret": {
+      // 横に伸びる砲身
+      ctx.fillStyle = "#6a7290";
+      ctx.strokeStyle = "#c8d0ec";
+      ctx.lineWidth = 2;
+      for (const s of [-1, 1]) {
+        roundRect(s < 0 ? x - r - 16 : x + r - 4, y - 5, 20, 10, 3);
+        ctx.fill(); ctx.stroke();
+      }
+      ctx.fillStyle = e.cd <= 1 ? (frameNo % 8 < 4 ? "#ff3b3b" : "#ffe066") : "#ff8b9b";
+      for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * (r + 16), y, 4, 0, Math.PI * 2); ctx.fill(); }
+      break;
+    }
+  }
+  ctx.restore();
+  txt(ENEMY_KIND_NAME[e.kind], x, y - r - 12, 9, "#fff", "center", "900");
 }
 
 function drawElemIcon(el, x, y, r) {
@@ -3724,7 +3950,7 @@ function drawHud() {
   txt(`WAVE ${waveIdx + 1}/${quest.waves.length}`, 10, 29, 13, "#ffd35c", "left", "900");
   txt(quest.kind === "raid" ? `TURN ${turn}/${quest.turnLimit}` : `TURN ${turn}`, W / 2, TOP / 2, 16, "#fff", "center", "900");
   ctx.restore();
-  button(W - 62, 8, 54, 24, quest.kind === "raid" ? "終了" : "やめる", () => { if (quest.kind === "raid" && state !== "clear") finishRaid(); else go(questHome()); }, { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(W - 62, 8, 54, 24, quest.kind === "raid" || quest.kind === "rush" ? "終了" : "やめる", () => { if (quest.kind === "raid" && state !== "clear") finishRaid(); else if (quest.kind === "rush" && state !== "clear") finishRush(false); else go(questHome()); }, { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 
   const b = enemies.find(e => e.boss && !e.dead);
   if (b) {
@@ -3864,6 +4090,11 @@ function drawResult() {
   ctx.fillRect(0, 0, W, H);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  if (state === "clear" && lastResult && lastResult.kind === "rush") {
+    ctx.restore();
+    drawRushResult();
+    return;
+  }
   if (state === "clear" && lastResult && lastResult.kind === "raid") {
     ctx.restore();
     drawRaidResult();
@@ -3930,6 +4161,7 @@ function drawResult() {
     next = "t" + (quest.floor + 1);
   } else if (state === "clear" && quest.kind === "trial") {
     if (quest.tier < TRIAL_TIERS) next = `x${quest.fi}_${quest.tier + 1}`;
+    else if (canSuper(quest.fi)) next = "v" + quest.fi;
   } else if (state === "clear" && quest.kind === "abyss") {
     next = "u" + (quest.floor + 1);
   } else if (state === "clear" && quest.kind === "typed" && quest.idx + 1 < TYPE_STAGES) {
@@ -3939,7 +4171,7 @@ function drawResult() {
   }
   if (next) {
     button(60, 444, W - 120, 46,
-      quest.kind === "trial" ? `次の試練（${TRIAL_ROMAN[quest.tier + 1]}）へ` : quest.floor ? `${quest.floor + 1}階へ` : "次のステージへ",
+      quest.kind === "trial" ? (quest.tier < TRIAL_TIERS ? `次の試練（${TRIAL_ROMAN[quest.tier + 1]}）へ` : "超進化に挑戦!") : quest.floor ? `${quest.floor + 1}階へ` : "次のステージへ",
       () => openPrep(next),
       { size: 16, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
   }
@@ -4108,6 +4340,7 @@ function drawHome() {
     ctx.fillStyle = "#ff3b4e";
     ctx.beginPath(); ctx.arc(W - 16, 226, 6, 0, Math.PI * 2); ctx.fill();
   }
+  button(12, 296, 78, 28, "プロフィール", () => { profileOpen = true; }, { size: 10, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
   // 称号（使用中の称号を名前の下に表示）
   button(12, 260, 78, 28, "称号", () => go("titles"), { size: 12, c1: "#ffe066", c2: "#c08a10", fg: "#3a2400" });
   if (titleName()) txt(`【${titleName()}】`.slice(0, 9), W - 51, 262, 9, "#ffe066", "center");
@@ -4133,10 +4366,11 @@ function drawHome() {
   button(30, 428, 145, 86, "クエスト", () => go("quests"), { size: 20, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", sub: "冒険に出よう" });
   button(185, 428, 145, 86, "ガチャ", () => go("gacha"), { size: 20, c1: "#c58aff", c2: "#6a2ad6", fg: "#fff", sub: "仲間を増やそう" });
   button(30, 522, 300, 54, "イベント", () => go("event"),
-    { size: 18, c1: "#ffe066", c2: "#ff5b3a", fg: "#3a0a00", sub: "降臨・スコアアタック・協力レイド" });
+    { size: 18, c1: "#ffe066", c2: "#ff5b3a", fg: "#3a0a00", sub: guerrillaNow().active ? "★ゲリラ開催中! 今だけの高報酬 ★" : "降臨・キャラ集め・ゲリラ・協力レイド" });
   drawParticles();
   drawNav();
   if (loginOpen) drawLogin();
+  if (profileOpen) drawProfile();
 }
 
 let questTab = "story", chapterView = null, towerMode = "tower";
@@ -4149,7 +4383,7 @@ function drawQuests() {
   const tabs = [["story", "ストーリー"], ["special", "スペシャル"], ["tower", "塔"], ["trial", "試練"], ["typed", "反射/貫通"], ["extreme", "絶級"]];
   const tw = (W - 28) / tabs.length;
   tabs.forEach(([k, label], i) => {
-    const x = 14 + i * tw, active = questTab === k || (k === "tower" && questTab === "abyss");
+    const x = 14 + i * tw, active = questTab === k || (k === "tower" && (questTab === "abyss" || questTab === "rush"));
     ctx.fillStyle = active ? (k === "extreme" ? "#ff6b8b" : "#ffd35c") : "rgba(255,255,255,0.08)";
     roundRect(x + 2, 78, tw - 4, 30, 9);
     ctx.fill();
@@ -4161,6 +4395,7 @@ function drawQuests() {
   else if (questTab === "trial") drawTrialList();
   else if (questTab === "extreme") drawExtremeList();
   else if (questTab === "typed") drawTypedList();
+  else if (questTab === "rush") drawRushPanel();
   else drawTowerPanel(questTab === "abyss");
   drawNav();
 }
@@ -4254,8 +4489,14 @@ function drawTrialList() {
       button(W - 108, y + 8, 88, 29, "未所持", () => showToast("ガチャで手に入れると挑戦できます"),
         { size: 12, disabled: true });
     } else if (t >= TRIAL_TIERS) {
-      txt("真の力 解放", W - 66, y + 18, 13, "#ffd35c", "center", "900");
-      txt("ガード無効・ボス×1.5", W - 66, y + 35, 9, "#ffe9a8", "center", "normal");
+      // 試練Ⅲのあとは超進化（★7）に挑戦できる
+      if (canSuper(f.idx)) {
+        button(W - 108, y + 8, 88, 29, "超進化", () => openPrep("v" + f.idx),
+          { size: 13, c1: "#fff2a0", c2: "#e0a020", fg: "#3a2400" });
+      } else {
+        txt("★7 超進化済み", W - 66, y + 18, 12, "#fff2a0", "center", "900");
+        txt("真の力・能力+1", W - 66, y + 35, 9, "#ffe9a8", "center", "normal");
+      }
     } else {
       const q = trialQuest(f.idx, t + 1);
       button(W - 108, y + 8, 88, 29, `試練${TRIAL_ROMAN[t + 1]}`, () => openPrep(q.id),
@@ -4309,6 +4550,128 @@ function drawTypedList() {
   });
 }
 
+// 「塔」タブの中の切り替え（無限の塔 / 深淵の塔 / ボスラッシュ）
+function drawTowerToggle() {
+  [["tower", "無限の塔"], ["abyss", "深淵の塔"], ["rush", "ボスラッシュ"]].forEach(([k, label], i) => {
+    const on = questTab === k;
+    const c = k === "abyss" ? ["#ff6b8b", "#a02a4a"] : k === "rush" ? ["#ff9a5a", "#c03a1a"] : ["#ffd35c", "#e0a020"];
+    button(14 + i * 112, 114, 108, 26, label, () => { questTab = towerMode = k; },
+      { size: 12, c1: on ? c[0] : "#4a5280", c2: on ? c[1] : "#2b3158", fg: on ? "#1a1030" : "#cfd6ff" });
+  });
+}
+
+// ---- ボスラッシュ: ボスだけを次々に倒し、何体倒せたかを競う（毎週入れ替わり、全30体） ----------------
+const RUSH_WAVES = 30, RUSH_WEEK_OFFSET = 50000;   // オンラインのランキングは event_scores の week に 50000 を足して保存
+function rushQuest(wk) {
+  const waves = [];
+  for (let k = 0; k < RUSH_WAVES; k++) {
+    waves.push(() => {
+      const m = EL_KEYS[(wk + k) % 5], s = ADV_BY[ADV_BY[m]] || EL_KEYS[(k + 1) % 5];
+      const gims = k >= 4 && k % 3 === 0 ? [GIM_KEYS[(wk + k) % GIM_KEYS.length]] : [];
+      return genWave(seeded(880000 + wk * 100 + k), m, s, k >= 10 ? 2 : 1, 1.5 * Math.pow(1.17, k),
+        { name: `${k + 1}体目 ${EL[m].w}の${BOSS_TITLE[k % BOSS_TITLE.length]}`, hpMul: 1, r: 50, cd: 2 }, k >= 15, gims);
+    });
+  }
+  return {
+    id: "b" + wk, kind: "rush", week: wk, name: `ボスラッシュ 第${wk + 1}週`, sub: "ボスを何体倒せるか", boss: true,
+    diff: 8, mul: 1, par: 999, bg: ["#3a0606", "#0a0000"], coin: 0, gem: 0, crEl: null, crN: 0, exp: 0, waves, gims: [],
+  };
+}
+function rushState() {
+  const wk = weekIdx();
+  if (!save.rush || save.rush.week !== wk) save.rush = { week: wk, best: 0, rec: [] };
+  return save.rush;
+}
+const rushScore = (bosses, t) => bosses * 1000 + Math.max(0, 999 - t);
+let rushDone = true;
+function finishRush(all) {
+  if (rushDone) return;
+  rushDone = true;
+  events = [];
+  shot = null;
+  const bosses = all ? RUSH_WAVES : waveIdx, st = rushState(), prev = st.best;
+  const newBest = bosses > prev;
+  if (newBest) st.best = bosses;
+  const gem = newBest ? (bosses - prev) * 10 : 0;   // 自己ベストを更新した分だけジェム
+  const coin = bosses * 3000;
+  const crEl = pick(EL_KEYS), crN = Math.floor(bosses / 2);
+  save.gems += gem;
+  save.coins += coin;
+  save.cr[crEl] += crN;
+  const leader = leaderLabel();
+  st.rec = (st.rec || []).concat({ name: save.name || "あなた", score: rushScore(bosses, turn), leader, at: Date.now() })
+    .sort((a, b) => b.score - a.score).slice(0, 10);
+  addStat("clears");
+  persist();
+  thankHelper();
+  lastResult = { kind: "rush", bosses, best: st.best, newBest, gem, coin, crEl, crN, turn };
+  if (onlineRanking() && bosses > 0) {
+    const res = lastResult;
+    (save.name ? Promise.resolve() : askName())
+      .then(() => submitEventScore(RUSH_WEEK_OFFSET + st.week, rushScore(bosses, turn), leader))
+      .then(r => { res.netRank = r; });
+  }
+  checkTitles();
+  state = "clear";
+  playSe("clear");
+}
+function drawRushResult() {
+  const r = lastResult;
+  ctx.save();
+  ctx.fillStyle = "rgba(5,7,15,0.85)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("ボスラッシュ終了", W / 2, 100, "#ff9a5a", 28, "#3a0a00");
+  txt("倒したボス", W / 2, 146, 13, "#cfd6ff", "center");
+  ctx.textAlign = "center";
+  outlinedText(`${r.bosses} 体`, W / 2, 182, "#ffef5c", 40);
+  txt(r.newBest ? `今週のベスト更新! ジェム+${r.gem}` : `今週のベスト ${r.best}体`, W / 2, 222, 13, r.newBest ? "#7dffa0" : "#cfd6ff", "center");
+  if (onlineRanking() && r.bosses > 0) txt(r.netRank === undefined ? "ランキング送信中…" : r.netRank ? `全国 ${r.netRank}位!` : "", W / 2, 244, 12, "#7cf0ff", "center");
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  roundRect(40, 266, W - 80, 70, 12);
+  ctx.fill();
+  coinIcon(100, 290, 8);
+  txt(r.coin.toLocaleString(), 114, 290, 14, "#fff");
+  crystalIcon(r.crEl, 212, 290, 9);
+  txt(`${EL[r.crEl].n}の結晶 ×${r.crN}`, 226, 290, 13, "#fff");
+  txt(`${r.turn}ターン`, W / 2, 318, 12, "#9aa3d8", "center");
+  ctx.restore();
+  button(60, 380, W - 120, 48, "もう一度", () => startQuest(questIdx), { size: 16, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
+  button(60, 438, W - 120, 46, "クエスト選択", () => go("quests"), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+function drawRushPanel() {
+  drawTowerToggle();
+  const wk = weekIdx(), st = rushState(), q = rushQuest(wk);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(`今週のベスト ${st.best}体`, W / 2, 160, "#ff9a5a", 20);
+  ctx.restore();
+  txt(`ボスだけが${RUSH_WAVES}体まで次々に出てくる。HPは引き継ぎ（倒すたびに20%回復）`, W / 2, 184, 10, "#cfd6ff", "center", "normal");
+  txt(`倒した数×3000コイン・ベスト更新で1体ジェム10・${fmtLeft(weekEnds() - Date.now())}で入れ替え`, W / 2, 200, 10, "#ffd35c", "center", "normal");
+  txt(onlineRanking() ? "全国ランキング（今週）" : "この端末の記録（今週）", 26, 224, 12, "#ffd35c");
+  let rows = st.rec || [];
+  if (onlineRanking()) {
+    if (saNet.week !== RUSH_WEEK_OFFSET + wk) fetchEventScores(RUSH_WEEK_OFFSET + wk);
+    rows = saNet.rows;
+    if (saNet.status === "loading") txt("読み込み中…", W / 2, 260, 12, "#cfd6ff", "center");
+  }
+  if (!rows.length && (!onlineRanking() || saNet.status === "ok")) txt("まだ記録がありません", W / 2, 260, 12, "#9aa3d8", "center", "normal");
+  rows.slice(0, 8).forEach((r, i) => {
+    const y = 236 + i * 26;
+    ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.07)";
+    roundRect(14, y, W - 28, 23, 6);
+    ctx.fill();
+    txt(`${i + 1}`, 28, y + 12, 12, i < 3 ? "#ffd35c" : "#cfd6ff", "center");
+    txt(r.name, 44, y + 12, 12, "#fff");
+    txt(r.leader || "", 150, y + 12, 9, "#9aa3d8", "left", "normal");
+    txt(`${Math.floor(Number(r.score) / 1000)}体`, W - 24, y + 12, 14, "#ff9a5a", "right", "900");
+  });
+  button(40, 466, W - 80, 64, "ボスラッシュに挑戦", () => openPrep(q.id),
+    { size: 18, c1: "#ff9a5a", c2: "#c03a1a", fg: "#fff", sub: "何回でも挑戦できる" });
+}
+
 // 無限の塔 / 深淵の塔（abyss=true）
 function drawTowerPanel(abyss = false) {
   const best = (abyss ? save.abyssMax : save.towerMax) || 0, next = best + 1;
@@ -4329,13 +4692,7 @@ function drawTowerPanel(abyss = false) {
   ctx.fillStyle = abyss ? "#9b5cff" : "#ff6b8b";
   ctx.beginPath(); ctx.moveTo(tx, base - 6 * 36 - 34); ctx.lineTo(tx - 30, base - 5 * 36 - 34); ctx.lineTo(tx + 30, base - 5 * 36 - 34); ctx.fill();
   ctx.restore();
-  // 無限の塔 / 深淵の塔の切り替え
-  [["tower", "無限の塔"], ["abyss", "深淵の塔"]].forEach(([k, label], i) => {
-    const on = questTab === k;
-    button(W / 2 - 124 + i * 128, 114, 120, 26, label, () => { questTab = towerMode = k; },
-      { size: 12, c1: on ? (k === "abyss" ? "#ff6b8b" : "#ffd35c") : "#4a5280", c2: on ? (k === "abyss" ? "#a02a4a" : "#e0a020") : "#2b3158",
-        fg: on ? "#1a1030" : "#cfd6ff" });
-  });
+  drawTowerToggle();
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -4586,10 +4943,18 @@ function battleHints() {
   if (enemies.some(e => e.weak !== null)) hint("weak", "黄色い照準は「弱点」。当てるとダメージ3倍!");
   if (waveGims().length) hint("gim", "ギミック登場! 下のキャラの欄で水色の能力は、このギミックに強いよ。出撃前の編成で対策キャラを入れよう");
   if (enemies.some(e => e.guard)) hint("guard", "六角形のバリアは「ガード」。弱点以外はダメージが1/4になるよ");
+  for (const k of ENEMY_KINDS) if (enemies.some(e => e.kind === k && !e.dead)) hint("ek_" + k, ENEMY_KIND_HINT[k]);
   if (allies.some(a => a.helper)) hint("helper", "「助」のマークは助っ人。ほかのプレイヤーのキャラが一緒に戦ってくれるよ");
 }
+// バトル中のヒントはバトルの時だけ、ほかの画面のヒントはその画面でだけ出す
+const MENU_HINTS = ["home", "prep", "drop"];
+const hintFits = h => BATTLE.has(state) !== MENU_HINTS.includes(h.key);
 function updateHints() {
-  if (!hintNow && hintQueue.length && !talk && !loginOpen) hintNow = hintQueue.shift();
+  if (hintNow && !hintFits(hintNow)) { hintQueue.unshift(hintNow); hintNow = null; }
+  if (!hintNow && !talk && !loginOpen) {
+    const k = hintQueue.findIndex(hintFits);
+    if (k >= 0) hintNow = hintQueue.splice(k, 1)[0];
+  }
   if (state === "home" && !(save.stats.clears > 0)) hint("home", "ようこそ! わたしは案内妖精のナビ。まずは「クエスト」→「ストーリー」の1-1から冒険を始めよう!");
   if (state === "prep") hint("prep", "出撃前の編成画面だよ。下の一覧をタップで仲間を入れ替え。水色の帯は、このステージのギミックに強いキャラ!");
   if (state === "event" && eventTab === "drop") hint("drop", "キャラ集めはクリアするたびにキャラが1〜5体もらえる! 重ねてラックを99にすると「運極」だよ");
@@ -4598,7 +4963,7 @@ function updateHints() {
   }
 }
 function drawHint() {
-  if (!hintNow || talk || loginOpen) return;
+  if (!hintNow || talk || loginOpen || profileOpen) return;
   const lines = wrapText(hintNow.text, W - 70, 13).slice(0, 4);
   const h = 34 + lines.length * 19, y = BATTLE.has(state) ? TOP + 40 : 120;
   button(18, y, W - 36, h, "", () => {
@@ -4690,6 +5055,93 @@ function drawTitles() {
     txt(`${titlePage + 1} / ${pages}`, W / 2, 561, 12, "#fff", "center");
   }
   drawNav();
+}
+
+// ---- プロフィールカード（画像にして保存・共有できる） -----------------------------------
+let profileOpen = false;
+const CARD = { x: 20, y: 110, w: W - 40, h: 300 };
+function drawProfileCard() {
+  const { x, y, w, h } = CARD, fi = save.party[0], u = save.box[fi];
+  ctx.save();
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, "#2a1d5c");
+  g.addColorStop(0.6, "#14203a");
+  g.addColorStop(1, EL[FAM[fi].el].d);
+  ctx.fillStyle = g;
+  roundRect(x, y, w, h, 18);
+  ctx.fill();
+  ctx.strokeStyle = rarityStroke(Math.max(6, u.rar), x, y, w, h);
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.clip();
+  for (let i = 0; i < 18; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${0.08 + (i % 4) * 0.05})`;
+    ctx.fillRect(x + (i * 53) % w, y + (i * 37) % h, 2, 2);
+  }
+  ctx.restore();
+  txt("モンスター・フリック", x + 16, y + 20, 11, "#ffd35c");
+  txt(`ランク ${save.rank}`, x + w - 16, y + 20, 12, "#ffd35c", "right", "900");
+  // リーダー
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = EL[FAM[fi].el].c;
+  ctx.beginPath(); ctx.arc(x + 74, y + 110, 52, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  drawChar(look(fi), x + 74, y + 112, 36);
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  outlinedText((save.name || "名なしの冒険者").slice(0, 12), x + 140, y + 56, "#fff", 20);
+  ctx.restore();
+  if (titleName()) txt(`【${titleName()}】`, x + 140, y + 82, 12, "#ffe066");
+  txt(`リーダー: ${displayName(fi)}`, x + 140, y + 106, 11, "#cfd6ff", "left", "normal");
+  drawStars(u.rar, x + 74, y + 170, 6);
+  txt(`Lv${u.lv}`, x + 140, y + 126, 11, "#cfd6ff", "left", "normal");
+  // 記録
+  const stats = [
+    ["図鑑", `${dexCount()}/${FAM.length}`], ["運極", `${unkCount()}体`], ["ストーリー", `${storyProgress()}/${STORY_COUNT}`],
+    ["無限の塔", `${save.towerMax || 0}階`], ["深淵の塔", `${save.abyssMax || 0}階`], ["称号", `${save.titlesGot.length}/${TITLES.length}`],
+  ];
+  stats.forEach(([k, v], i) => {
+    const sx = x + 16 + (i % 3) * ((w - 32) / 3), sy = y + 196 + Math.floor(i / 3) * 44;
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    roundRect(sx, sy, (w - 32) / 3 - 6, 38, 8);
+    ctx.fill();
+    txt(k, sx + ((w - 32) / 3 - 6) / 2, sy + 11, 9, "#9aa3d8", "center", "normal");
+    txt(v, sx + ((w - 32) / 3 - 6) / 2, sy + 27, 13, "#fff", "center", "900");
+  });
+}
+function drawProfile() {
+  button(0, 0, W, H, "", () => {}, { hidden: true, silent: true });
+  ctx.fillStyle = "rgba(0,0,0,0.75)";
+  ctx.fillRect(0, 0, W, H);
+  drawProfileCard();
+  button(30, 430, (W - 70) / 2, 44, "画像で保存", saveProfileImage, { size: 14, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  button(40 + (W - 70) / 2, 430, (W - 70) / 2, 44, "閉じる", () => { profileOpen = false; }, { size: 14, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  txt("友だちに見せよう! スマホでは共有メニューが開きます", W / 2, 492, 11, "#cfd6ff", "center", "normal");
+}
+// 画面に描いたカードの部分だけを切り出して画像にする
+function saveProfileImage() {
+  toast = null;   // カードに重ならないように
+  draw();   // 最新の状態で描き直す
+  const s = canvas.width / W, off = document.createElement("canvas");
+  off.width = Math.round(CARD.w * s);
+  off.height = Math.round(CARD.h * s);
+  off.getContext("2d").drawImage(canvas, CARD.x * s, CARD.y * s, CARD.w * s, CARD.h * s, 0, 0, off.width, off.height);
+  off.toBlob(blob => {
+    if (!blob) { showToast("画像を作れませんでした"); return; }
+    const file = new File([blob], "monster-flick-profile.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: "モンスター・フリック", text: "わたしのプロフィール" }).catch(() => {});
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "monster-flick-profile.png";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      showToast("画像を保存しました");
+    }
+  }, "image/png");
 }
 
 // ---- 天井（限定ガチャを100回引くと、好きな限定キャラと交換） ----------------------
@@ -5179,7 +5631,7 @@ function drawDetail() {
   } else {
     const tt = trialTier(fi);
     txt(FAM[fi].rar === 6
-      ? (tt >= TRIAL_TIERS ? `真の力: ガード無効・ボス×${SHIN_BOSS_MUL}（能力×${TRIAL_MUL[tt]}）`
+      ? (u.rar >= 7 ? "超進化（★7）: 真の力・能力+1・Lv上限120" : tt >= TRIAL_TIERS ? `真の力: ガード無効・ボス×${SHIN_BOSS_MUL}（試練タブで超進化へ）`
         : `最終進化（★6）・試練 ${tt}/${TRIAL_TIERS}${tt ? `（能力×${TRIAL_MUL[tt]}）` : ""}`)
       : "最終進化（★6）", 28, 422, 11, "#ff8ae6");
   }
@@ -5278,6 +5730,13 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-c", date: "2026-10-20", title: "ボスラッシュ・ゲリラ・助っ人のお礼",
+    body: "クエストの「塔」に「ボスラッシュ」（ボスを何体倒せるか、毎週ランキング）を追加。イベントに「ゲリラ」登場、毎日12時・19時・21時から1時間だけの高報酬クエスト！\n"
+      + "自分のリーダーが助っ人として使われると、ホームを開いた時にお礼のコイン・ジェムがもらえます。助っ人の♡でフレンド登録も。"
+      + "ホームの「プロフィール」でカードを画像にして友だちに見せられます。" },
+  { id: "up-2026-10-20-b", date: "2026-10-20", title: "超進化（★7）・新しい敵",
+    body: "試練Ⅲをクリアした★6は「超進化」ステージに挑戦できます（とても難しい！）。クリアで★7になり、能力+1・Lv上限120・金色の光輪。\n"
+      + "爆弾・ヒーラー・盾持ち・分裂・砲台の5種類の敵が登場。新しい恒常キャラ10体もガチャに追加しました。" },
   { id: "up-2026-10-20-a", date: "2026-10-20", title: "協力レイドのボスが強くなった",
     body: "協力レイドのボスがすぐに倒されてしまったので、HPを3000万から5億に増やしました（ひとりで討伐は500万→3000万）。"
       + "今週のボスもこのHPで続きます。みんなで力を合わせて倒そう！討伐されるとダメージを与えた人全員にジェム300・コイン50000。" },
@@ -6195,7 +6654,7 @@ function drawDex() {
 }
 
 // ---- イベント ----------------------------------------------------------
-const questHome = () => quest && ["event", "score", "raid", "drop", "weekday"].includes(quest.kind) ? "event" : "quests";
+const questHome = () => quest && ["event", "score", "raid", "drop", "weekday", "guerrilla"].includes(quest.kind) ? "event" : "quests";
 function fmtLeft(ms) {
   const h = Math.max(0, Math.floor(ms / 3600000)), m = Math.max(0, Math.floor(ms / 60000) % 60);
   return h >= 24 ? `あと${Math.floor(h / 24)}日${h % 24}時間` : `あと${h}時間${m}分`;
@@ -6289,6 +6748,62 @@ function weekdayQuest(el, lv) {
     boss: true, diff: L.diff, mul: 1, par: 8, bg: EL_BG[el], coin: L.coin, gem: 0, crEl: el, crN: L.crN, exp: 60 + lv * 40,
     waves, gims,
   };
+}
+
+// ゲリラクエスト: 毎日 12時・19時・21時から1時間だけ出る、報酬がとても多いクエスト（時間ごとに初回ジェム）
+const GUERRILLA_HOURS = [12, 19, 21];
+function guerrillaNow() {
+  const d = new Date(), h = d.getHours();
+  const slot = GUERRILLA_HOURS.indexOf(h);
+  const dayNo = Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / DAY);
+  if (slot >= 0) {
+    const end = new Date(d); end.setHours(h + 1, 0, 0, 0);
+    return { active: true, slot, dayNo, endsAt: end.getTime() };
+  }
+  // 次の開始時刻
+  const nextH = GUERRILLA_HOURS.find(x => x > h);
+  const next = new Date(d);
+  if (nextH === undefined) { next.setDate(next.getDate() + 1); next.setHours(GUERRILLA_HOURS[0], 0, 0, 0); }
+  else next.setHours(nextH, 0, 0, 0);
+  return { active: false, nextAt: next.getTime() };
+}
+function guerrillaQuest(dayNo, slot) {
+  const k = (dayNo * 3 + slot) % 5, m = EL_KEYS[k], s = ADV_BY[ADV_BY[m]] || EL_KEYS[(k + 2) % 5];
+  const gims = [GIM_KEYS[(dayNo + slot) % GIM_KEYS.length]];
+  const seed = w => seeded(690000 + (dayNo % 1000) * 10 + slot * 3 + w);
+  const waves = [
+    () => genWave(seed(0), m, s, 5, 3, null, false, gims),
+    () => genWave(seed(1), m, s, 3, 3, { name: "ゲリラボス", hpMul: 2, r: 52 }, false, gims),
+  ];
+  return {
+    id: `g${dayNo}_${slot}`, kind: "guerrilla", name: `ゲリラクエスト（${GUERRILLA_HOURS[slot]}時）`,
+    sub: `${EL[m].n}属性 / ${EL[ADV_BY[m]].n}属性が有利`, boss: true, diff: 6, mul: 1, par: 8,
+    bg: ["#3a0a3a", "#100010"], coin: 30000, gem: 60, crEl: m, crN: 12, exp: 300, waves, gims,
+  };
+}
+function drawGuerrilla() {
+  const g = guerrillaNow();
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  roundRect(14, 116, W - 28, 120, 14);
+  ctx.fill();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(g.active ? "ゲリラ開催中!" : "ゲリラクエスト", W / 2, 142,
+    g.active ? `hsl(${(frameNo * 4) % 360},90%,70%)` : "#fff", 22);
+  ctx.restore();
+  txt(`毎日 ${GUERRILLA_HOURS.map(h => h + "時").join("・")} から1時間だけ!`, W / 2, 170, 12, "#ffd35c", "center");
+  txt("初回ジェム60・コイン3万・結晶12個（時間ごとにもらえる）", W / 2, 192, 11, "#cfd6ff", "center", "normal");
+  if (g.active) {
+    txt(`終了まで ${fmtLeft(g.endsAt - Date.now()).replace("あと", "")}`, W / 2, 216, 12, "#ff9ab8", "center");
+    const q = guerrillaQuest(g.dayNo, g.slot);
+    gimLine(q.gims, 256);
+    button(40, 276, W - 80, 70, save.cleared[q.id] ? "もう一度挑戦" : "挑戦する!", () => openPrep(q.id),
+      { size: 20, c1: "#ff7ae0", c2: "#a020a0", fg: "#fff", sub: save.cleared[q.id] ? "初回報酬は受け取り済み" : "初回ジェム60" });
+  } else {
+    txt(`次の開催まで ${fmtLeft(g.nextAt - Date.now()).replace("あと", "")}`, W / 2, 216, 13, "#9aa3d8", "center");
+  }
+  txt("友だちと時間を合わせて遊ぼう!", W / 2, 380, 12, "#ffe066", "center");
 }
 
 // スコアアタック: 毎週ステージが変わる。スコアで報酬・ランキング
@@ -6476,6 +6991,7 @@ function finishRaid() {
   if (up.ranks) showToast(`ランクアップ! ランク${save.rank}  ジェム+${up.gems}`);
   addStat("clears");
   persist();
+  thankHelper();
   lastResult = { kind: "raid", dmg: d, my: st.dmg, coin, crEl: q.crEl, crN, exp: 100, sent: raidOnline() ? undefined : true };
   if (raidOnline()) {
     raidInfo.total += d;   // 送信が終わるまでの仮の値
@@ -6556,13 +7072,20 @@ async function fetchHelpers() {
   if (!onlineRanking()) { helperStatus = "offline"; return; }
   helperStatus = "loading";
   try {
-    const rows = await sbGet("helpers?select=name,title,fi,rar,lv,awk,luck,trial&order=created_at.desc&limit=80");
+    const cols = "select=name,title,fi,rar,lv,awk,luck,trial";
+    let rows = await sbGet(`helpers?${cols}&order=created_at.desc&limit=80`);
+    // フレンドは古い登録でも必ず取ってくる
+    if (save.friends.length) {
+      const names = save.friends.map(n => `"${n.replace(/["\\]/g, "")}"`).join(",");
+      rows = (await sbGet(`helpers?${cols}&name=in.(${encodeURIComponent(names)})&order=created_at.desc&limit=100`)).concat(rows);
+    }
     const seen = new Set(), list = [];
     for (const h of rows) {
       if (seen.has(h.name) || h.name === save.name || !FAM[h.fi] || !RBASE[h.rar]) continue;
       seen.add(h.name);
       list.push({ ...h, lv: Math.min(MAXLV[h.rar], h.lv) });
     }
+    list.sort((a, b) => isFriend(b.name) - isFriend(a.name));   // フレンドが上
     helperList = list.slice(0, 8);
     helperStatus = "ok";
   } catch (e) {
@@ -6581,6 +7104,38 @@ function registerHelper() {
   save.helperSent = sig;
   persist();
   sbPost("helpers", row).catch(() => { save.helperSent = ""; });
+}
+// 助っ人のお礼: 使った人がクリアすると記録 → 貸した人は次にホームを開いた時にコイン・ジェム
+function thankHelper() {
+  const a = allies.find(o => o.helper && !o.guest);
+  if (!a || !onlineRanking()) return;
+  sbPost("helper_uses", { lender: a.hname, user_name: (save.name || "だれか").slice(0, 12) }).catch(() => {});
+}
+let thanksAt = 0;
+async function claimThanks() {
+  if (!onlineRanking() || !save.name || Date.now() - thanksAt < 180000) return;
+  thanksAt = Date.now();
+  try {
+    const rows = await sbGet(`helper_uses?select=id&lender=eq.${encodeURIComponent(save.name)}&id=gt.${save.thanksId || 0}&order=id.asc&limit=200`);
+    if (!rows.length) return;
+    const n = rows.length, coins = Math.min(100, n) * 1000, gems = Math.min(30, n);
+    save.thanksId = rows[rows.length - 1].id;
+    save.coins += coins;
+    save.gems += gems;
+    addStat("lent", n);
+    persist();
+    playSe("coin");
+    showToast(`助っ人のお礼! ${n}回使われた  コイン+${coins.toLocaleString()} ジェム+${gems}`);
+  } catch (e) { /* 表がまだない時など */ }
+}
+// フレンド（助っ人の一覧で上に出る）
+const isFriend = name => save.friends.includes(name);
+function toggleFriend(name) {
+  if (isFriend(name)) save.friends = save.friends.filter(n => n !== name);
+  else if (save.friends.length >= 30) { showToast("フレンドは30人まで"); return; }
+  else save.friends.push(name);
+  persist();
+  showToast(isFriend(name) ? `${name} をフレンドにしました` : `${name} をフレンドから外しました`);
 }
 // 出撃前に選べる助っ人（みんな → 足りない分はゲスト）
 function helperChoices() {
@@ -6622,7 +7177,7 @@ function drawHelperPick(q, need) {
     ctx.clip();
     drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: h.rar, evo: h.rar > f.rar }, 45, y + 28, 11);
     ctx.restore();
-    txt(`${h.name}${h.guest ? "（ゲスト）" : ""}`, 74, y + 12, 12, h.guest ? "#cfd6ff" : "#fff");
+    txt(`${h.name}${h.guest ? "（ゲスト）" : isFriend(h.name) ? " ♥" : ""}`, 74, y + 12, 12, h.guest ? "#cfd6ff" : isFriend(h.name) ? "#ff9ae6" : "#fff");
     if (h.title) txt(`【${h.title}】`, W - 26, y + 12, 9, "#ffe066", "right");
     txt(`${f.name} ★${h.rar} Lv${h.lv}${h.luck >= MAX_LUCK ? " 運極" : ""}${h.trial >= TRIAL_TIERS ? " 真" : ""}`, 74, y + 28, 10, "#cfd6ff", "left", "normal");
     txt(ab.map(k => ABIL[k].s).join(" "), 74, y + 42, 9, hit.length ? "#7cf0ff" : "#8088b0", "left", "900");
@@ -6638,6 +7193,9 @@ function drawHelperPick(q, need) {
       prepHelperFor = prepId;
       helperPickOpen = false;
     }, { hidden: true });
+    // フレンド登録（ゲスト以外）
+    if (!h.guest) button(W - 96, y + 25, 38, 20, isFriend(h.name) ? "♥" : "♡", () => toggleFriend(h.name),
+      { size: 12, c1: isFriend(h.name) ? "#ff9ae6" : "#4a5280", c2: isFriend(h.name) ? "#c03ad6" : "#2b3158", fg: "#fff" });
   });
   button(24, 556, 150, 34, "助っ人なし", () => { prepHelper = null; helperPickOpen = false; }, { size: 13, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
   button(186, 556, 150, 34, "閉じる", () => { helperPickOpen = false; }, { size: 13, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
@@ -6782,20 +7340,21 @@ function drawEvent() {
   drawMenuBg("#3a1a12", "#0c0606");
   drawTopBar();
   header("イベント", "");
-  const tabs = [["descent", "降臨"], ["drop", "キャラ集め"], ["weekday", "曜日"], ["score", "スコア"], ["raid", "協力レイド"]];
+  const tabs = [["descent", "降臨"], ["drop", "キャラ集め"], ["weekday", "曜日"], ["guerrilla", "ゲリラ"], ["score", "スコア"], ["raid", "協力レイド"]];
   const tw = (W - 28) / tabs.length;
   tabs.forEach(([k, label], i) => {
     const x = 14 + i * tw, active = eventTab === k;
     ctx.fillStyle = active ? "#ffd35c" : "rgba(255,255,255,0.08)";
     roundRect(x + 2, 78, tw - 4, 30, 9);
     ctx.fill();
-    txt(label, x + tw / 2, 93, 11, active ? "#1a1030" : "#cfd6ff", "center");
+    txt(label, x + tw / 2, 93, 10, active ? "#1a1030" : "#cfd6ff", "center");
     button(x, 78, tw, 30, "", () => { eventTab = k; }, { hidden: true });
   });
   if (eventTab === "descent") drawDescent();
   else if (eventTab === "score") drawScoreAttack();
   else if (eventTab === "drop") drawDropList();
   else if (eventTab === "weekday") drawWeekday();
+  else if (eventTab === "guerrilla") drawGuerrilla();
   else drawRaid();
   drawParticles();
   drawNav();

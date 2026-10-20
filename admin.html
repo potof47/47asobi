@@ -122,6 +122,7 @@
     <button data-tab="chars">キャラ調整</button>
     <button data-tab="player">プレイヤー編集</button>
     <button data-tab="publish">公開する</button>
+    <button data-tab="stats">集計</button>
   </div>
 
   <!-- ===== プレゼント ===== -->
@@ -339,6 +340,16 @@
       </details>
     </section>
   </div>
+
+  <!-- ===== 集計（オンラインのデータを見るだけ） ===== -->
+  <div data-panel="stats" hidden>
+    <section>
+      <h2>集計</h2>
+      <p class="note">オンライン（Supabase）に集まったデータを表示します。見るだけで、何も変更しません。</p>
+      <button id="loadStats">最新の集計を読み込む</button>
+      <div id="statsOut" style="margin-top:12px"></div>
+    </section>
+  </div>
 </main>
 <div id="msg"></div>
 
@@ -369,6 +380,78 @@ $("tabs").onclick = e => {
   if (!t) return;
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   document.querySelectorAll("[data-panel]").forEach(p => { p.hidden = p.dataset.panel !== t; });
+};
+
+// ---- 集計（Supabase のデータを見るだけ） ----------------------------------------
+const EVENT_START = "2026-10-19";
+const weekIdx = () => Math.max(0, Math.floor((Date.now() - new Date(EVENT_START + "T00:00:00").getTime()) / (7 * 86400000)));
+async function sb(path) {
+  const on = config.online || {};
+  const url = String(on.url || "").replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
+  if (!url || !on.key) throw new Error("ゲーム設定のオンライン（URL・キー）が空です");
+  const r = await fetch(`${url}/rest/v1/${path}`, { headers: { apikey: on.key, Authorization: `Bearer ${on.key}` } });
+  if (!r.ok) throw new Error(`${path.split("?")[0]}: ${r.status}`);
+  return r.json();
+}
+// 表を作る（名前などはプレイヤーが入力した文字なので textContent で入れる）
+function statTable(title, head, rows) {
+  const box = document.createElement("div");
+  const h = document.createElement("h3");
+  h.textContent = title;
+  box.append(h);
+  if (!rows.length) { const p = document.createElement("p"); p.className = "note"; p.textContent = "まだデータがありません"; box.append(p); return box; }
+  const t = document.createElement("table");
+  for (const r of [head, ...rows]) {
+    const tr = document.createElement("tr");
+    r.forEach(v => { const td = document.createElement(r === head ? "th" : "td"); td.textContent = v; tr.append(td); });
+    t.append(tr);
+  }
+  box.append(t);
+  return box;
+}
+$("loadStats").onclick = async () => {
+  const out = $("statsOut");
+  out.textContent = "読み込み中…";
+  const wk = weekIdx(), parts = [];
+  const safe = async (p, f) => { try { return await f(); } catch (e) { parts.push(statTable(p, ["エラー"], [[e.message]])); return null; } };
+  const helpers = await safe("プレイヤー", () => sb("helpers?select=name,fi,rar,created_at&order=created_at.desc&limit=2000"));
+  if (helpers) {
+    const latest = new Map();
+    for (const h of helpers) if (!latest.has(h.name)) latest.set(h.name, h);
+    const weekAgo = Date.now() - 7 * 86400000;
+    const active = [...latest.values()].filter(h => new Date(h.created_at).getTime() >= weekAgo).length;
+    parts.push(statTable("プレイヤー（助っ人に登録された人）", ["項目", "人数"], [["登録した人", String(latest.size)], ["この7日に遊んだ人", String(active)]]));
+    const cnt = {};
+    for (const h of latest.values()) { const n = (FAM[h.fi] || {}).name || `#${h.fi}`; cnt[n] = (cnt[n] || 0) + 1; }
+    parts.push(statTable("人気のリーダー", ["キャラ", "人数"], Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => [k, String(v)])));
+  }
+  const uses = await safe("助っ人の利用", () => sb("helper_uses?select=lender&limit=5000"));
+  if (uses) {
+    const c = {};
+    for (const u of uses) c[u.lender] = (c[u.lender] || 0) + 1;
+    parts.push(statTable(`よく使われている助っ人（合計${uses.length}回）`, ["名前", "回数"], Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => [k, String(v)])));
+  }
+  const raids = await safe("協力レイド", () => sb("raid_totals?select=raid,total,players"));
+  if (raids) {
+    parts.push(statTable("協力レイド（週ごと）", ["週", "合計ダメージ", "参加人数"],
+      raids.sort((a, b) => b.raid.localeCompare(a.raid)).map(r => [`第${Number(r.raid.slice(1)) + 1}週`, Number(r.total).toLocaleString(), String(r.players)])));
+    const top = await safe("今週のレイド", () => sb(`raid_top?select=name,dmg&raid=eq.r${wk}&order=dmg.desc&limit=10`));
+    if (top) parts.push(statTable("今週のレイド ダメージランキング", ["名前", "ダメージ"], top.map(r => [r.name, Number(r.dmg).toLocaleString()])));
+  }
+  const sc = await safe("スコアアタック", () => sb(`event_scores?select=name,score&week=eq.${wk}&order=score.desc&limit=500`));
+  if (sc) {
+    const best = new Map();
+    for (const r of sc) if (!best.has(r.name)) best.set(r.name, r.score);
+    parts.push(statTable(`今週のスコアアタック（参加${best.size}人）`, ["名前", "ベスト"], [...best].slice(0, 10).map(([k, v]) => [k, Number(v).toLocaleString()])));
+  }
+  const rush = await safe("ボスラッシュ", () => sb(`event_scores?select=name,score&week=eq.${50000 + wk}&order=score.desc&limit=500`));
+  if (rush) {
+    const best = new Map();
+    for (const r of rush) if (!best.has(r.name)) best.set(r.name, r.score);
+    parts.push(statTable(`今週のボスラッシュ（参加${best.size}人）`, ["名前", "倒したボス"], [...best].slice(0, 10).map(([k, v]) => [k, `${Math.floor(v / 1000)}体`])));
+  }
+  out.textContent = "";
+  out.append(...parts);
 };
 
 // ---- 読み込み -------------------------------------------------------------
