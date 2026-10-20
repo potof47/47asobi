@@ -3177,75 +3177,102 @@ function drawValkyrie(k, x, y, r) {
     ctx.beginPath(); ctx.moveTo(0, -r * 1.25); ctx.lineTo(s * r * 0.3, -r * 1.42); ctx.lineTo(s * r * 0.2, -r * 1.12); ctx.closePath(); ctx.fill();
   }
   ctx.restore();
-  // 首・顔（細めのあごのライン）
+  // 首・顔（なめらかな輪郭の、凛々しい顔）
   ctx.fillStyle = SKIN_D;
-  ctx.fillRect(hx - hr * 0.2, hy + hr * 0.7, hr * 0.4, hr * 0.5);
-  ctx.fillStyle = shade(hx, hy, hr, "#fff4ec", SKIN);
+  ctx.fillRect(hx - hr * 0.18, hy + hr * 0.75, hr * 0.36, hr * 0.45);
+  ctx.fillStyle = shade(hx - hr * 0.2, hy - hr * 0.2, hr * 1.1, "#fff6ef", SKIN);
   ctx.beginPath();
-  ctx.moveTo(hx - hr * 0.95, hy - hr * 0.1);
-  ctx.quadraticCurveTo(hx - hr * 0.95, hy + hr * 0.6, hx, hy + hr * 1.05);
-  ctx.quadraticCurveTo(hx + hr * 0.95, hy + hr * 0.6, hx + hr * 0.95, hy - hr * 0.1);
-  ctx.quadraticCurveTo(hx, hy - hr * 1.1, hx - hr * 0.95, hy - hr * 0.1);
+  ctx.moveTo(hx - hr * 0.92, hy - hr * 0.15);
+  ctx.bezierCurveTo(hx - hr * 0.95, hy + hr * 0.5, hx - hr * 0.45, hy + hr * 0.95, hx, hy + hr * 1.0);
+  ctx.bezierCurveTo(hx + hr * 0.45, hy + hr * 0.95, hx + hr * 0.95, hy + hr * 0.5, hx + hr * 0.92, hy - hr * 0.15);
+  ctx.bezierCurveTo(hx + hr * 0.9, hy - hr * 1.0, hx - hr * 0.9, hy - hr * 1.0, hx - hr * 0.92, hy - hr * 0.15);
   ctx.fill();
-  // 目（鋭く切れ長。光る瞳）
+  // 顔の横に下りる髪（左右の毛束）
+  ctx.fillStyle = hairTop;
   for (const s of [-1, 1]) {
-    // 目尻が上がった切れ長の目（内側 → 外側へ少しつり上がる）
-    const ex = hx + s * hr * 0.42, ey = hy + hr * 0.2;
-    const inX = ex - s * hr * 0.27, outX = ex + s * hr * 0.3;
-    ctx.fillStyle = "#ffffff";
     ctx.beginPath();
-    ctx.moveTo(inX, ey + hr * 0.04);
-    ctx.quadraticCurveTo(ex, ey - hr * 0.3, outX, ey - hr * 0.14);
-    ctx.quadraticCurveTo(ex + s * hr * 0.04, ey + hr * 0.2, inX, ey + hr * 0.04);
+    ctx.moveTo(hx + s * hr * 0.98, hy - hr * 0.3);
+    ctx.quadraticCurveTo(hx + s * hr * 1.08, hy + hr * 0.5, hx + s * hr * 0.82, hy + hr * 1.25);
+    ctx.quadraticCurveTo(hx + s * hr * 0.78, hy + hr * 0.5, hx + s * hr * 0.66, hy - hr * 0.05);
+    ctx.closePath();
     ctx.fill();
-    // 光る瞳と、縦長のひとみ
-    ctx.save();
-    ctx.clip();
-    ctx.fillStyle = deep;
-    ctx.shadowColor = glow;
-    ctx.shadowBlur = hr * 0.6;
-    ctx.beginPath(); ctx.ellipse(ex + s * hr * 0.02, ey - hr * 0.03, hr * 0.13, hr * 0.17, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = k.el === "light" ? "#fff2b0" : glow;
-    ctx.beginPath(); ctx.ellipse(ex + s * hr * 0.02, ey + hr * 0.04, hr * 0.08, hr * 0.06, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = dark;
-    ctx.beginPath(); ctx.ellipse(ex + s * hr * 0.02, ey - hr * 0.03, hr * 0.035, hr * 0.12, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath(); ctx.arc(ex - s * hr * 0.03, ey - hr * 0.1, hr * 0.035, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-    // 上まぶたの太い線（目尻を長く）と、つり上がった眉
-    ctx.strokeStyle = dark;
-    ctx.lineWidth = Math.max(1.2, hr * 0.09);
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(inX, ey + hr * 0.02);
-    ctx.quadraticCurveTo(ex, ey - hr * 0.3, outX + s * hr * 0.08, ey - hr * 0.2);
-    ctx.stroke();
-    ctx.lineWidth = Math.max(1, hr * 0.08);
-    ctx.beginPath(); ctx.moveTo(ex - s * hr * 0.22, ey - hr * 0.3); ctx.lineTo(ex + s * hr * 0.32, ey - hr * 0.46); ctx.stroke();
   }
-  // 口（きりっと一文字）
-  ctx.strokeStyle = "#9a4a50";
+  // 目（形の整った切れ長のアーモンド形。丸い瞳に光が2つ）
+  const irisTop = k.el === "light" ? "#7a4a10" : c.d, irisBot = k.el === "light" ? "#f0b030" : c.c;
+  for (const s of [-1, 1]) {
+    const ex = hx + s * hr * 0.4, ey = hy + hr * 0.2, ew = hr * 0.27, eh = hr * 0.2;
+    // 白目（左目は左右反転して、目尻が外側になるように）
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.scale(s, 1);   // s=-1 の時は外側が左になる
+    ctx.beginPath();
+    ctx.moveTo(-ew, eh * 0.15);
+    ctx.bezierCurveTo(-ew * 0.6, -eh * 1.05, ew * 0.7, -eh * 1.15, ew * 1.05, -eh * 0.35);
+    ctx.bezierCurveTo(ew * 0.7, eh * 0.85, -ew * 0.5, eh * 0.9, -ew, eh * 0.15);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.clip();
+    // 瞳（上が濃く下が明るいグラデーション）
+    const ig = ctx.createLinearGradient(0, -eh, 0, eh);
+    ig.addColorStop(0, irisTop);
+    ig.addColorStop(1, irisBot);
+    ctx.fillStyle = ig;
+    ctx.beginPath(); ctx.ellipse(ew * 0.05, 0, ew * 0.52, eh * 1.05, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#1a1020";
+    ctx.beginPath(); ctx.arc(ew * 0.05, eh * 0.05, ew * 0.24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath(); ctx.arc(-ew * 0.15, -eh * 0.35, ew * 0.17, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ew * 0.25, eh * 0.4, ew * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    // 上まぶた（太いまつ毛の線。目尻を少しはね上げる）
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.scale(s, 1);
+    ctx.strokeStyle = "#2a1a30";
+    ctx.lineCap = "round";
+    ctx.lineWidth = Math.max(1.2, hr * 0.09);
+    ctx.beginPath();
+    ctx.moveTo(-ew * 1.02, eh * 0.1);
+    ctx.bezierCurveTo(-ew * 0.6, -eh * 1.05, ew * 0.7, -eh * 1.15, ew * 1.1, -eh * 0.4);
+    ctx.lineTo(ew * 1.3, -eh * 0.65);   // 目尻のまつ毛
+    ctx.stroke();
+    ctx.lineWidth = Math.max(0.6, hr * 0.035);   // 下まぶた（細く）
+    ctx.beginPath(); ctx.moveTo(-ew * 0.3, eh * 0.82); ctx.quadraticCurveTo(ew * 0.5, eh * 0.85, ew * 0.9, eh * 0.1); ctx.stroke();
+    // 眉（細く、少しだけ上がる＝凛々しい）
+    ctx.lineWidth = Math.max(0.9, hr * 0.06);
+    ctx.strokeStyle = "#8a7aa8";
+    ctx.beginPath(); ctx.moveTo(-ew * 0.85, -eh * 1.55); ctx.quadraticCurveTo(ew * 0.2, -eh * 2.0, ew * 1.1, -eh * 1.85); ctx.stroke();
+    ctx.restore();
+  }
+  // 鼻（小さな影）と口（ほんの少し口角を上げた、余裕のある表情）
+  ctx.strokeStyle = "rgba(200,130,110,0.7)";
+  ctx.lineWidth = Math.max(0.6, hr * 0.04);
+  ctx.beginPath(); ctx.moveTo(hx + hr * 0.02, hy + hr * 0.42); ctx.lineTo(hx - hr * 0.04, hy + hr * 0.52); ctx.stroke();
+  ctx.strokeStyle = "#b05a62";
   ctx.lineWidth = Math.max(0.8, hr * 0.05);
-  ctx.beginPath(); ctx.moveTo(hx - hr * 0.1, hy + hr * 0.66); ctx.lineTo(hx + hr * 0.1, hy + hr * 0.64); ctx.stroke();
-  // 前髪（鋭い毛束が目にかかる）
+  ctx.beginPath(); ctx.moveTo(hx - hr * 0.13, hy + hr * 0.7); ctx.quadraticCurveTo(hx + hr * 0.02, hy + hr * 0.74, hx + hr * 0.15, hy + hr * 0.66); ctx.stroke();
+  // 前髪（なめらかに流れる毛束。少し横に流して片目にかかる）
   ctx.fillStyle = hairTop;
   ctx.beginPath();
-  ctx.moveTo(hx - hr * 1.05, hy + hr * 0.25);
-  ctx.quadraticCurveTo(hx - hr * 1.0, hy - hr * 1.2, hx + hr * 0.1, hy - hr * 1.1);
-  ctx.quadraticCurveTo(hx + hr * 1.0, hy - hr * 1.15, hx + hr * 1.05, hy + hr * 0.25);
-  ctx.lineTo(hx + hr * 0.75, hy - hr * 0.3);
-  ctx.lineTo(hx + hr * 0.55, hy + hr * 0.15);
-  ctx.lineTo(hx + hr * 0.3, hy - hr * 0.35);
-  ctx.lineTo(hx + hr * 0.05, hy + hr * 0.05);
-  ctx.lineTo(hx - hr * 0.15, hy - hr * 0.4);
-  ctx.lineTo(hx - hr * 0.45, hy + hr * 0.1);
-  ctx.lineTo(hx - hr * 0.7, hy - hr * 0.3);
+  ctx.moveTo(hx - hr * 1.0, hy + hr * 0.1);
+  ctx.bezierCurveTo(hx - hr * 1.05, hy - hr * 0.9, hx - hr * 0.3, hy - hr * 1.15, hx + hr * 0.25, hy - hr * 1.08);
+  ctx.bezierCurveTo(hx + hr * 0.85, hy - hr * 1.0, hx + hr * 1.05, hy - hr * 0.6, hx + hr * 1.0, hy + hr * 0.1);
+  // 毛先（右から左へ、丸みのあるとがり）
+  ctx.quadraticCurveTo(hx + hr * 0.88, hy - hr * 0.25, hx + hr * 0.7, hy - hr * 0.42);
+  ctx.quadraticCurveTo(hx + hr * 0.6, hy - hr * 0.1, hx + hr * 0.42, hy + hr * 0.02);
+  ctx.quadraticCurveTo(hx + hr * 0.35, hy - hr * 0.3, hx + hr * 0.12, hy - hr * 0.5);
+  ctx.quadraticCurveTo(hx + hr * 0.05, hy - hr * 0.15, hx - hr * 0.18, hy + hr * 0.05);
+  ctx.quadraticCurveTo(hx - hr * 0.2, hy - hr * 0.3, hx - hr * 0.45, hy - hr * 0.45);
+  ctx.quadraticCurveTo(hx - hr * 0.55, hy - hr * 0.1, hx - hr * 0.78, hy + hr * 0.12);
+  ctx.quadraticCurveTo(hx - hr * 0.82, hy - hr * 0.15, hx - hr * 1.0, hy + hr * 0.1);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "rgba(150,140,200,0.7)";
-  ctx.lineWidth = Math.max(0.8, hr * 0.04);
-  ctx.stroke();
+  // 髪のつや（細い線）
+  ctx.strokeStyle = "rgba(170,160,215,0.55)";
+  ctx.lineWidth = Math.max(0.6, hr * 0.035);
+  ctx.beginPath(); ctx.moveTo(hx - hr * 0.5, hy - hr * 0.85); ctx.quadraticCurveTo(hx - hr * 0.2, hy - hr * 0.6, hx - hr * 0.45, hy - hr * 0.45); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(hx + hr * 0.4, hy - hr * 0.9); ctx.quadraticCurveTo(hx + hr * 0.6, hy - hr * 0.6, hx + hr * 0.7, hy - hr * 0.42); ctx.stroke();
   // 翼のかぶと（額の金の冠から、後ろへ鋭く伸びる刃の翼。まん中に宝石）
   ctx.fillStyle = shade(hx, hy - hr * 0.7, hr, goldL, gold);
   ctx.beginPath();
@@ -6974,6 +7001,8 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-k", date: "2026-10-20", title: "アステリアの顔を描き直し",
+    body: "戦姫アステリアの顔を、凛々しい顔に描き直しました。光の入った切れ長の目・落ち着いた眉・余裕のある口もと・流れるような前髪です。" },
   { id: "up-2026-10-20-j", date: "2026-10-20", title: "アステリアがかっこよく・大号令",
     body: "戦姫アステリアの見た目をかっこよく描き直しました（鋭い目・刃の翼・翼のかぶと・深紅のマント・構えた大槍）。\n"
       + "SS「大号令」は、味方全員が一緒に飛び出して敵に体当たりするようになりました（友情コンボ2回ずつ・威力1.5倍もそのまま）。" },
