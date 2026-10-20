@@ -78,6 +78,7 @@
     font: bold 16px system-ui, sans-serif;
   }
   #nameForm button.sub { margin-top: 8px; background: #3a4170; color: #fff; }
+  #nameForm input[hidden] + button { margin-top: 16px; }
   /* データ引き継ぎコード */
   #codeBox {
     position: fixed;
@@ -132,7 +133,7 @@
   <form id="nameForm">
     <div id="nameLabel">プレイヤー名（ランキング・協力プレイに表示）</div>
     <input id="nameInput" maxlength="12" autocomplete="off" placeholder="12文字まで">
-    <button type="submit">決定</button>
+    <button type="submit" id="nameOk">決定</button>
     <button type="button" id="nameCancel" class="sub">やめる</button>
   </form>
 </div>
@@ -5985,7 +5986,7 @@ function drawTeam() {
     ctx.fill();
     txt(`あなたのチーム「${save.team}」 ${names.length}/${TEAM_MAX}人`, 26, y + 16, 13, "#9dff8a");
     names.slice(0, TEAM_MAX).forEach((n, i) => txt(n, 30 + (i % 2) * 160, y + 40 + Math.floor(i / 2) * 20, 12, n === save.name ? "#ffd35c" : "#fff", "left", "normal"));
-    button(W - 92, y + 6, 70, 22, "抜ける", () => { if (window.confirm(`チーム「${save.team}」を抜けますか？`)) setTeam(""); },
+    button(W - 92, y + 6, 70, 22, "抜ける", async () => { if (await askText(`チーム「${save.team}」を抜けますか？`, { ask: true })) setTeam(""); },
       { size: 10, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
     y += 160;
   } else {
@@ -7021,6 +7022,8 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-o", date: "2026-10-20", title: "チームが作れない問題を修正",
+    body: "「チームを作る」で名前を入れる画面が開かないことがあったのを直しました。チームを抜ける時の確認もゲーム内の画面になりました。" },
   { id: "up-2026-10-20-n", date: "2026-10-20", title: "協力プレイでいろんなクエストが遊べるように",
     body: "協力プレイで、ホストが「協力クエスト・ストーリー・スペシャル・絶級／神域」から好きなクエストを選んでみんなで遊べるようになりました（ホストが行けるところまで）。\n"
       + "「部屋に入る」でルームコードを入れる画面が開かないことがあったのを直しました。" },
@@ -7572,16 +7575,20 @@ async function submitScore(q, turns, leader) {
 
 // 文字を入れてもらう小さな画面（window.prompt はスマホのアプリ内ブラウザ等で開けないことがあるので使わない）
 // やめた時は null
-function askText(label, { value = "", max = 12, placeholder = "", numeric = false } = {}) {
+// ask=true の時は文字を入れずに「はい／やめる」だけ聞く（window.confirm の代わり）
+function askText(label, { value = "", max = 12, placeholder = "", numeric = false, ask = false } = {}) {
   return new Promise(resolve => {
     const box = document.getElementById("nameBox"), input = document.getElementById("nameInput");
     document.getElementById("nameLabel").textContent = label;
+    document.getElementById("nameOk").textContent = ask ? "はい" : "決定";
+    input.hidden = ask;
+    if (ask) value = "ok";
     input.value = value;
     input.maxLength = max;
     input.placeholder = placeholder;
     input.inputMode = numeric ? "numeric" : "text";   // 数字のキーボードを出す（全角の数字も受け付けるので pattern は付けない）
     box.hidden = false;
-    setTimeout(() => input.focus(), 50);
+    if (!ask) setTimeout(() => input.focus(), 50);
     document.getElementById("nameCancel").onclick = () => { box.hidden = true; resolve(null); };
     document.getElementById("nameForm").onsubmit = e => {
       e.preventDefault();
