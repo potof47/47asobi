@@ -469,7 +469,8 @@ function newSave() {
   return { gems: 500, coins: 3000, cr, box, party: [...STARTERS], cleared: {}, best: {}, daily: "", starterPending: true,
     rank: 1, exp: 0, stats: {}, ach: {}, towerMax: 0, abyssMax: 0,
     login: { n: 0, last: "" }, dexClaim: 0, eventClear: {}, sa: {}, raid: {}, sound: true,
-    pity: 0, titlesGot: [], title: "", talkSeen: {}, hints: {}, helperSent: "", friends: [], thanksId: 0 };
+    pity: 0, titlesGot: [], title: "", talkSeen: {}, hints: {}, helperSent: "", friends: [], thanksId: 0,
+    emblems: {}, equip: {}, skins: {}, skin: {}, skinTickets: 0, season: {}, seasonMax: 0, team: "" };
 }
 function loadSave() {
   try {
@@ -528,6 +529,15 @@ function normalizeSave(s) {
   out.helperSent = typeof s.helperSent === "string" ? s.helperSent : "";
   out.friends = (Array.isArray(s.friends) ? s.friends : []).map(String).slice(0, 30);
   out.thanksId = int(s.thanksId, 0, 1e15, 0);
+  // 紋章・着せ替え・シーズン・チーム
+  out.emblems = Object.fromEntries(Object.entries(nums(s.emblems)).filter(([k]) => EMBLEMS[k]));
+  out.equip = Object.fromEntries(Object.entries(obj(s.equip)).filter(([fi, k]) => out.box[fi] && EMBLEMS[k]));
+  out.skins = Object.fromEntries(Object.entries(obj(s.skins)).filter(([fi, l]) => FAM[fi] && Array.isArray(l)).map(([fi, l]) => [fi, l.map(String)]));
+  out.skin = Object.fromEntries(Object.entries(obj(s.skin)).filter(([fi, v]) => FAM[fi] && typeof v === "string" && (!v || (out.skins[fi] || []).includes(v))));
+  out.skinTickets = int(s.skinTickets, 0, 1e6, 0);
+  out.season = obj(s.season);
+  out.seasonMax = int(s.seasonMax, 0, 1000, 0);
+  out.team = typeof s.team === "string" ? s.team.slice(0, 12) : "";
   return out;
 }
 
@@ -606,6 +616,7 @@ function claimDaily(m) {
 function claimDailyAll() {
   if (!dailyAllReady()) return 0;
   dailyState().all = true;
+  addSeason(50);
   save.gems += DAILY_ALL_GEM;
   return DAILY_ALL_GEM;
 }
@@ -635,7 +646,7 @@ function displayName(fi) {
 }
 function look(fi) {
   const f = FAM[fi];
-  return { shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: unitRar(fi), evo: unitRar(fi) > f.rar };
+  return applySkin({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: unitRar(fi), evo: unitRar(fi) > f.rar }, fi);   // 着せ替え
 }
 // u: 育成状態（省略で自分のBOX）、tt: 試練の段階（助っ人は相手の値を使う）
 function unitStats(fi, u0, tt = trialTier(fi)) {
@@ -879,6 +890,14 @@ const CHAPTERS = [
   ["まぼろしの城", "light", "dark"], ["いにしえの迷宮", "wood", "light"], ["らいめいの塔", "light", "water"],
   ["しんかいの都", "water", "wood"], ["たいようの祭壇", "fire", "water"], ["つきかげの里", "dark", "light"],
   ["こんとんの境界", "dark", "wood"], ["はてしない天空", "light", "dark"],
+  // 第2部（虚無の女王編）
+  ["ねむりの雪原", "water", "dark"], ["ほのおの砂漠", "fire", "water"], ["みどりの浮島", "wood", "light"],
+  ["ひかりの大聖堂", "light", "dark"], ["やみの大樹海", "dark", "wood"], ["こおりの宮殿", "water", "fire"],
+  ["らいうの峡谷", "light", "wood"], ["しんくの火山島", "fire", "dark"], ["まぼろしの砂丘", "wood", "fire"],
+  ["ほしぞらの神殿", "light", "water"], ["くらやみの海溝", "dark", "water"], ["きんいろの都", "light", "fire"],
+  ["いばらの古城", "wood", "dark"], ["ひょうがの塔", "water", "light"], ["ごうかの闘技場", "fire", "light"],
+  ["しんりんの聖域", "wood", "water"], ["よるのカーニバル", "dark", "fire"], ["てんくうの回廊", "light", "wood"],
+  ["きょむの門", "dark", "light"], ["せかいのはて", "light", "dark"],
 ];
 const STAGES_PER_CHAPTER = 10;
 const STORY_COUNT = CHAPTERS.length * STAGES_PER_CHAPTER;
@@ -1207,6 +1226,7 @@ function getQuest(id) {
   if (id[0] === "h") return extremeStage(Number(id.slice(1)));
   if (id[0] === "v") return superQuest(Number(id.slice(1)));
   if (id[0] === "b") return rushQuest(Number(id.slice(1)));
+  if (id[0] === "c") return coopQuest(Number(id.slice(1)));
   if (id[0] === "d") return dropStage(Number(id.slice(1)));
   if (id[0] === "g") { const [d, sl] = id.slice(1).split("_").map(Number); return guerrillaQuest(d, sl); }
   if (id[0] === "w") { const [k, lv] = id.slice(1).split("_").map(Number); return weekdayQuest(EL_KEYS[k], lv); }
@@ -1241,7 +1261,7 @@ let dragging = false, dragStart = null, dragNow = null;
 
 function showToast(text) { toast = { text, life: 90 }; }
 function go(s) {
-  state = s; particles = []; texts = []; banner = null; shareOpen = false; pityOpen = false; helperPickOpen = false; profileOpen = false;
+  state = s; particles = []; texts = []; banner = null; shareOpen = false; pityOpen = false; helperPickOpen = false; profileOpen = false; emblemOpen = false; skinOpen = false;
   if (save && !BATTLE.has(s)) checkTitles();
   if (save && s === "home") claimThanks();
   if (s === "home" || s === "gifts") loadGifts();
@@ -1250,14 +1270,14 @@ function go(s) {
 // ---- バトル開始 ---------------------------------------------------------
 function makeAlly(fi, x, y) {
   const f = FAM[fi], s = unitStats(fi), t = ssTurns(fi);
-  return {
+  return applyEmblem({   // 紋章の効果もここで付ける
     fi, name: displayName(fi), el: f.el, type: f.type, atk: s.atk, hp: s.hp, spd: s.spd,
     combo: f.combo, comboName: COMBO[f.combo].name,
     ss: f.ss, ssName: ssName(fi), ssTurns: t, ssDesc: SS[f.ss].desc, ssLeft: t,
     look: look(fi), x, y, vx: 0, vy: 0, hurt: 0, glow: 0,
     shin: trialTier(fi) >= TRIAL_TIERS,   // 試練Ⅲクリア → 真の力（ガード無効・ボス×1.5）
     abil: abilOf(fi),
-  };
+  }, fi);
 }
 // 助っ人（ほかのプレイヤーのキャラ）。h = { name, fi, rar, lv, awk, luck, trial }
 function makeHelperAlly(h, x, y) {
@@ -1464,7 +1484,7 @@ function damageEnemy(e, base, el, weak) {
   const guarded = e.guard && !weak && !shin;   // ガード持ちは弱点以外 1/4（真の力なら無効）
   // 盾持ち: 下（正面）から当たると大きく減る（真の力なら無効）
   const shielded = e.kind === "shield" && !weak && !shin && dmgSrc && dmgSrc.y > e.y + e.r * 0.2;
-  const m = elemMult(el, e.el) * (weak ? 3 : 1) * (guarded ? 0.25 : 1) * (shielded ? 0.2 : 1) * (shin && e.boss ? SHIN_BOSS_MUL : 1);
+  const m = elemMult(el, e.el) * (weak ? 3 : 1) * (guarded ? 0.25 : 1) * (shielded ? 0.2 : 1) * (shin && e.boss ? SHIN_BOSS_MUL : 1) * (dmgSrc && dmgSrc.killer === e.el ? 1.3 : 1);   // キラーの紋章
   const dmg = Math.round(base * m * rand(0.92, 1.08));
   if (guarded && Math.random() < 0.25) addText(e.x, e.y + e.r + 8, "ガード", "#9ad5ff", 11);
   if (shielded && Math.random() < 0.3) addText(e.x, e.y + e.r + 8, "シールド", "#9ad5ff", 11);
@@ -1506,6 +1526,8 @@ function damageParty(dmg, x, y) {
   if (hp <= 0) {
     events = [];
     // 協力レイドは全滅しても与えたダメージは記録される
+    if (coop.inBattle && !coop.host) return;   // 協力プレイはホストが結果を決める
+    if (quest && quest.kind === "coop") { coopSend("end", { clear: false }); coop.inBattle = false; }
     if (quest && quest.kind === "raid") schedule(40, finishRaid);
     else if (quest && quest.kind === "rush") schedule(40, () => finishRush(false));
     else schedule(40, () => { state = "over"; lastResult = null; playSe("lose"); });
@@ -1527,6 +1549,8 @@ function triggerCombo(a) {
   const prevSrc = dmgSrc;
   dmgSrc = a;   // 試練Ⅲの「真の力」を友情コンボにも乗せる
   a.glow = 20;
+  const cm = a.comboMul || 1;   // 友情の紋章
+  a.atk *= cm;
   bstat.combos++;
   playSe("combo");
   const col = EL[a.el].l;
@@ -1647,6 +1671,7 @@ function triggerCombo(a) {
       break;
     }
   }
+  a.atk /= cm;
   dmgSrc = prevSrc;
 }
 
@@ -1940,6 +1965,7 @@ function enemyAttack(e) {
 
 function startTurn() {
   if (hp <= 0) return;
+  if (coop.inBattle && !coop.host) { state = "enemy"; return; }   // 協力プレイの次の手番はホストから届く
   // 協力レイドはターン制限で終了
   if (quest.kind === "raid" && turn >= quest.turnLimit) { finishRaid(); return; }
   if (!alive().length) { waveClear(); return; }   // 爆弾の自爆などで敵がいなくなった時
@@ -1982,6 +2008,7 @@ function startTurn() {
   }
   if (hearts.length === 0 && Math.random() < 0.3) spawnHeart();
   state = "aim";
+  if (coop.inBattle && coop.host) coopSendState();   // 協力プレイ: ホストが盤面をみんなに配る
 }
 
 function spawnHeart() {
@@ -1995,11 +2022,16 @@ function spawnHeart() {
 
 function waveClear() {
   state = "wave";
+  if (coop.inBattle && !coop.host && waveIdx === quest.waves.length - 1) return;   // 協力プレイの終わりはホストが決める
   const last = waveIdx === quest.waves.length - 1;
   showBanner(last ? "QUEST CLEAR!" : "WAVE CLEAR", "", "#7dffa0");
   playSe(last ? "clear" : "wave");
   schedule(last ? 80 : 60, () => {
-    if (last) { if (quest.kind === "rush") finishRush(true); else finishQuest(); return; }
+    if (last) {
+      if (quest.kind === "coop") { coopSend("end", { clear: true }); coop.inBattle = false; }
+      if (quest.kind === "rush") finishRush(true); else finishQuest();
+      return;
+    }
     if (quest.kind === "rush") healParty(Math.round(maxHp * 0.2), W / 2, FB - 20);   // ボスラッシュは倒すたびに20%回復
     waveIdx++;
     loadWave();
@@ -2073,6 +2105,7 @@ function finishQuest() {
   }
   addStat("clears");
   if (rank === "S") addStat("srank");
+  addSeason(10 + (rank === "S" ? 5 : 0) + (["guerrilla", "coop", "extreme", "super"].includes(q.kind) ? 20 : 0));   // シーズンパス
   const up = addExp(exp);
   if (up.ranks) showToast(`ランクアップ! ランク${save.rank}  ジェム+${up.gems}`);
   persist();
@@ -2080,6 +2113,7 @@ function finishQuest() {
     exp, kind: q.kind, trialUp };
   thankHelper();
   if (q.kind === "score") scoreFinish(q, lastResult);
+  if (q.kind === "coop") addStat("coopClears");
   checkTitles();
   if (q.kind === "story") storyTalk(q, "e");   // 章ボスを倒した時の会話
   hint("clear", "クリア! 手に入れたコインと結晶で、BOXからキャラを強化・進化させよう");
@@ -2283,6 +2317,13 @@ function update() {
   // 動くブロック
   for (const o of rocks) if (o.block) o.x = Math.max(o.r, Math.min(W - o.r, o.x0 + Math.sin(frameNo * o.spd + o.ph) * o.amp));
   if (quest && quest.kind === "raid") raidPoll();
+  // 協力プレイ: 盤面が届いたあとに、先に来ていたショットを撃つ
+  if (coop.inBattle && coop.pending && state === "aim" && coop.pending.turn === turn && coop.pending.cur === cur) {
+    const p = coop.pending;
+    coop.pending = null;
+    ssArmed = !!p.ss && allies[cur].ssLeft === 0;
+    fire(p.dx, p.dy);
+  }
   updateBolts();
   updateFx();
   if (state === "shoot") updateShot();
@@ -2318,6 +2359,7 @@ canvas.addEventListener("pointerdown", ev => {
     }
   }
   if (state !== "aim") return;
+  if (coop.inBattle && !canControl(allies[cur])) { showToast(`${allies[cur].ownerName}の番です`); return; }
   dragging = true;
   dragStart = dragNow = p;
   canvas.setPointerCapture(ev.pointerId);
@@ -2331,7 +2373,10 @@ canvas.addEventListener("pointerup", ev => {
   if (!dragging) return;
   dragging = false;
   const a = computeAim(dragStart, toLogical(ev));
-  if (a && state === "aim") fire(a.dx, a.dy);
+  if (a && state === "aim") {
+    if (coop.inBattle) coopSend("shot", { turn, cur, dx: a.dx, dy: a.dy, ss: ssArmed });   // 協力プレイ: みんなに送る
+    fire(a.dx, a.dy);
+  }
 });
 canvas.addEventListener("pointercancel", () => { dragging = false; });
 
@@ -2459,6 +2504,7 @@ function crystalIcon(el, x, y, s) {
 // k: { shape, el, acc, eye, rar, evo }
 function drawChar(k, x, y, r) {
   if (k.rar >= 7) drawSuperAura(x, y, r);   // 超進化（★7）は金色の光輪と回る光
+  if (k.fx) drawSkinFx(k.fx, x, y, r);        // 着せ替え（ゴールド・シャドウ）
   if (k.shape && k.shape !== "blob") { drawCreature(k, x, y, r); return; }
   const c = EL[k.el];
   ctx.save();
@@ -3950,7 +3996,7 @@ function drawHud() {
   txt(`WAVE ${waveIdx + 1}/${quest.waves.length}`, 10, 29, 13, "#ffd35c", "left", "900");
   txt(quest.kind === "raid" ? `TURN ${turn}/${quest.turnLimit}` : `TURN ${turn}`, W / 2, TOP / 2, 16, "#fff", "center", "900");
   ctx.restore();
-  button(W - 62, 8, 54, 24, quest.kind === "raid" || quest.kind === "rush" ? "終了" : "やめる", () => { if (quest.kind === "raid" && state !== "clear") finishRaid(); else if (quest.kind === "rush" && state !== "clear") finishRush(false); else go(questHome()); }, { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  button(W - 62, 8, 54, 24, quest.kind === "raid" || quest.kind === "rush" ? "終了" : "やめる", () => { if (quest.kind === "coop") { coopLeave(); go("coop"); } else if (quest.kind === "raid" && state !== "clear") finishRaid(); else if (quest.kind === "rush" && state !== "clear") finishRush(false); else go(questHome()); }, { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 
   const b = enemies.find(e => e.boss && !e.dead);
   if (b) {
@@ -4051,7 +4097,7 @@ function drawPanel() {
     }
     ctx.restore();
     button(x - hw, FB + 28, hw * 2, 58, "", () => {
-      if (state === "aim" && i === cur && a.ssLeft === 0) ssArmed = !ssArmed;
+      if (state === "aim" && i === cur && a.ssLeft === 0 && canControl(a)) ssArmed = !ssArmed;
     }, { hidden: true });
   }
 
@@ -4176,7 +4222,8 @@ function drawResult() {
       { size: 16, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
   }
   const y0 = next ? 498 : 456;
-  button(60, y0, W - 120, next ? 40 : 48, state === "clear" ? "もう一度" : "リトライ", () => startQuest(questIdx));
+  if (quest.kind === "coop") button(60, y0, W - 120, next ? 40 : 48, "部屋にもどる", () => go("coop"), { c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
+  else button(60, y0, W - 120, next ? 40 : 48, state === "clear" ? "もう一度" : "リトライ", () => startQuest(questIdx));
   button(60, y0 + (next ? 48 : 60), W - 120, next ? 40 : 48, questHome() === "event" ? "イベントへ" : "クエスト選択", () => go(questHome()), { c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 }
 
@@ -4242,7 +4289,7 @@ function drawNav() {
   const w = W / NAV.length;
   NAV.forEach(([s, label], i) => {
     const active = state === s || (s === "box" && state === "detail")
-      || (s === "home" && ["gifts", "transfer", "missions", "news", "dex", "event", "titles"].includes(state));
+      || (s === "home" && ["gifts", "transfer", "missions", "news", "dex", "event", "titles", "season", "team", "coop"].includes(state));
     if (active) {
       ctx.fillStyle = "rgba(255,211,92,0.15)";
       ctx.fillRect(i * w, NAV_Y, w, H - NAV_Y);
@@ -4341,6 +4388,12 @@ function drawHome() {
     ctx.beginPath(); ctx.arc(W - 16, 226, 6, 0, Math.PI * 2); ctx.fill();
   }
   button(12, 296, 78, 28, "プロフィール", () => { profileOpen = true; }, { size: 10, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+  // シーズンパス・チーム・協力プレイ
+  const sr = seasonTier() > seasonState().claimed;
+  button(W - 90, 296, 78, 28, "シーズン", () => go("season"), { size: 11, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
+  if (sr) { ctx.fillStyle = "#ff3b4e"; ctx.beginPath(); ctx.arc(W - 16, 298, 6, 0, Math.PI * 2); ctx.fill(); }
+  button(12, 332, 78, 28, save.team ? `チーム` : "チーム", () => go("team"), { size: 11, c1: "#9dff8a", c2: "#38a43c", fg: "#06280a" });
+  button(W - 90, 332, 78, 28, "協力プレイ", () => go("coop"), { size: 10, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff" });
   // 称号（使用中の称号を名前の下に表示）
   button(12, 260, 78, 28, "称号", () => go("titles"), { size: 12, c1: "#ffe066", c2: "#c08a10", fg: "#3a2400" });
   if (titleName()) txt(`【${titleName()}】`.slice(0, 9), W - 51, 262, 9, "#ffe066", "center");
@@ -4414,7 +4467,7 @@ function drawStoryList() {
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  outlinedText(`第${ch + 1}章 ${chName}`, W / 2 + 6, 131, "#fff", 16);
+  outlinedText(ch >= 20 ? `第2部 ${ch - 19}章 ${chName}` : `第${ch + 1}章 ${chName}`, W / 2 + 6, 131, "#fff", 16);
   ctx.restore();
   txt(`全${STORY_COUNT}ステージ中 ${prog}クリア`, W / 2, 158, 11, "#9aa3d8", "center", "normal");
   const cw = (W - 36) / 2;
@@ -4592,6 +4645,7 @@ function finishRush(all) {
   const bosses = all ? RUSH_WAVES : waveIdx, st = rushState(), prev = st.best;
   const newBest = bosses > prev;
   if (newBest) st.best = bosses;
+  addSeason(15);
   const gem = newBest ? (bosses - prev) * 10 : 0;   // 自己ベストを更新した分だけジェム
   const coin = bosses * 3000;
   const crEl = pick(EL_KEYS), crN = Math.floor(bosses / 2);
@@ -4881,6 +4935,48 @@ const STORY_TALK = [
   { s: [["N", "ついに最後の地…いっしょに行こう！"], ["L", "ああ。みんなで勝つ！"]],
     e: [["K", "これが…絆の力か…"], ["N", "やった…！世界に光が戻ったよ！ありがとう！"],
         ["L", "まだまだ冒険は続くさ。塔も、絶級も待ってる！"]] },
+  // ---- 第2部（虚無の女王編） ----
+  { s: [["N", "混沌の王を倒して平和に…と思ったら、雪原に黒い穴が！"], ["L", "また何かが始まったみたいだな"]],
+    e: [["B", "わたしは…何かに操られていた…"], ["N", "「虚無」っていう声が聞こえた気がする…"]] },
+  { s: [["Q", "混沌の王は前座にすぎぬ。わらわは虚無の女王"], ["L", "新しい敵か！"]],
+    e: [["Q", "ふふ…少しはやるようね"], ["N", "第2部のはじまりだよ！がんばろう！"]] },
+  { s: [["N", "空に浮かぶ島！落ちないでね"]],
+    e: [["B", "島の根が…よみがえった"], ["L", "虚無の力は、世界の色をうばうらしい"]] },
+  { s: [["N", "大聖堂の鐘が鳴らない…"]],
+    e: [["B", "鐘の音が…戻った"], ["N", "光の加護がもどってきたよ！"]] },
+  { s: [["N", "どこまでも続く暗い森…"], ["L", "迷わないように進もう"]],
+    e: [["B", "森が…目をさました"], ["N", "虚無の門のかけらを見つけた！"]] },
+  { s: [["N", "こおりの宮殿。足元がすべるよ"]],
+    e: [["B", "氷が…とけていく"], ["L", "かけらは全部で5つあるらしい"]] },
+  { s: [["Q", "かけらを集めて何になる？無駄なことを"], ["L", "やってみなきゃわからない！"]],
+    e: [["Q", "ちっ…"], ["N", "2つめのかけら、ゲット！"]] },
+  { s: [["N", "海の真ん中の火山島！熱い！"]],
+    e: [["B", "火山の怒りが…しずまった"], ["N", "強い敵が増えてきたね。超進化も目指そう！"]] },
+  { s: [["N", "砂丘がゆれてる…まぼろし？"]],
+    e: [["B", "まぼろしが…消えた"], ["L", "3つめのかけらだ"]] },
+  { s: [["N", "満天の星の神殿だよ"]],
+    e: [["B", "星が…道を示している"], ["N", "第2部も半分！まだまだいくよ！"]] },
+  { s: [["N", "海の底のまっくらな谷…"], ["L", "光を絶やすな"]],
+    e: [["B", "深海に…光が"], ["N", "4つめのかけら！"]] },
+  { s: [["Q", "金色の都もわらわのもの…"], ["L", "させるか！"]],
+    e: [["Q", "なぜ…あきらめない…"], ["L", "仲間がいるからさ"]] },
+  { s: [["N", "いばらに囲まれた古いお城…"]],
+    e: [["B", "いばらが…ほどけていく"], ["N", "最後のかけらの場所がわかったよ！"]] },
+  { s: [["N", "氷河の塔のてっぺんに、最後のかけらが！"]],
+    e: [["B", "かけらを…あなたたちに"], ["N", "5つそろった！虚無の門が開くよ！"]] },
+  { s: [["N", "門の前の闘技場…強い敵ばかり！"]],
+    e: [["B", "見事な戦いだった…"], ["L", "この先が本番だ"]] },
+  { s: [["N", "森の聖域。少し休もう…って、敵！？"]],
+    e: [["B", "聖域の力をあなたに"], ["N", "体力がみなぎってきた！"]] },
+  { s: [["Q", "楽しい夜の祭りへようこそ…最後の宴よ"]],
+    e: [["Q", "まだ…まだよ…"], ["N", "女王が弱ってきてる！"]] },
+  { s: [["N", "天空の回廊…虚無の門はこの先！"]],
+    e: [["B", "回廊の守りが…解けた"], ["L", "いよいよだな"]] },
+  { s: [["Q", "ここが虚無の門。すべてを無に還してあげる"], ["L", "絶対に止める！"]],
+    e: [["Q", "そんな…わらわが…"], ["N", "あとひとつ！世界のはてへ！"]] },
+  { s: [["N", "世界のはて…最後の戦いだよ！"], ["L", "みんな、いくぞ！"]],
+    e: [["Q", "これが…あなたたちの絆…"], ["N", "やったー！世界に色が戻ったよ！"],
+        ["L", "でも冒険は終わらない。まだまだ遊ぶぞ！"]] },
 ];
 let talk = null;   // { lines: [{ sp, name, text }], i, el }
 function storyTalk(q, kind) {
@@ -4889,7 +4985,7 @@ function storyTalk(q, kind) {
   if (!t || save.talkSeen[key]) return;
   save.talkSeen[key] = 1;
   persist();
-  const names = { N: "ナビ", L: displayName(save.party[0]), B: q.bossName, K: "混沌の王" };
+  const names = { N: "ナビ", L: displayName(save.party[0]), B: q.bossName, K: "混沌の王", Q: "虚無の女王" };
   talk = { lines: t[kind].map(([sp, text]) => ({ sp, name: names[sp], text })), i: 0, el: CHAPTERS[q.chapter][1] };
 }
 function drawTalk() {
@@ -4905,21 +5001,21 @@ function drawTalk() {
   // 話している人の絵
   const px = ln.sp === "L" || ln.sp === "N" ? 70 : W - 70, py = 390;
   ctx.globalAlpha = 0.9;
-  ctx.fillStyle = ln.sp === "K" ? "#3a1670" : ln.sp === "B" ? EL[talk.el].d : "#2a3a70";
+  ctx.fillStyle = (ln.sp === "K" || ln.sp === "Q") ? "#3a1670" : ln.sp === "B" ? EL[talk.el].d : "#2a3a70";
   ctx.beginPath(); ctx.arc(px, py, 46, 0, Math.PI * 2); ctx.fill();
   ctx.globalAlpha = 1;
   if (ln.sp === "L") drawChar(look(save.party[0]), px, py + 4, 30);
   else if (ln.sp === "N") drawChar({ shape: "blob", el: "light", acc: "halo", eye: "sparkle", rar: 5, evo: true }, px, py + 4, 28);
-  else drawEnemy({ x: px, y: py, r: 32, el: ln.sp === "K" ? "dark" : talk.el, boss: true, weak: null, flash: 0, wob: 0,
+  else drawEnemy({ x: px, y: py, r: 32, el: ln.sp === "K" ? "dark" : ln.sp === "Q" ? "light" : talk.el, boss: true, weak: null, flash: 0, wob: 0,
     guard: false, regen: 0, cd: 9, hp: 1, maxHp: 1 });
   // ふきだし
   ctx.fillStyle = "rgba(10,14,40,0.95)";
   roundRect(12, 446, W - 24, 120, 14);
   ctx.fill();
-  ctx.strokeStyle = ln.sp === "K" ? "#9b5cff" : "#ffd35c";
+  ctx.strokeStyle = (ln.sp === "K" || ln.sp === "Q") ? "#9b5cff" : "#ffd35c";
   ctx.lineWidth = 2;
   ctx.stroke();
-  ctx.fillStyle = ln.sp === "K" ? "#9b5cff" : "#ffd35c";
+  ctx.fillStyle = (ln.sp === "K" || ln.sp === "Q") ? "#9b5cff" : "#ffd35c";
   roundRect(24, 434, Math.min(200, 24 + ln.name.length * 14), 24, 8);
   ctx.fill();
   ctx.restore();
@@ -4991,7 +5087,8 @@ const unkCount = () => Object.keys(save.box).filter(k => isUnkyoku(Number(k))).l
 const TITLES = [
   { id: "first",   n: "駆け出し冒険者",   d: "クエストを1回クリア",            ok: () => (save.stats.clears || 0) >= 1 },
   { id: "story50", n: "旅の勇者",         d: "ストーリーを50ステージクリア",    ok: () => storyProgress() >= 50 },
-  { id: "story",   n: "世界の救世主",     d: "ストーリーを全部クリア",          ok: () => storyProgress() >= STORY_COUNT },
+  { id: "story",   n: "世界の救世主",     d: "ストーリー第1部（200）をクリア",  ok: () => storyProgress() >= 200 },
+  { id: "story2",  n: "虚無を払う者",     d: "ストーリー第2部（400）をクリア",  ok: () => storyProgress() >= STORY_COUNT },
   { id: "tower50", n: "塔の挑戦者",       d: "無限の塔50階",                    ok: () => (save.towerMax || 0) >= 50 },
   { id: "tower",   n: "塔の覇者",         d: "無限の塔100階",                   ok: () => (save.towerMax || 0) >= 100 },
   { id: "abyss",   n: "深淵の探求者",     d: "深淵の塔30階",                    ok: () => (save.abyssMax || 0) >= 30 },
@@ -5009,6 +5106,9 @@ const TITLES = [
   { id: "score",   n: "スコア王",         d: "スコアアタックで80万点",          ok: () => (save.sa && save.sa.best || 0) >= 800000 || !!save.scoreKing },
   { id: "kills",   n: "モンスターハンター", d: "敵を10000体倒す",               ok: () => (save.stats.kills || 0) >= 10000 },
   { id: "rank50",  n: "ベテラン",         d: "ランク50",                        ok: () => save.rank >= 50 },
+  { id: "season",  n: "シーズンマスター", d: "シーズンパスを30段階まで",        ok: () => (save.seasonMax || 0) >= SEASON_TIERS },
+  { id: "coop",    n: "最高の相棒",       d: "協力プレイを10回クリア",          ok: () => (save.stats.coopClears || 0) >= 10 },
+  { id: "team",    n: "チームの一員",     d: "チームに入る",                    ok: () => !!save.team },
 ];
 const TITLE_GEM = 30;
 const titleName = () => (TITLES.find(t => t.id === save.title) || {}).n || "";
@@ -5054,6 +5154,610 @@ function drawTitles() {
     button(W - 104, 546, 90, 30, "次 ▶", () => { titlePage = (titlePage + 1) % pages; }, { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
     txt(`${titlePage + 1} / ${pages}`, W / 2, 561, 12, "#fff", "center");
   }
+  drawNav();
+}
+
+// ---- 紋章（キャラに1つ付けられる装備） ------------------------------------------
+const EMBLEMS = {
+  atk:     { n: "攻撃の紋章",     s: "攻撃",   d: "攻撃力+12%" },
+  hp:      { n: "体力の紋章",     s: "体力",   d: "HP+15%" },
+  spd:     { n: "加速の紋章",     s: "加速",   d: "スピード+10%" },
+  combo:   { n: "友情の紋章",     s: "友情",   d: "友情コンボの威力1.4倍" },
+  ss:      { n: "SSの紋章",       s: "SS",     d: "SSのターン-1" },
+  k_fire:  { n: "火キラーの紋章", s: "火キラー", d: "火属性の敵に1.3倍" },
+  k_water: { n: "水キラーの紋章", s: "水キラー", d: "水属性の敵に1.3倍" },
+  k_wood:  { n: "木キラーの紋章", s: "木キラー", d: "木属性の敵に1.3倍" },
+  k_light: { n: "光キラーの紋章", s: "光キラー", d: "光属性の敵に1.3倍" },
+  k_dark:  { n: "闇キラーの紋章", s: "闇キラー", d: "闇属性の敵に1.3倍" },
+};
+const EMBLEM_KEYS = Object.keys(EMBLEMS);
+const EMBLEM_COST = 30000;   // 紋章を作るコイン
+const emblemOf = fi => (save.equip && save.equip[fi]) || "";
+const emblemFree = k => (save.emblems[k] || 0) - Object.values(save.equip).filter(v => v === k).length;
+// バトルのキャラに紋章の効果を付ける
+function applyEmblem(a, fi, key) {
+  const e = key === undefined ? emblemOf(fi) : key;   // 協力プレイでは相手の紋章を渡す
+  if (!e) return a;
+  if (e === "atk") a.atk = Math.round(a.atk * 1.12);
+  if (e === "hp") a.hp = Math.round(a.hp * 1.15);
+  if (e === "spd") a.spd *= 1.1;
+  if (e === "combo") a.comboMul = 1.4;
+  if (e === "ss") { a.ssTurns = Math.max(3, a.ssTurns - 1); a.ssLeft = a.ssTurns; }
+  if (e.startsWith("k_")) a.killer = e.slice(2);
+  return a;
+}
+let emblemOpen = false;
+function drawEmblemPick(fi) {
+  button(0, 0, W, H, "", () => {}, { hidden: true, silent: true });
+  ctx.fillStyle = "rgba(0,0,0,0.78)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#1b2150";
+  roundRect(10, 50, W - 20, 560, 14);
+  ctx.fill();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("紋章", W / 2, 74, "#ffd35c", 20);
+  ctx.restore();
+  txt(`1体に1つ付けられる。コイン${EMBLEM_COST.toLocaleString()}で作れる（シーズンパスでももらえる）`, W / 2, 96, 9, "#cfd6ff", "center", "normal");
+  const cur = emblemOf(fi);
+  EMBLEM_KEYS.forEach((k, i) => {
+    const y = 108 + i * 44, E = EMBLEMS[k], on = cur === k, free = emblemFree(k);
+    ctx.fillStyle = on ? "rgba(255,211,92,0.22)" : "rgba(255,255,255,0.07)";
+    roundRect(18, y, W - 36, 40, 8);
+    ctx.fill();
+    // 紋章のマーク
+    ctx.fillStyle = k.startsWith("k_") ? EL[k.slice(2)].c : "#ffd35c";
+    ctx.beginPath();
+    for (let j = 0; j < 6; j++) { const a = j * Math.PI / 3; ctx.lineTo(38 + Math.cos(a) * 12, y + 20 + Math.sin(a) * 12); }
+    ctx.fill();
+    txt(E.n, 58, y + 13, 12, "#fff");
+    txt(`${E.d}  （持っている ${save.emblems[k] || 0}・空き ${free}）`, 58, y + 29, 9, "#cfd6ff", "left", "normal");
+    if (on) {
+      button(W - 116, y + 8, 46, 24, "外す", () => { delete save.equip[fi]; persist(); }, { size: 10, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+    } else {
+      button(W - 116, y + 8, 46, 24, "付ける", () => {
+        if (emblemFree(k) <= 0) { showToast("空いている紋章がありません。作ろう!"); return; }
+        save.equip[fi] = k; persist(); playSe("heal");
+      }, { size: 10, disabled: free <= 0, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a" });
+    }
+    button(W - 66, y + 8, 44, 24, "作る", () => {
+      if (save.coins < EMBLEM_COST) { showToast("コインが足りません"); return; }
+      save.coins -= EMBLEM_COST;
+      save.emblems[k] = (save.emblems[k] || 0) + 1;
+      persist(); playSe("coin");
+      showToast(`${E.n}を作りました`);
+    }, { size: 10, c1: "#ffe066", c2: "#e0a020", fg: "#3a2400", disabled: save.coins < EMBLEM_COST });
+  });
+  button(80, 560, W - 160, 36, "閉じる", () => { emblemOpen = false; }, { size: 13, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+
+// ---- 着せ替え（見た目だけ変わる。属性や強さはそのまま） ----------------------------
+// 色違い（ほかの属性の色）: 着せ替えチケット1枚 / ゴールド: 運極で無料 / シャドウ: チケット3枚
+const skinOf = fi => (save.skin && save.skin[fi]) || "";
+const skinsOwned = fi => save.skins[fi] || [];
+const SKIN_SPECIAL = { gold: { n: "ゴールド", el: "light", fx: "gold" }, shadow: { n: "シャドウ", el: "dark", fx: "shadow" } };
+const skinName = s => !s ? "いつもの" : EL[s] ? `${EL[s].n}カラー` : SKIN_SPECIAL[s].n;
+function applySkin(k, fi, skin) {
+  const s = skin === undefined ? skinOf(fi) : skin;
+  if (!s) return k;
+  if (EL[s]) return { ...k, el: s };
+  const sp = SKIN_SPECIAL[s];
+  return sp ? { ...k, el: sp.el, fx: sp.fx } : k;
+}
+// ゴールド・シャドウの見た目
+function drawSkinFx(fx, x, y, r) {
+  ctx.save();
+  if (fx === "gold") {
+    for (let i = 0; i < 8; i++) {
+      const a = frameNo * 0.05 + i * Math.PI / 4, d = r * (1.15 + 0.15 * Math.sin(frameNo * 0.1 + i));
+      ctx.fillStyle = `rgba(255,${210 + (i % 2) * 40},80,0.9)`;
+      starPath(x + Math.cos(a) * d, y + Math.sin(a) * d, Math.max(1.5, r * 0.11));
+      ctx.fill();
+    }
+  } else {
+    // 黒い炎のようなもや（外側にゆらめく）
+    for (let i = 0; i < 8; i++) {
+      const a = -frameNo * 0.03 + i * Math.PI / 4, d = r * (1.05 + 0.12 * Math.sin(frameNo * 0.12 + i));
+      ctx.fillStyle = i % 2 ? "rgba(40,0,70,0.6)" : "rgba(150,60,255,0.45)";
+      ctx.beginPath(); ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.32, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(190,120,255,0.8)";
+    ctx.lineWidth = Math.max(1.5, r * 0.08);
+    ctx.beginPath(); ctx.arc(x, y, r * 1.15, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+}
+let skinOpen = false;
+function skinChoices(fi) {
+  return ["", ...EL_KEYS.filter(e => e !== FAM[fi].el), "gold", "shadow"];
+}
+function unlockSkin(fi, s) {
+  if (!s || skinsOwned(fi).includes(s)) return true;
+  if (s === "gold") {
+    if (!isUnkyoku(fi)) { showToast("ゴールドは運極にすると使えます"); return false; }
+  } else {
+    const cost = s === "shadow" ? 3 : 1;
+    if ((save.skinTickets || 0) < cost) { showToast(`着せ替えチケットが${cost}枚必要です（シーズンパスでもらえる）`); return false; }
+    save.skinTickets -= cost;
+  }
+  save.skins[fi] = [...skinsOwned(fi), s];
+  persist();
+  playSe("rare");
+  showToast(`着せ替え「${skinName(s)}」を手に入れた!`);
+  return true;
+}
+function drawSkinPick(fi) {
+  button(0, 0, W, H, "", () => {}, { hidden: true, silent: true });
+  ctx.fillStyle = "rgba(0,0,0,0.78)";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#1b2150";
+  roundRect(10, 70, W - 20, 500, 14);
+  ctx.fill();
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("着せ替え", W / 2, 96, "#ff9ae6", 20);
+  ctx.restore();
+  txt(`見た目だけ変わる（属性・強さはそのまま）  チケット ${save.skinTickets || 0}枚`, W / 2, 120, 10, "#cfd6ff", "center", "normal");
+  const base = look(fi), cur = skinOf(fi);
+  skinChoices(fi).forEach((s, i) => {
+    const x = 26 + (i % 4) * 78, y = 136 + Math.floor(i / 4) * 140;
+    const own = !s || skinsOwned(fi).includes(s), on = cur === s;
+    ctx.fillStyle = on ? "rgba(255,154,230,0.25)" : "rgba(255,255,255,0.07)";
+    roundRect(x, y, 70, 128, 10);
+    ctx.fill();
+    if (on) { ctx.strokeStyle = "#ff9ae6"; ctx.lineWidth = 2; ctx.stroke(); }
+    const k = { ...base, el: s ? (EL[s] ? s : SKIN_SPECIAL[s].el) : FAM[fi].el, fx: s && SKIN_SPECIAL[s] ? SKIN_SPECIAL[s].fx : undefined };
+    if (k.fx) drawSkinFx(k.fx, x + 35, y + 48, 22);
+    drawChar({ ...k, fx: undefined }, x + 35, y + 48, 22);
+    txt(skinName(s), x + 35, y + 92, 10, "#fff", "center");
+    txt(on ? "着ている" : own ? "着る" : s === "gold" ? "運極で無料" : s === "shadow" ? "チケット3枚" : "チケット1枚",
+      x + 35, y + 110, 9, on ? "#ff9ae6" : own ? "#7cf0ff" : "#ffd35c", "center", "normal");
+    button(x, y, 70, 128, "", () => {
+      if (!unlockSkin(fi, s)) return;
+      save.skin[fi] = s;
+      persist();
+    }, { hidden: true });
+  });
+  button(80, 524, W - 160, 36, "閉じる", () => { skinOpen = false; }, { size: 13, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+}
+
+// ---- シーズンパス（30日ごと。遊ぶとポイント、150ポイントごとに報酬。全30段階、無料） ---------------
+const SEASON_DAYS = 30, SEASON_TIERS = 30, SEASON_PTS = 150;
+const seasonId = () => Math.max(0, Math.floor((Date.now() - dayStart(EVENT_START)) / (SEASON_DAYS * DAY)));
+const seasonEnds = () => dayStart(EVENT_START) + (seasonId() + 1) * SEASON_DAYS * DAY;
+function seasonState() {
+  const id = seasonId();
+  if (!save.season || save.season.id !== id) save.season = { id, pts: 0, claimed: 0 };
+  return save.season;
+}
+const seasonTier = () => Math.min(SEASON_TIERS, Math.floor(seasonState().pts / SEASON_PTS));
+function addSeason(p) { seasonState().pts += p; }
+function seasonReward(t) {
+  if (t === SEASON_TIERS) return { gems: 500, tickets: 3, emblems: 2 };
+  if (t % 10 === 0) return { gems: 200, tickets: 2, emblems: 1 };
+  if (t % 5 === 0) return { tickets: 1, coins: 20000 };
+  return [{ gems: 30 }, { coins: 10000 }, { cr: 3 }, { emblems: 1 }][t % 4];
+}
+const seasonRewardText = r => [r.gems && `ジェム${r.gems}`, r.coins && `コイン${r.coins / 10000}万`, r.cr && `結晶×${r.cr}`,
+  r.tickets && `着せ替え券${r.tickets}`, r.emblems && `紋章${r.emblems}`].filter(Boolean).join(" ");
+function claimSeason() {
+  const st = seasonState(), to = seasonTier();
+  if (st.claimed >= to) return;
+  const got = [];
+  for (let t = st.claimed + 1; t <= to; t++) {
+    const r = seasonReward(t);
+    if (r.gems) save.gems += r.gems;
+    if (r.coins) save.coins += r.coins;
+    if (r.cr) for (const k of EL_KEYS) save.cr[k] += r.cr;
+    if (r.tickets) save.skinTickets = (save.skinTickets || 0) + r.tickets;
+    for (let i = 0; i < (r.emblems || 0); i++) { const k = pick(EMBLEM_KEYS); save.emblems[k] = (save.emblems[k] || 0) + 1; got.push(EMBLEMS[k].s); }
+  }
+  st.claimed = to;
+  save.seasonMax = Math.max(save.seasonMax || 0, to);
+  persist();
+  playSe("fanfare");
+  showToast(`シーズン報酬を受け取りました${got.length ? `（紋章: ${got.join("・")}）` : ""}`);
+}
+function drawSeason() {
+  drawMenuBg("#3a1a4a", "#0c0614");
+  drawTopBar();
+  button(10, 48, 64, 28, "← 戻る", () => go("home"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(`シーズン${seasonId() + 1}`, W / 2, 62, "#ff9ae6", 20);
+  ctx.restore();
+  txt(fmtLeft(seasonEnds() - Date.now()), W - 16, 62, 11, "#ffd35c", "right");
+  const st = seasonState(), tier = seasonTier();
+  txt(`${st.pts.toLocaleString()} pt  ・  ${tier} / ${SEASON_TIERS} 段階`, W / 2, 90, 13, "#fff", "center", "900");
+  ctx.fillStyle = "#000";
+  roundRect(20, 102, W - 40, 10, 5);
+  ctx.fill();
+  ctx.fillStyle = "#ff9ae6";
+  roundRect(20, 102, Math.max(10, (W - 40) * Math.min(1, st.pts / (SEASON_PTS * SEASON_TIERS))), 10, 5);
+  ctx.fill();
+  txt("クリア+10（Sランク+5）・ゲリラ/協力/絶級+20・ログボ+30・デイリー全達成+50・レイド/ボスラッシュ+15", W / 2, 124, 8, "#cfd6ff", "center", "normal");
+  for (let t = 1; t <= SEASON_TIERS; t++) {
+    const i = t - 1, x = 14 + (i % 5) * 67, y = 136 + Math.floor(i / 5) * 62, r = seasonReward(t);
+    const got = t <= st.claimed, ready = t <= tier && !got, big = t % 10 === 0;
+    ctx.fillStyle = got ? "rgba(125,255,160,0.15)" : ready ? "rgba(255,154,230,0.3)" : big ? "rgba(255,211,92,0.12)" : "rgba(255,255,255,0.06)";
+    roundRect(x, y, 63, 58, 8);
+    ctx.fill();
+    if (ready) { ctx.strokeStyle = "#ff9ae6"; ctx.lineWidth = 2; ctx.stroke(); }
+    txt(String(t), x + 8, y + 10, 10, big ? "#ffd35c" : "#cfd6ff", "left", "900");
+    wrapText(seasonRewardText(r), 58, 9).slice(0, 3).forEach((l, j) => txt(l, x + 32, y + 24 + j * 11, 9, "#fff", "center", "normal"));
+    if (got) txt("済", x + 52, y + 10, 10, "#7dffa0", "center", "900");
+  }
+  if (tier > st.claimed) button(60, 512, W - 120, 40, "報酬をまとめて受け取る", claimSeason, { size: 14, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
+  else txt(`次の段階まで ${SEASON_PTS - st.pts % SEASON_PTS}pt`, W / 2, 530, 12, "#9aa3d8", "center", "normal");
+  drawNav();
+}
+
+// ---- チーム（10人まで。今週のレイドのダメージとスコアアタックの合計でチームどうしが競う） ----------------
+// Supabase の team_members 表（名前ごとに一番新しい行がその人のチーム。抜ける時は team を空で登録）
+const TEAM_MAX = 10;
+let teamInfo = { status: "idle", members: {}, rank: [], at: 0 };
+const isMate = name => !!save.team && (teamInfo.members[save.team] || []).includes(name);
+async function fetchTeams() {
+  if (!onlineRanking()) { teamInfo.status = "offline"; return; }
+  teamInfo.status = "loading";
+  try {
+    const rows = await sbGet("team_members?select=team,name&order=id.desc&limit=3000");
+    const latest = new Map();
+    for (const r of rows) if (!latest.has(r.name)) latest.set(r.name, r.team);
+    const members = {};
+    for (const [name, team] of latest) if (team) (members[team] = members[team] || []).push(name);
+    const raid = await sbGet(`raid_top?select=name,dmg&raid=eq.${raidId()}&limit=2000`).catch(() => []);
+    const sc = await sbGet(`event_scores?select=name,score&week=eq.${weekIdx()}&order=score.desc&limit=3000`).catch(() => []);
+    const raidOf = new Map(raid.map(r => [r.name, Number(r.dmg)]));
+    const bestSc = new Map();
+    for (const r of sc) if (!bestSc.has(r.name)) bestSc.set(r.name, Number(r.score));
+    const rank = Object.entries(members).map(([team, names]) => {
+      const rd = names.reduce((s, n) => s + (raidOf.get(n) || 0), 0), scs = names.reduce((s, n) => s + (bestSc.get(n) || 0), 0);
+      return { team, n: names.length, raid: rd, score: scs, pt: Math.round(rd / 1000) + scs };   // レイド1000ダメージ＝1pt
+    }).sort((a, b) => b.pt - a.pt);
+    teamInfo = { status: "ok", members, rank, at: Date.now() };
+    // ほかの端末でチームを変えた時などはサーバーに合わせる
+    if (save.name && latest.has(save.name) && latest.get(save.name) !== save.team) { save.team = latest.get(save.name); persist(); }
+  } catch (e) {
+    teamInfo.status = "error";
+    teamInfo.at = Date.now();
+  }
+}
+async function setTeam(team) {
+  if (!onlineRanking()) { showToast("チームはオンラインの時だけ使えます"); return; }
+  if (!save.name) await askName();
+  try {
+    await sbPost("team_members", { team, name: save.name });
+    save.team = team;
+    persist();
+    showToast(team ? `チーム「${team}」に入りました` : "チームを抜けました");
+    checkTitles();
+    fetchTeams();
+  } catch (e) {
+    showToast("通信に失敗しました（チームの表がまだないかも）");
+  }
+}
+function createTeam() {
+  const t = (window.prompt("新しいチームの名前（12文字まで）") || "").trim().slice(0, 12);
+  if (!t) return;
+  if (teamInfo.members[t]) { showToast("その名前のチームはもうあります（一覧から入れます）"); return; }
+  setTeam(t);
+}
+function joinTeam(t) {
+  if ((teamInfo.members[t] || []).length >= TEAM_MAX) { showToast("このチームは満員です"); return; }
+  setTeam(t);
+}
+function drawTeam() {
+  drawMenuBg("#163a2a", "#06100b");
+  drawTopBar();
+  button(10, 48, 64, 28, "← 戻る", () => go("home"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("チーム", W / 2, 62, "#9dff8a", 20);
+  ctx.restore();
+  if (!onlineRanking()) { txt("チームはオンラインの時だけ使えます", W / 2, 240, 13, "#cfd6ff", "center"); drawNav(); return; }
+  if (teamInfo.status === "idle" || (teamInfo.status !== "loading" && Date.now() - teamInfo.at > 60000)) fetchTeams();
+  button(W - 74, 48, 64, 28, "更新", () => fetchTeams(), { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  if (teamInfo.status === "error") txt("読み込めませんでした（チームの表がまだないかも）", W / 2, 96, 11, "#ff9a9a", "center");
+  let y = 92;
+  if (save.team) {
+    const names = teamInfo.members[save.team] || [save.name];
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    roundRect(14, y, W - 28, 150, 12);
+    ctx.fill();
+    txt(`あなたのチーム「${save.team}」 ${names.length}/${TEAM_MAX}人`, 26, y + 16, 13, "#9dff8a");
+    names.slice(0, TEAM_MAX).forEach((n, i) => txt(n, 30 + (i % 2) * 160, y + 40 + Math.floor(i / 2) * 20, 12, n === save.name ? "#ffd35c" : "#fff", "left", "normal"));
+    button(W - 92, y + 6, 70, 22, "抜ける", () => { if (window.confirm(`チーム「${save.team}」を抜けますか？`)) setTeam(""); },
+      { size: 10, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+    y += 160;
+  } else {
+    txt("チームに入ると、仲間と協力レイド・スコアアタックの合計を競えます", W / 2, y + 8, 10, "#cfd6ff", "center", "normal");
+    button(40, y + 20, W - 80, 36, "チームを作る", createTeam, { size: 14, c1: "#9dff8a", c2: "#38a43c", fg: "#06280a" });
+    y += 66;
+  }
+  // チームランキング（今週）
+  txt("今週のチームランキング（レイド1000ダメージ=1pt＋スコアアタック）", 16, y + 6, 10, "#ffd35c");
+  const rows = teamInfo.rank.slice(0, save.team ? 10 : 12);
+  if (!rows.length && teamInfo.status === "ok") txt("まだチームがありません。最初のチームを作ろう!", W / 2, y + 40, 12, "#9aa3d8", "center", "normal");
+  rows.forEach((r, i) => {
+    const ry = y + 16 + i * 30;
+    ctx.fillStyle = r.team === save.team ? "rgba(157,255,138,0.18)" : i % 2 ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.07)";
+    roundRect(14, ry, W - 28, 27, 6);
+    ctx.fill();
+    txt(`${i + 1}`, 28, ry + 14, 12, i < 3 ? "#ffd35c" : "#cfd6ff", "center", "900");
+    txt(r.team, 44, ry + 9, 12, "#fff");
+    txt(`${r.n}人・レイド${Math.round(r.raid / 10000).toLocaleString()}万・スコア${Math.round(r.score / 1000)}K`, 44, ry + 21, 8, "#9aa3d8", "left", "normal");
+    txt(`${r.pt.toLocaleString()}pt`, save.team ? W - 22 : W - 70, ry + 14, 12, "#9dff8a", "right", "900");
+    if (!save.team) button(W - 64, ry + 3, 46, 21, r.n >= TEAM_MAX ? "満員" : "入る", () => joinTeam(r.team),
+      { size: 10, disabled: r.n >= TEAM_MAX, c1: "#9dff8a", c2: "#38a43c", fg: "#06280a" });
+  });
+  drawNav();
+}
+
+// ---- 協力プレイ（リアルタイム。2〜4人で同じステージを順番に弾く） ------------------------------
+// Supabase の Realtime（broadcast）で部屋ごとにメッセージを送り合う。表は使わない
+// ホストが毎ターンのはじめに盤面をみんなに配り、それぞれのキャラは持ち主だけが操作する
+const COOP_LV = [
+  { n: "初級", mul: 1.5, gem: 30,  diff: 4, gims: ["warp"] },
+  { n: "中級", mul: 4,   gem: 60,  diff: 6, gims: ["mine", "dwall"] },
+  { n: "上級", mul: 10,  gem: 100, diff: 8, gims: ["dwall", "gbar", "block"], hard: true },
+  { n: "超級", mul: 24,  gem: 200, diff: 11, gims: ["warp", "mine", "gbar"], hard: true },
+];
+function coopQuest(lv) {
+  const L = COOP_LV[lv], m = EL_KEYS[(lv * 3 + 1) % 5], s = ADV_BY[ADV_BY[m]] || EL_KEYS[(lv + 2) % 5];
+  const seed = w => seeded(610000 + lv * 10 + w);
+  const waves = [
+    () => genWave(seed(0), m, s, 5, L.mul, null, !!L.hard, L.gims),
+    () => genWave(seed(1), m, s, 6, L.mul, null, !!L.hard, L.gims),
+    () => genWave(seed(2), m, s, 3, L.mul, { name: "協力ボス", hpMul: 2.6, r: 56, cd: 2 }, !!L.hard, L.gims),
+  ];
+  return {
+    id: "c" + lv, kind: "coop", lv, name: `協力クエスト【${L.n}】`, sub: `${EL[m].n}属性 / ${EL[ADV_BY[m]].n}属性が有利`,
+    boss: true, diff: L.diff, mul: 1, par: 12, bg: ["#2a1a0a", "#0a0602"], coin: 10000 * (lv + 1), gem: L.gem,
+    crEl: m, crN: 5 + lv * 4, exp: 150 + lv * 100, waves, gims: L.gims,
+  };
+}
+const coop = { ws: null, room: "", topic: "", id: Math.random().toString(36).slice(2, 10), host: false, hostId: "",
+  members: [], status: "off", inBattle: false, ref: 1, hb: 0, beat: 0, seen: {}, lv: 0, pending: null, full: false };
+function coopUnits() {
+  return save.party.slice(0, 4).map(fi => {
+    const u = save.box[fi];
+    return { fi: Number(fi), rar: u.rar, lv: u.lv, awk: u.awk, luck: u.luck || 0, trial: trialTier(fi), em: emblemOf(fi), sk: skinOf(fi) };
+  });
+}
+const coopMe = () => ({ id: coop.id, name: (save.name || "ゲスト").slice(0, 12), units: coopUnits() });
+// その手番のキャラを自分が動かせるか（抜けた人のキャラはホストが動かす）
+const canControl = a => !coop.inBattle || a.owner === coop.id || (coop.host && !coop.members.some(m => m.id === a.owner));
+function coopConnect(room, host) {
+  if (!onlineRanking()) { showToast("協力プレイはオンラインの時だけ遊べます"); return; }
+  coopLeave();
+  const url = RANKING.url.replace(/^http/, "ws") + `/realtime/v1/websocket?apikey=${encodeURIComponent(RANKING.key)}&vsn=1.0.0`;
+  Object.assign(coop, { room, topic: `realtime:mflick-coop-${room}`, host, hostId: host ? coop.id : "", status: "connecting",
+    members: host ? [coopMe()] : [], seen: {}, lv: 0, pending: null, full: false, inBattle: false });
+  const ws = new WebSocket(url);
+  coop.ws = ws;
+  ws.onopen = () => ws.send(JSON.stringify({ topic: coop.topic, event: "phx_join", payload: { config: { broadcast: { self: false } } }, ref: String(coop.ref++) }));
+  ws.onmessage = m => {
+    let d;
+    try { d = JSON.parse(m.data); } catch (e) { return; }
+    if (d.event === "phx_reply" && d.topic === coop.topic && coop.status === "connecting") {
+      coop.status = d.payload && d.payload.status === "ok" ? "on" : "error";
+      coopHello();
+    }
+    if (d.event === "broadcast" && d.payload) coopOnMessage(d.payload.event, d.payload.payload || {});
+  };
+  ws.onclose = () => { if (coop.ws === ws) { coop.status = "off"; coop.ws = null; if (coop.inBattle) coopAbort("通信が切れました"); } };
+  ws.onerror = () => { coop.status = "error"; };
+  clearInterval(coop.hb);
+  coop.hb = setInterval(coopTick, 3000);
+}
+function coopLeave() {
+  if (coop.ws) {
+    coopSend("bye", {});
+    const ws = coop.ws;
+    coop.ws = null;
+    setTimeout(() => { try { ws.close(); } catch (e) { /* もう閉じている */ } }, 200);
+  }
+  clearInterval(coop.hb);
+  Object.assign(coop, { status: "off", room: "", members: [], inBattle: false, host: false, hostId: "", pending: null });
+}
+function coopSend(event, payload) {
+  if (!coop.ws || coop.ws.readyState !== 1 || coop.status !== "on") return;
+  coop.ws.send(JSON.stringify({ topic: coop.topic, event: "broadcast", payload: { type: "broadcast", event, payload: { ...payload, id: coop.id } }, ref: String(coop.ref++) }));
+}
+function coopHello() {
+  coopSend("hello", { name: coopMe().name, units: coopUnits(), host: coop.host });
+  if (coop.host) coopSend("lobby", { members: coop.members, lv: coop.lv, hostId: coop.id, inBattle: coop.inBattle });
+}
+function coopTick() {
+  if (!coop.ws) return;
+  if (++coop.beat % 8 === 0 && coop.ws.readyState === 1) {
+    coop.ws.send(JSON.stringify({ topic: "phoenix", event: "heartbeat", payload: {}, ref: String(coop.ref++) }));   // サーバーとの接続を保つ
+  }
+  if (!coop.inBattle) coopHello(); else coopSend("ping", {});
+  const now = Date.now();
+  if (coop.host) {
+    // 15秒返事がない人は抜けたことにする（その人のキャラはホストが動かす）
+    const before = coop.members.length;
+    coop.members = coop.members.filter(m => m.id === coop.id || now - (coop.seen[m.id] || now) < 15000);
+    if (coop.members.length !== before && !coop.inBattle) coopHello();
+  } else if (coop.hostId && now - (coop.seen[coop.hostId] || now) > 15000) {
+    coopAbort("ホストとの通信が切れました");
+    coopLeave();
+  }
+}
+function coopOnMessage(ev, p) {
+  if (p.id) coop.seen[p.id] = Date.now();
+  if (ev === "hello" && coop.host) {
+    const m = coop.members.find(x => x.id === p.id), info = { id: p.id, name: String(p.name || "ゲスト").slice(0, 12), units: (p.units || []).slice(0, 4) };
+    if (!m && !coop.inBattle && coop.members.length < 4) { coop.members.push(info); coopHello(); }
+    else if (m && !coop.inBattle) Object.assign(m, info);
+  }
+  if (ev === "lobby" && !coop.host) {
+    coop.hostId = p.hostId;
+    coop.members = p.members || [];
+    coop.lv = p.lv || 0;
+    coop.full = coop.members.length >= 4 && !coop.members.some(m => m.id === coop.id);
+  }
+  if (ev === "start" && !coop.host && (p.members || []).some(m => m.id === coop.id)) coopBegin(p.lv, p.members);
+  if (ev === "state" && !coop.host && coop.inBattle) coopApply(p);
+  if (ev === "shot" && coop.inBattle) coopRecvShot(p);
+  if (ev === "end" && !coop.host && coop.inBattle) coopEnd(p.clear);
+  if (ev === "bye") {
+    if (!coop.host && p.id === coop.hostId) { coopAbort("ホストが部屋を閉じました"); coopLeave(); }
+    else if (coop.host) { coop.members = coop.members.filter(m => m.id !== p.id); if (!coop.inBattle) coopHello(); }
+  }
+}
+// バトル開始（全員）: 4枠を順番に分ける（2人なら2体ずつ、3人なら最初の人が2体）
+function coopBegin(lv, members) {
+  const q = coopQuest(lv), n = members.length, slots = [];
+  for (let i = 0; i < 4; i++) {
+    const m = members[i % n], u = m.units[Math.floor(i / n)];
+    if (u && FAM[u.fi] && RBASE[u.rar]) slots.push({ m, u });
+  }
+  if (!slots.length) return;
+  coop.members = members;
+  coop.inBattle = true;
+  coop.pending = null;
+  questIdx = q.id;
+  quest = q;
+  waveIdx = 0;
+  allies = slots.map(({ m, u }, k) => {
+    const a = makeHelperAlly({ ...u, name: m.name }, W / (slots.length + 1) * (k + 1), 505);
+    applyEmblem(a, u.fi, u.em);
+    a.look = applySkin(a.look, u.fi, u.sk || "");
+    a.helper = false;
+    a.owner = m.id;
+    a.ownerName = m.name;
+    a.name = m.id === coop.id ? displayName(u.fi) : `${m.name}の${FAM[u.fi].name}`;
+    return a;
+  });
+  maxHp = hp = allies.reduce((s, a) => s + a.hp, 0);
+  turn = 1; cur = 0; ssArmed = false; shot = null;
+  bolts = []; fx = []; particles = []; texts = []; events = [];
+  bstat = { hits: 0, weak: 0, kills: 0, combos: 0, maxHit: 0, dmg: 0 };
+  prepHelper = null;
+  loadWave();
+  state = "aim";
+  battleHints();
+  hint("coop", "協力プレイ! 自分のキャラの番だけ引っ張って撃てるよ。ほかの人の番は見て応援しよう");
+}
+function coopStartGame() {
+  if (!coop.host || coop.status !== "on") return;
+  coopSend("start", { lv: coop.lv, members: coop.members });
+  coopBegin(coop.lv, coop.members);
+}
+// ホスト → みんな: 今の盤面
+function coopSendState() {
+  coopSend("state", {
+    turn, cur, hp, maxHp, waveIdx, hearts, rocks, gim,
+    allies: allies.map(a => ({ x: a.x, y: a.y, atk: a.atk, spd: a.spd, ssLeft: a.ssLeft, buff: a.buff || 0, buffHp: a.buffHp || 0, rally: a.rally || 0, clap: a.clap || 0 })),
+    enemies: enemies.filter(e => !e.dead),
+  });
+}
+function coopApply(s) {
+  turn = s.turn; cur = s.cur; hp = s.hp; maxHp = s.maxHp; waveIdx = s.waveIdx;
+  enemies = s.enemies || [];
+  rocks = s.rocks || [];
+  gim = s.gim || emptyGim();
+  hearts = s.hearts || [];
+  (s.allies || []).forEach((v, i) => { if (allies[i]) Object.assign(allies[i], v); });
+  shot = null; bolts = []; events = []; ssArmed = false;
+  state = "aim";
+}
+function coopRecvShot(p) {
+  if (state === "aim" && p.turn === turn && p.cur === cur) {
+    ssArmed = !!p.ss && allies[cur].ssLeft === 0;
+    fire(p.dx, p.dy);
+  } else if (!coop.host) {
+    coop.pending = p;   // 盤面が届いてから撃つ
+  }
+}
+function coopEnd(clear) {
+  coop.inBattle = false;
+  if (clear) finishQuest();
+  else { state = "over"; lastResult = null; playSe("lose"); }
+}
+function coopAbort(msg) {
+  coop.inBattle = false;
+  showToast(msg);
+  if (BATTLE.has(state)) go("coop");
+}
+function drawCoop() {
+  drawMenuBg("#3a1a0a", "#0c0602");
+  drawTopBar();
+  button(10, 48, 64, 28, "← 戻る", () => go("home"), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText("協力プレイ", W / 2, 62, "#ff9a5a", 20);
+  ctx.restore();
+  if (!onlineRanking()) { txt("協力プレイはオンラインの時だけ遊べます", W / 2, 240, 13, "#cfd6ff", "center"); drawNav(); return; }
+  const join = host => {
+    const go2 = () => {
+      if (host) coopConnect(String(1000 + Math.floor(Math.random() * 9000)), true);
+      else {
+        const c = (window.prompt("友だちのルームコード（4けたの数字）") || "").trim();
+        if (/^\d{4}$/.test(c)) coopConnect(c, false); else if (c) showToast("4けたの数字を入れてね");
+      }
+    };
+    if (save.name) go2(); else askName().then(go2);
+  };
+  if (!coop.ws) {
+    ["2〜4人で同じステージに入って、順番にキャラを弾いて戦う!", "1人がホストになって部屋を作り、ルームコードを友だちに教えよう。",
+      "自分の編成の先頭から、人数に合わせて1〜4体が出撃します。"].forEach((l, i) => txt(l, W / 2, 110 + i * 20, 11, "#cfd6ff", "center", "normal"));
+    button(40, 190, W - 80, 64, "部屋を作る（ホスト）", () => join(true), { size: 17, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", sub: "ルームコードが出ます" });
+    button(40, 270, W - 80, 64, "部屋に入る", () => join(false), { size: 17, c1: "#7cf0ff", c2: "#2a9fd6", fg: "#06283a", sub: "友だちのルームコードを入れる" });
+    drawNav();
+    return;
+  }
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  roundRect(14, 88, W - 28, 64, 12);
+  ctx.fill();
+  txt("ルームコード", W / 2, 102, 11, "#cfd6ff", "center");
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  outlinedText(coop.room, W / 2, 130, "#ffe066", 30);
+  ctx.restore();
+  txt(coop.status === "on" ? (coop.host ? "あなたがホスト" : "参加中") : coop.status === "connecting" ? "つないでいます…" : "通信エラー",
+    W - 26, 102, 10, coop.status === "on" ? "#7dffa0" : "#ff9a9a", "right");
+  // メンバー
+  for (let i = 0; i < 4; i++) {
+    const m = coop.members[i], y = 162 + i * 52;
+    ctx.fillStyle = m ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)";
+    roundRect(14, y, W - 28, 46, 10);
+    ctx.fill();
+    if (!m) { txt("あき（友だちを待っています）", 30, y + 23, 11, "#6a7090", "left", "normal"); continue; }
+    const u = m.units[0];
+    if (u && FAM[u.fi]) {
+      const f = FAM[u.fi];
+      drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: u.rar, evo: u.rar > f.rar }, 40, y + 25, 14);
+    }
+    txt(`${m.name}${m.id === coop.id ? "（あなた）" : ""}`, 64, y + 15, 13, m.id === coop.id ? "#ffd35c" : "#fff");
+    txt(m.units.map(x => FAM[x.fi] ? FAM[x.fi].name : "").join("・").slice(0, 26), 64, y + 33, 9, "#9aa3d8", "left", "normal");
+    if (i === 0) txt("ホスト", W - 26, y + 15, 10, "#ff9a5a", "right", "900");
+  }
+  const n = coop.members.length, per = n ? Math.ceil(4 / n) : 0;
+  if (n) txt(`${n}人で出撃: 1人${per}体まで（自分の編成の先頭から）`, W / 2, 378, 10, "#cfd6ff", "center", "normal");
+  if (coop.host) {
+    txt("むずかしさ", 20, 398, 12, "#ffd35c");
+    COOP_LV.forEach((L, i) => {
+      const on = coop.lv === i;
+      button(14 + i * 84, 408, 78, 40, L.n, () => { coop.lv = i; coopHello(); },
+        { size: 13, c1: on ? "#ffe066" : "#4a5280", c2: on ? "#e0a020" : "#2b3158", fg: on ? "#3a2400" : "#fff", sub: `★${L.diff}` });
+    });
+    button(40, 460, W - 80, 54, "出発!", coopStartGame,
+      { size: 19, c1: "#ff9a5a", c2: "#d64a2a", fg: "#fff", disabled: coop.status !== "on", sub: n < 2 ? "1人でも出発できる" : `${n}人で協力クエスト【${COOP_LV[coop.lv].n}】` });
+  } else {
+    txt(coop.full ? "この部屋は満員でした" : coop.members.length ? `ホストの出発を待っています（${COOP_LV[coop.lv].n}）` : "ホストを探しています…",
+      W / 2, 440, 13, coop.full ? "#ff9a9a" : "#ffe066", "center");
+  }
+  button(80, 526, W - 160, 32, "部屋を出る", () => coopLeave(), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
   drawNav();
 }
 
@@ -5592,6 +6296,12 @@ function drawDetail() {
   drawMenuBg(c.d, "#070b16");
   drawTopBar();
   button(10, 48, 64, 28, "← 戻る", () => go(detailBack), { size: 12, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
+  // 紋章・着せ替え
+  const em = emblemOf(fi);
+  button(W - 96, 46, 86, 28, em ? `紋章:${EMBLEMS[em].s}` : "紋章", () => { emblemOpen = true; },
+    { size: 10, c1: em ? "#ffe066" : "#4a5280", c2: em ? "#e0a020" : "#2b3158", fg: em ? "#3a2400" : "#fff" });
+  button(W - 96, 80, 86, 28, skinOf(fi) ? `着替:${skinName(skinOf(fi)).slice(0, 4)}` : "着せ替え", () => { skinOpen = true; },
+    { size: 10, c1: "#ff9ae6", c2: "#c03ad6", fg: "#fff" });
   ctx.save();
   ctx.globalAlpha = 0.3;
   ctx.fillStyle = typeof rarityStroke(u.rar, 0, 0, W, H) === "string" ? RCOL[u.rar] : `hsl(${(frameNo * 2) % 360},90%,65%)`;
@@ -5653,6 +6363,8 @@ function drawDetail() {
   drawParticles();
   drawTexts();
   drawBanner();
+  if (emblemOpen) drawEmblemPick(fi);
+  if (skinOpen) drawSkinPick(fi);
 }
 
 // ---- 管理者設定（config.json。admin.html で作成） -----------------------------
@@ -5730,6 +6442,12 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-e", date: "2026-10-20", title: "紋章・着せ替え・シーズンパス",
+    body: "キャラ詳細から「紋章」（攻撃・体力・加速・友情・SS・属性キラー）を付けられるように。コイン3万で作れます。\n"
+      + "「着せ替え」で色違いやゴールド（運極）・シャドウの見た目に。ホームの「シーズン」は30日間のパスで、遊ぶほど報酬（紋章・着せ替え券・ジェム）がもらえます。" },
+  { id: "up-2026-10-20-d", date: "2026-10-20", title: "協力プレイ・チーム・第2部",
+    body: "ホームの「協力プレイ」で、2〜4人がリアルタイムで同じステージに！部屋を作ってルームコードを友だちに教えよう。\n"
+      + "「チーム」では10人までのチームで、レイドとスコアアタックの合計を競います。ストーリー第2部（虚無の女王編・200ステージ）も始まりました。" },
   { id: "up-2026-10-20-c", date: "2026-10-20", title: "ボスラッシュ・ゲリラ・助っ人のお礼",
     body: "クエストの「塔」に「ボスラッシュ」（ボスを何体倒せるか、毎週ランキング）を追加。イベントに「ゲリラ」登場、毎日12時・19時・21時から1時間だけの高報酬クエスト！\n"
       + "自分のリーダーが助っ人として使われると、ホームを開いた時にお礼のコイン・ジェムがもらえます。助っ人の♡でフレンド登録も。"
@@ -6361,6 +7079,9 @@ function draw() {
     case "event": drawEvent(); break;
     case "prep": drawPrep(); break;
     case "titles": drawTitles(); break;
+    case "season": drawSeason(); break;
+    case "team": drawTeam(); break;
+    case "coop": drawCoop(); break;
     default: drawBattle();
   }
   if (shareOpen) drawShare();
@@ -6524,6 +7245,7 @@ function claimLogin() {
   save.daily = today();
   save.login.n++;
   save.login.last = today();
+  addSeason(30);
   persist();
   playSe("coin");
   burst(W / 2, 300, "#5ef0ff", 50, 5);
@@ -6654,7 +7376,8 @@ function drawDex() {
 }
 
 // ---- イベント ----------------------------------------------------------
-const questHome = () => quest && ["event", "score", "raid", "drop", "weekday", "guerrilla"].includes(quest.kind) ? "event" : "quests";
+const questHome = () => !quest ? "quests" : quest.kind === "coop" ? "coop"
+  : ["event", "score", "raid", "drop", "weekday", "guerrilla"].includes(quest.kind) ? "event" : "quests";
 function fmtLeft(ms) {
   const h = Math.max(0, Math.floor(ms / 3600000)), m = Math.max(0, Math.floor(ms / 60000) % 60);
   return h >= 24 ? `あと${Math.floor(h / 24)}日${h % 24}時間` : `あと${h}時間${m}分`;
@@ -6984,6 +7707,7 @@ function finishRaid() {
   const d = Math.round(raidBattle.dmg), st = raidState(), q = quest;
   st.dmg += d;
   st.battles++;
+  addSeason(15);
   const coin = Math.min(50000, Math.round(d / 40)), crN = Math.min(10, 2 + Math.floor(d / 2000000));
   save.coins += coin;
   save.cr[q.crEl] += crN;
@@ -7085,7 +7809,8 @@ async function fetchHelpers() {
       seen.add(h.name);
       list.push({ ...h, lv: Math.min(MAXLV[h.rar], h.lv) });
     }
-    list.sort((a, b) => isFriend(b.name) - isFriend(a.name));   // フレンドが上
+    const near = n => isFriend(n) * 2 + isMate(n);
+    list.sort((a, b) => near(b.name) - near(a.name));   // フレンド → チームの仲間 の順に上
     helperList = list.slice(0, 8);
     helperStatus = "ok";
   } catch (e) {
@@ -7177,7 +7902,7 @@ function drawHelperPick(q, need) {
     ctx.clip();
     drawChar({ shape: f.shape, el: f.el, acc: f.acc, eye: f.eye, rar: h.rar, evo: h.rar > f.rar }, 45, y + 28, 11);
     ctx.restore();
-    txt(`${h.name}${h.guest ? "（ゲスト）" : isFriend(h.name) ? " ♥" : ""}`, 74, y + 12, 12, h.guest ? "#cfd6ff" : isFriend(h.name) ? "#ff9ae6" : "#fff");
+    txt(`${h.name}${h.guest ? "（ゲスト）" : isFriend(h.name) ? " ♥" : isMate(h.name) ? "（チーム）" : ""}`, 74, y + 12, 12, h.guest ? "#cfd6ff" : isFriend(h.name) ? "#ff9ae6" : "#fff");
     if (h.title) txt(`【${h.title}】`, W - 26, y + 12, 9, "#ffe066", "right");
     txt(`${f.name} ★${h.rar} Lv${h.lv}${h.luck >= MAX_LUCK ? " 運極" : ""}${h.trial >= TRIAL_TIERS ? " 真" : ""}`, 74, y + 28, 10, "#cfd6ff", "left", "normal");
     txt(ab.map(k => ABIL[k].s).join(" "), 74, y + 42, 9, hit.length ? "#7cf0ff" : "#8088b0", "left", "900");
