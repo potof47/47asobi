@@ -190,7 +190,7 @@ const COMBO = {
   kikou:   { name: "気功波", desc: "敵を追尾するレーザー10本" },
   // パニパニ 専用
   ssboom:  { name: "加速爆発", desc: "フィールド1/4の大爆発＋味方全員のSSを1ターン短縮" },
-  // ムスビ 専用（神域Ⅴのドロップ）
+  // 戦姫アステリア 専用（神域Ⅴのドロップ）
   tether:  { name: "絆レーザー", desc: "触れた味方との間にレーザーを張り、何度もヒット" },
   // 拍手する猫 専用
   clap:    { name: "拍手", desc: "触れた味方の攻撃力を3ターン1.3倍＋HP回復" },
@@ -211,7 +211,7 @@ const SS = {
   haou: { name: "覇王天翔波", turns: 8, fixed: true, desc: "狙った方向に特大レーザー(攻撃力50倍)＋5T能力2.5倍" },
   // パニパニ 専用
   rally: { name: "全力応援", turns: 9, fixed: true, desc: "触れた味方の攻撃力・友情コンボを3ターン2.5倍" },
-  // ムスビ 専用
+  // 戦姫アステリア 専用
   gourei:  { name: "大号令", turns: 11, fixed: true, desc: "味方全員の友情コンボを2回ずつ発動（威力1.5倍）" },
   // 拍手する猫 専用
   handshake: { name: "握手", turns: 8, fixed: true, desc: "触れた敵が爆発＋敵に触れるたびに加速してまた動き出す" },
@@ -364,12 +364,12 @@ const FAM = [
   ["カゲロウ",   "dark",  5, "pierce",  "hood",   "sharp",   "thunder", "meteor", "human"],
   ["ドクロン",   "dark",  4, "reflect", "spikes", "mono",    "blast",   "needle"],
   // 神域Ⅴのドロップキャラ（★6。ガチャには出ない）
-  ["ムスビ",     "light", 6, "pierce",  "long",   "sparkle", "tether",  "gourei", "human"],
+  ["戦姫アステリア", "light", 6, "pierce", "valkyrie", "sparkle", "tether", "gourei", "valkyrie"],   // 専用の見た目（光の翼・槍・翼の冠）
 ].map((a, i) => ({ idx: i, name: a[0], el: a[1], rar: a[2], type: a[3], acc: a[4], eye: a[5], combo: a[6], ss: a[7], shape: a[8] || "blob" }));
 // 図鑑の並び順（属性 → レア度）
 const ORDER = FAM.map(f => f.idx).sort((a, b) =>
   EL_KEYS.indexOf(FAM[a].el) - EL_KEYS.indexOf(FAM[b].el) || FAM[a].rar - FAM[b].rar || a - b);
-const SHAPE_NAME = { blob: "モンスター", human: "人型", beast: "獣", bird: "鳥", dragon: "竜", fish: "魚", cat: "猫" };
+const SHAPE_NAME = { blob: "モンスター", human: "人型", beast: "獣", bird: "鳥", dragon: "竜", fish: "魚", cat: "猫", valkyrie: "戦乙女" };
 const STARTERS = [2, 8, 14, 20];   // ブレイズ・マリン・ソーン・ルクス
 const LIMITED = FAM.find(f => f.name === "ikesaki").idx;
 FAM[LIMITED].boost = 1.35;      // 限定キャラは能力1.35倍
@@ -412,7 +412,7 @@ const ABIL_FIXED = {
   "ヒエン": ["AB"], "レオバーン": ["ADW"], "スイレン": ["AB"], "マンタロス": ["AGB"], "コノハ": ["AB"],
   "ミドリワシ": ["AW"], "キララ": ["AB"], "テンマ": ["MK"], "ヨイヤミ": ["AB"], "ネビュラ": ["ADW"],
   "ヒバチ": ["AB"], "ササメ": ["AB"], "ペガス": ["AW"], "ドクロン": ["MK"], "カッパロ": ["AGB"],
-  "ムスビ": ["AW", "AGB"],
+  "戦姫アステリア": ["AW", "AGB"],
 };
 // ふつうは1つ、恒常★6は2つ、限定★6は3つ（キャラごとに決まっている）
 for (const f of FAM) {
@@ -439,7 +439,7 @@ function abilText(fi) {
 }
 // 管理者設定で上書きする前の値（すべての boost を決めた後に記録する）
 // 神域Ⅴのドロップキャラ: 一番難しいステージのごほうびなので、限定キャラに近い強さ
-const GOD_CHAR = FAM.find(f => f.name === "ムスビ").idx;
+const GOD_CHAR = FAM.find(f => f.name === "戦姫アステリア").idx;
 FAM[GOD_CHAR].god = true;
 FAM[GOD_CHAR].boost = 1.25;   // 恒常の1.2倍とかけて約1.5倍（限定は1.35〜1.55倍）
 const BASE_BOOST = FAM.map(f => f.boost || 1);
@@ -1213,8 +1213,8 @@ function drawGodList() {
     ctx.textAlign = "right";
     outlinedText(`★${q.diff}`, W - 26, y + 18, unlocked ? "#ff6b8b" : "#777", 13);
     ctx.restore();
-    // 神域Ⅴはムスビがドロップ（ロック中も見せる）
-    if (i === GOD.length - 1) txt("クリアで★6「ムスビ」が必ずドロップ!", W - 26, y + 58, 10, "#ff9ae6", "right", "900");
+    // 神域Ⅴは戦姫アステリアがドロップ（ロック中も見せる）
+    if (i === GOD.length - 1) txt("クリアで★6「戦姫アステリア」が必ずドロップ!", W - 26, y + 58, 10, "#ff9ae6", "right", "900");
     if (!unlocked) { txt("LOCK", 26, y + 44, 11, "#777"); return; }
     txt(cleared ? `CLEAR ベスト${save.best[q.id]}T` : `初回ジェム${q.gem}`, 26, y + 42, 11, cleared ? "#7dffa0" : "#5ef0ff");
     if (i !== GOD.length - 1) txt(`${q.sub}`, 26, y + 58, 9, "#cfd6ff", "left", "normal");
@@ -2167,7 +2167,7 @@ function finishQuest() {
   if (questIdx === IKESAKI_QUEST && first) {
     drop = acquire(LIMITED);                  // 最難関の初回クリアで★6限定キャラ
   } else if (q.kind === "god" && q.idx === GOD.length - 1) {
-    // 神域Ⅴ: ムスビが必ず1〜2体（運極の仲間がいれば+1）。周回すれば運極にできる
+    // 神域Ⅴ: 戦姫アステリアが必ず1〜2体（運極の仲間がいれば+1）。周回すれば運極にできる
     dropN = 1 + (Math.random() < 0.5 ? 1 : 0) + (save.party.some(fi => isUnkyoku(fi)) ? 1 : 0);
     for (let k = 0; k < dropN; k++) drop = acquire(GOD_CHAR);
   } else if (q.kind === "drop") {
@@ -2958,7 +2958,233 @@ function shade(x, y, r, c1, c2) {
 }
 
 // 人型・獣・鳥・竜・魚（すべてオリジナルデザイン）
+// ---- 戦姫アステリア専用の見た目（神域Ⅴのごほうび。いちばん作り込んだキャラ） ---------------------
+// 背中の魔法陣・光の翼・なびく髪・よろい・光の槍・翼の冠。着せ替えの色（k.el）にも合わせて色が変わる
+function drawValkyrie(k, x, y, r) {
+  const c = EL[k.el], t = frameNo;
+  const glow = k.el === "light" ? "#fff6c8" : c.l, deep = k.el === "light" ? "#e0a020" : c.c;
+  ctx.save();
+  // 背中の魔法陣（ゆっくり回る）
+  ctx.save();
+  ctx.translate(x, y - r * 0.1);
+  ctx.rotate(t * 0.01);
+  ctx.globalAlpha = 0.75;
+  ctx.strokeStyle = k.el === "light" ? "#ffd86a" : glow;
+  ctx.shadowColor = deep;
+  ctx.shadowBlur = r * 0.2;
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  ctx.beginPath(); ctx.arc(0, 0, r * 1.45, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, r * 1.25, 0, Math.PI * 2); ctx.stroke();
+  for (let i = 0; i < 6; i++) {   // 六芒星
+    const a = i * Math.PI / 3;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 1.25, Math.sin(a) * r * 1.25);
+    ctx.lineTo(Math.cos(a + Math.PI * 2 / 3) * r * 1.25, Math.sin(a + Math.PI * 2 / 3) * r * 1.25); ctx.stroke();
+  }
+  ctx.fillStyle = glow;
+  for (let i = 0; i < 12; i++) {   // 文字のような点
+    const a = i * Math.PI / 6;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * r * 1.35, Math.sin(a) * r * 1.35, Math.max(0.8, r * 0.04), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  // 光の翼（左右に大きく広がる羽根6枚ずつ。羽ばたく）
+  const flap = Math.sin(t * 0.08) * 0.1;
+  for (const s of [-1, 1]) {
+    for (let j = 5; j >= 0; j--) {
+      // ほぼ真上から横向きまで、扇のように並べる
+      const ang = -Math.PI / 2 + s * (0.25 + j * 0.24 + flap);
+      ctx.save();
+      ctx.translate(x + s * r * 0.28, y + r * 0.02);
+      ctx.rotate(ang + Math.PI / 2);
+      const len = r * (1.75 - j * 0.12), wd = r * (0.3 - j * 0.015);
+      const g = ctx.createLinearGradient(0, 0, 0, -len);
+      g.addColorStop(0, "#ffffff");
+      g.addColorStop(0.55, k.el === "light" ? "#fff2c0" : glow);
+      g.addColorStop(1, k.el === "light" ? "#ffd86a" : c.c);
+      ctx.fillStyle = g;
+      ctx.shadowColor = deep;
+      ctx.shadowBlur = r * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(-wd * 0.35, 0);
+      ctx.quadraticCurveTo(-wd, -len * 0.55, 0, -len);
+      ctx.quadraticCurveTo(wd, -len * 0.55, wd * 0.35, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(224,160,32,0.75)";
+      ctx.lineWidth = Math.max(0.8, r * 0.025);
+      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -len * 0.08); ctx.lineTo(0, -len * 0.85); ctx.stroke();   // 羽根の軸
+      ctx.restore();
+    }
+  }
+  ctx.shadowBlur = 0;
+  const hx = x, hy = y - r * 0.32, hr = r * 0.52;
+  // 後ろ髪（長く、風になびく）
+  const sway = Math.sin(t * 0.06) * r * 0.08;
+  const hairG = ctx.createLinearGradient(0, hy - hr, 0, y + r);
+  hairG.addColorStop(0, "#fffbe8");
+  hairG.addColorStop(1, k.el === "light" ? "#ffd86a" : c.l);
+  ctx.fillStyle = hairG;
+  ctx.beginPath();
+  ctx.moveTo(hx - hr * 1.0, hy - hr * 0.2);
+  ctx.quadraticCurveTo(hx - hr * 1.5 + sway, y + r * 0.5, hx - hr * 0.7 + sway, y + r * 1.05);
+  ctx.lineTo(hx + hr * 0.7 + sway, y + r * 1.05);
+  ctx.quadraticCurveTo(hx + hr * 1.5 + sway, y + r * 0.5, hx + hr * 1.0, hy - hr * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  // マント
+  ctx.fillStyle = shade(x, y + r * 0.5, r * 0.8, c.c, c.d);
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.38, y + r * 0.12); ctx.lineTo(x + r * 0.38, y + r * 0.12);
+  ctx.lineTo(x + r * 0.62 + sway * 0.5, y + r * 1.02); ctx.lineTo(x - r * 0.62 + sway * 0.5, y + r * 1.02);
+  ctx.fill();
+  // スカート（よろいの板が重なる）
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = i % 2 ? "#dfe6f3" : "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(x - r * (0.3 + i * 0.06), y + r * (0.55 + i * 0.12));
+    ctx.lineTo(x + r * (0.3 + i * 0.06), y + r * (0.55 + i * 0.12));
+    ctx.lineTo(x + r * (0.42 + i * 0.06), y + r * (0.72 + i * 0.12));
+    ctx.lineTo(x - r * (0.42 + i * 0.06), y + r * (0.72 + i * 0.12));
+    ctx.fill();
+  }
+  // 胸当て（金と銀）
+  const armor = ctx.createLinearGradient(x - r * 0.35, 0, x + r * 0.35, 0);
+  armor.addColorStop(0, "#c8d2e6"); armor.addColorStop(0.5, "#ffffff"); armor.addColorStop(1, "#aab6d0");
+  ctx.fillStyle = armor;
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.34, y + r * 0.12); ctx.lineTo(x + r * 0.34, y + r * 0.12);
+  ctx.lineTo(x + r * 0.28, y + r * 0.58); ctx.lineTo(x, y + r * 0.66); ctx.lineTo(x - r * 0.28, y + r * 0.58);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#e0a020";
+  ctx.lineWidth = Math.max(1, r * 0.05);
+  ctx.stroke();
+  // 胸の宝石
+  ctx.fillStyle = deep;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = r * 0.4;
+  ctx.beginPath(); ctx.moveTo(x, y + r * 0.24); ctx.lineTo(x + r * 0.09, y + r * 0.34); ctx.lineTo(x, y + r * 0.46); ctx.lineTo(x - r * 0.09, y + r * 0.34); ctx.fill();
+  ctx.shadowBlur = 0;
+  // 肩当て
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = "#e9eef8";
+    ctx.beginPath(); ctx.ellipse(x + s * r * 0.36, y + r * 0.16, r * 0.17, r * 0.11, s * 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#e0a020"; ctx.stroke();
+  }
+  // 光の槍（右手。金の柄と、光る大きな穂先）
+  ctx.save();
+  ctx.translate(x + r * 0.55, y + r * 0.45);
+  ctx.rotate(-0.3);
+  const sg = ctx.createLinearGradient(-r * 0.06, 0, r * 0.06, 0);
+  sg.addColorStop(0, "#a07818"); sg.addColorStop(0.5, "#ffe58a"); sg.addColorStop(1, "#a07818");
+  ctx.fillStyle = sg;
+  ctx.fillRect(-r * 0.06, -r * 1.15, r * 0.12, r * 1.75);
+  ctx.fillStyle = "#e0a020";
+  for (const yy of [-0.2, 0.25]) ctx.fillRect(-r * 0.09, r * yy, r * 0.18, r * 0.06);   // 柄の飾り
+  // 穂先
+  ctx.shadowColor = k.el === "light" ? "#ffe066" : c.c;
+  ctx.shadowBlur = r * 0.9;
+  const tg = ctx.createLinearGradient(0, -r * 1.75, 0, -r * 1.1);
+  tg.addColorStop(0, "#ffffff"); tg.addColorStop(1, glow);
+  ctx.fillStyle = tg;
+  ctx.beginPath(); ctx.moveTo(0, -r * 1.8); ctx.lineTo(r * 0.2, -r * 1.2); ctx.lineTo(0, -r * 1.08); ctx.lineTo(-r * 0.2, -r * 1.2); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#e0a020";
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  ctx.stroke();
+  // 穂先の根元の翼の飾り
+  ctx.fillStyle = "#ffd23f";
+  for (const s of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(0, -r * 1.12); ctx.quadraticCurveTo(s * r * 0.35, -r * 1.25, s * r * 0.28, -r * 0.95); ctx.lineTo(0, -r * 1.02); ctx.fill();
+  }
+  ctx.restore();
+  // 手
+  ctx.fillStyle = SKIN;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(x + s * r * 0.48, y + r * 0.46, r * 0.1, 0, Math.PI * 2); ctx.fill(); }
+  // 顔
+  ctx.fillStyle = shade(hx, hy, hr, "#fff6ef", SKIN);
+  ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+  // 目（大きくて、光が入った瞳）
+  for (const s of [-1, 1]) {
+    const ex = hx + s * hr * 0.38, ey = hy + hr * 0.12;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath(); ctx.ellipse(ex, ey, hr * 0.2, hr * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+    const ig = ctx.createLinearGradient(0, ey - hr * 0.22, 0, ey + hr * 0.22);
+    ig.addColorStop(0, "#2a1a4a"); ig.addColorStop(1, deep);
+    ctx.fillStyle = ig;
+    ctx.beginPath(); ctx.ellipse(ex, ey + hr * 0.02, hr * 0.15, hr * 0.21, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath(); ctx.arc(ex - hr * 0.05, ey - hr * 0.08, hr * 0.06, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex + hr * 0.05, ey + hr * 0.08, hr * 0.03, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#3a2440";
+    ctx.lineWidth = Math.max(1, hr * 0.07);
+    ctx.beginPath(); ctx.moveTo(ex - hr * 0.22, ey - hr * 0.24); ctx.quadraticCurveTo(ex, ey - hr * 0.34, ex + hr * 0.22, ey - hr * 0.22); ctx.stroke();
+  }
+  // ほお・口
+  ctx.fillStyle = "rgba(255,140,170,0.45)";
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(hx + s * hr * 0.55, hy + hr * 0.42, hr * 0.13, hr * 0.07, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = "#c0506a";
+  ctx.lineWidth = Math.max(1, hr * 0.06);
+  ctx.beginPath(); ctx.arc(hx, hy + hr * 0.5, hr * 0.12, 0.2, Math.PI - 0.2); ctx.stroke();
+  // 前髪（とがった毛先）
+  ctx.fillStyle = "#fffbe8";
+  ctx.beginPath();
+  ctx.moveTo(hx - hr * 1.02, hy + hr * 0.05);
+  ctx.quadraticCurveTo(hx - hr * 0.9, hy - hr * 1.15, hx, hy - hr * 1.05);
+  ctx.quadraticCurveTo(hx + hr * 0.9, hy - hr * 1.15, hx + hr * 1.02, hy + hr * 0.05);
+  for (let i = 4; i >= 0; i--) {
+    const px = hx - hr * 0.8 + i * hr * 0.4;
+    ctx.lineTo(px + hr * 0.2, hy - hr * 0.25);
+    ctx.lineTo(px, hy - hr * (i % 2 ? 0.05 : -0.08));
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(224,160,32,0.6)";
+  ctx.lineWidth = Math.max(0.8, hr * 0.04);
+  ctx.stroke();
+  // 翼の冠（頭の両側に小さな羽根を3枚ずつ、まん中に星の宝石）
+  for (const s of [-1, 1]) {
+    for (let j = 0; j < 3; j++) {
+      ctx.save();
+      ctx.translate(hx + s * hr * 0.82, hy - hr * 0.45);
+      ctx.rotate(s * (0.5 + j * 0.42));
+      const fl = hr * (0.75 - j * 0.12);
+      ctx.fillStyle = j === 0 ? "#ffffff" : "#f4f7ff";
+      ctx.beginPath();
+      ctx.moveTo(-hr * 0.08, 0);
+      ctx.quadraticCurveTo(-hr * 0.17, -fl * 0.6, 0, -fl);
+      ctx.quadraticCurveTo(hr * 0.17, -fl * 0.6, hr * 0.08, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#e0a020";
+      ctx.lineWidth = Math.max(0.8, hr * 0.05);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  ctx.fillStyle = "#ffd23f";
+  ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.88, hr * 0.62, hr * 0.12, 0, Math.PI, Math.PI * 2); ctx.fill();
+  ctx.save();
+  ctx.fillStyle = deep;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = r * 0.5;
+  starPath(hx, hy - hr * 1.02, hr * 0.22);
+  ctx.fill();
+  ctx.restore();
+  // きらめき
+  for (let i = 0; i < 4; i++) {
+    const a = t * 0.03 + i * Math.PI / 2, d = r * (1.0 + 0.15 * Math.sin(t * 0.1 + i));
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 0.15 + i * 1.7);
+    ctx.fillStyle = "#ffffff";
+    starPath(x + Math.cos(a) * d, y - r * 0.2 + Math.sin(a) * d * 0.8, Math.max(1.2, r * 0.08));
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawCreature(k, x, y, r) {
+  if (k.shape === "valkyrie") { drawValkyrie(k, x, y, r); return; }   // 専用の見た目（翼・冠も込み）
   ctx.save();
   drawAura(k, x, y, r);
   const winged = k.shape === "bird" || k.shape === "dragon";
@@ -6643,8 +6869,11 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
-  { id: "up-2026-10-20-h", date: "2026-10-20", title: "神域Ⅴのごほうび「ムスビ」",
-    body: "神域Ⅴをクリアすると★6「ムスビ」（光・貫通）が必ずドロップ！周回して重ねると運極にもできます。試練・超進化（★7）にも対応。\n"
+  { id: "up-2026-10-20-i", date: "2026-10-20", title: "戦姫アステリア 登場",
+    body: "神域Ⅴのごほうびキャラが「戦姫アステリア」に生まれ変わりました！光の翼・翼の冠・光の槍・背中の魔法陣と、専用に描いた特別な見た目です。"
+      + "（前の名前で手に入れていた人も、そのまま戦姫アステリアになっています）" },
+  { id: "up-2026-10-20-h", date: "2026-10-20", title: "神域Ⅴのごほうび「戦姫アステリア」",
+    body: "神域Ⅴをクリアすると★6「戦姫アステリア」（光・貫通）が必ずドロップ！周回して重ねると運極にもできます。試練・超進化（★7）にも対応。\n"
       + "友情コンボ「絆レーザー」は触れた味方との間にレーザーを張って何度もヒット。SS「大号令」は味方全員の友情コンボを2回ずつ（威力1.5倍）発動！\n"
       + "マナーモードの時は音が鳴らないようにしました。" },
   { id: "up-2026-10-20-g", date: "2026-10-20", title: "新BGM・神域・WAVEの演出",
