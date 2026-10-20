@@ -1150,6 +1150,65 @@ function extremeStage(i) {
   };
 }
 
+// ---- 神域（限界まで育てたキャラでも、うまく戦わないとクリアできない5ステージ） -------------------
+// 敵はとても硬く、ターン制限つき（20ターンでクリアできないと失敗）。弱点・友情コンボ・SSの使いどころが大事
+// 絶級Ⅴをクリアすると解放、1つずつ順番に
+const GOD = [
+  ["灼滅の神域",   "fire",  "dark",  ["dwall", "mine", "block"]],
+  ["蒼淵の神域",   "water", "light", ["warp", "gbar", "mine"]],
+  ["翠嵐の神域",   "wood",  "fire",  ["block", "warp", "dwall"]],
+  ["天光の神域",   "light", "water", ["gbar", "dwall", "mine"]],
+  ["終焉の神域",   "dark",  "light", ["warp", "gbar", "block"]],
+];
+const GOD_MUL = [120, 145, 175, 210, 250];             // 敵のHP（限界まで育てたキャラの攻撃でも何十発もかかる）
+const GOD_BOSS_HIT = [270000, 320000, 370000, 420000, 470000];   // ボスの全体攻撃1回のダメージ
+const GOD_MOB_HIT = [75000, 82000, 90000, 98000, 106000];        // ザコ敵の攻撃1回のダメージ（だいたい）
+const GOD_TURNS = 20;
+const godUnlocked = i => i === 0 ? !!save.cleared["h4"] : !!save.cleared["gd" + (i - 1)];
+function godStage(i) {
+  const [name, m, s, gims] = GOD[i], mul = GOD_MUL[i];
+  // 攻撃力はHPとは別に決める（ボスの一撃・ザコの一撃がちょうどこのくらいになるように）
+  const bossScale = GOD_BOSS_HIT[i] / (8000 * Math.pow(mul, 0.9)), mobScale = GOD_MOB_HIT[i] / (2200 * Math.pow(mul, 0.9));
+  const seed = w => seeded(990000 + i * 100 + w);
+  const wave = (w, n, bossOpt) => () => {
+    const wv = genWave(seed(w), w % 2 ? s : m, w % 2 ? m : s, n, mul, bossOpt, true, gims);
+    for (const e of wv.enemies) e.atk = Math.round(e.atk * (e.boss ? bossScale : mobScale));
+    // ザコの攻撃のタイミングをずらす（全員同じターンに攻撃してくると、腕では避けられないので）
+    wv.enemies.filter(e => !e.boss).forEach((e, k) => { e.cd = e.maxCd = 2 + (k % 3); });
+    return wv;
+  };
+  return {
+    id: "gd" + i, kind: "god", idx: i, name: `神域${ROMAN[i]} ${name}`, turnLimit: GOD_TURNS,
+    sub: `${EL[m].n}・${EL[s].n}属性 / ${GOD_TURNS}ターン以内 / ガード・再生`, boss: true, diff: 20 + i, mul: 1, par: 14,
+    bg: ["#2a2a06", "#000000"], coin: 300000 + i * 100000, gem: 1500 + i * 500, crEl: m, crN: 50 + i * 10, exp: 2000 + i * 500,
+    waves: [wave(0, 6), wave(1, 6), wave(2, 3, { name: `${name}の守護者`, hpMul: 2.2, r: 54, cd: 2 }),
+      wave(3, 2, { name: `神・${name}の主`, hpMul: 3.5, r: 64, cd: 2 })],
+    gims,
+  };
+}
+function drawGodList() {
+  txt(`絶級Ⅴクリアで解放。${GOD_TURNS}ターン以内にクリアしないと失敗!`, W / 2, 152, 11, "#ffe066", "center");
+  txt("限界まで育てても、弱点・友情コンボ・SSをうまく使わないと勝てない", W / 2, 168, 10, "#cfd6ff", "center", "normal");
+  GOD.forEach((_, i) => {
+    const q = godStage(i), y = 182 + i * 76, unlocked = godUnlocked(i), cleared = !!save.cleared[q.id];
+    button(14, y, W - 28, 70, "", () => {
+      if (!unlocked) { showToast(i === 0 ? "絶級Ⅴをクリアしよう" : "前の神域をクリアしよう"); return; }
+      openPrep(q.id);
+    }, { c1: unlocked ? "#5a4a0a" : "#2a2d3a", c2: unlocked ? "#0a0800" : "#15171f" });
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    outlinedText(q.name, 26, y + 18, unlocked ? "#ffe066" : "#777", 15);
+    ctx.textAlign = "right";
+    outlinedText(`★${q.diff}`, W - 26, y + 18, unlocked ? "#ff6b8b" : "#777", 13);
+    ctx.restore();
+    if (!unlocked) { txt("LOCK", 26, y + 44, 11, "#777"); return; }
+    txt(cleared ? `CLEAR ベスト${save.best[q.id]}T` : `初回ジェム${q.gem}`, 26, y + 42, 11, cleared ? "#7dffa0" : "#5ef0ff");
+    txt(`${q.sub}`, 26, y + 58, 9, "#cfd6ff", "left", "normal");
+    txt(gimText(q.gims), W - 26, y + 42, 9, "#ff9ab8", "right", "normal");
+  });
+}
+
 // 反射専用・貫通専用ステージ（そのタイプのキャラだけで編成して挑戦。各10ステージ）
 const TYPE_STAGES = 10;
 const TYPE_NAME = { reflect: "反射", pierce: "貫通" };
@@ -1224,6 +1283,7 @@ function getQuest(id) {
   if (id[0] === "e") { const [b, lv] = id.slice(1).split("_").map(Number); return eventQuest(b, lv); }
   if (id[0] === "a") return scoreQuest(Number(id.slice(1)));
   if (id[0] === "h") return extremeStage(Number(id.slice(1)));
+  if (id.startsWith("gd")) return godStage(Number(id.slice(2)));   // ゲリラ（"g"）より先に見る
   if (id[0] === "v") return superQuest(Number(id.slice(1)));
   if (id[0] === "b") return rushQuest(Number(id.slice(1)));
   if (id[0] === "c") return coopQuest(Number(id.slice(1)));
@@ -1314,6 +1374,7 @@ function startQuest(i) {
   shot = null;
   bolts = []; fx = []; particles = []; texts = []; events = [];
   bstat = { hits: 0, weak: 0, kills: 0, combos: 0, maxHit: 0, dmg: 0 };
+  waveScroll = null;
   if (q.kind === "raid") raidBattleStart(q);
   if (q.kind === "rush") rushDone = false;
   loadWave();
@@ -1968,6 +2029,13 @@ function startTurn() {
   if (coop.inBattle && !coop.host) { state = "enemy"; return; }   // 協力プレイの次の手番はホストから届く
   // 協力レイドはターン制限で終了
   if (quest.kind === "raid" && turn >= quest.turnLimit) { finishRaid(); return; }
+  // 神域はターン制限を超えると失敗
+  if (quest.kind === "god" && turn >= quest.turnLimit) {
+    showBanner("ターン切れ…", `${quest.turnLimit}ターン以内にクリアできなかった`, "#ff6b6b");
+    for (const a of allies) a.hurt = 16;
+    damageParty(hp, W / 2, FB - 10);
+    return;
+  }
   if (!alive().length) { waveClear(); return; }   // 爆弾の自爆などで敵がいなくなった時
   turn++;
   cur = (cur + 1) % allies.length;
@@ -2033,11 +2101,17 @@ function waveClear() {
       return;
     }
     if (quest.kind === "rush") healParty(Math.round(maxHp * 0.2), W / 2, FB - 20);   // ボスラッシュは倒すたびに20%回復
+    // 次のWAVEへ: 前へ進むように、マップが流れて次の場所が上から現れる
+    const old = { rocks, gim };
     waveIdx++;
     loadWave();
-    startTurn();
+    waveScroll = { t: 0, max: WAVE_SCROLL, old };
+    playSe("advance");
+    schedule(WAVE_SCROLL, startTurn);
   });
 }
+const WAVE_SCROLL = 50;   // 次のWAVEへ進む演出の長さ（フレーム）
+let waveScroll = null;
 
 // クリア報酬
 function finishQuest() {
@@ -2316,6 +2390,7 @@ function update() {
   for (const e of enemies) if (e.flash > 0) e.flash--;
   // 動くブロック
   for (const o of rocks) if (o.block) o.x = Math.max(o.r, Math.min(W - o.r, o.x0 + Math.sin(frameNo * o.spd + o.ph) * o.amp));
+  if (waveScroll && ++waveScroll.t >= waveScroll.max) waveScroll = null;
   if (quest && quest.kind === "raid") raidPoll();
   // 協力プレイ: 盤面が届いたあとに、先に来ていたショットを撃つ
   if (coop.inBattle && coop.pending && state === "aim" && coop.pending.turn === turn && coop.pending.cur === cur) {
@@ -3629,7 +3704,7 @@ function drawHeart(x, y, s) {
 }
 
 // ---- 描画: バトル -------------------------------------------------------
-function drawField() {
+function drawField(scroll = 0) {
   const bg = quest.bg;
   const g = ctx.createLinearGradient(0, TOP, 0, FB);
   g.addColorStop(0, bg[0]);
@@ -3639,17 +3714,18 @@ function drawField() {
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
   ctx.lineWidth = 1;
   for (let x = 0; x <= W; x += 30) { ctx.beginPath(); ctx.moveTo(x, TOP); ctx.lineTo(x, FB); ctx.stroke(); }
-  for (let y = TOP; y <= FB; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  // 横線はスクロールに合わせて下へ流れる
+  for (let y = TOP + (scroll % 30); y <= FB; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
   ctx.strokeStyle = "rgba(255,255,255,0.25)";
   ctx.lineWidth = 2;
   ctx.strokeRect(1, TOP + 1, W - 2, FB - TOP - 2);
 }
 
-function drawGimmicks() {
-  if (!gim) return;
+function drawGimmicks(gm = gim, walls = true) {
+  if (!gm) return;
   ctx.save();
   // ダメージウォール（赤く光る壁）
-  for (const side of gim.dwall) {
+  for (const side of (walls ? gm.dwall : [])) {
     ctx.strokeStyle = `rgba(255,60,90,${0.6 + Math.sin(frameNo * 0.3) * 0.3})`;
     ctx.lineWidth = 5;
     ctx.shadowColor = "#ff3b5c";
@@ -3672,7 +3748,7 @@ function drawGimmicks() {
   }
   ctx.shadowBlur = 0;
   // 重力バリア（紫の円、内向きに回る）
-  for (const g of gim.gbars) {
+  for (const g of gm.gbars) {
     const gr = ctx.createRadialGradient(g.x, g.y, g.r * 0.4, g.x, g.y, g.r);
     gr.addColorStop(0, "rgba(140,80,255,0)");
     gr.addColorStop(1, "rgba(140,80,255,0.28)");
@@ -3686,7 +3762,7 @@ function drawGimmicks() {
     ctx.setLineDash([]);
   }
   // ワープ（渦）
-  for (const w of gim.warps) {
+  for (const w of gm.warps) {
     for (let k = 0; k < 3; k++) {
       ctx.strokeStyle = ["#c58aff", "#7cf0ff", "#ffffff"][k];
       ctx.lineWidth = 2.5 - k * 0.6;
@@ -3699,7 +3775,7 @@ function drawGimmicks() {
     ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2); ctx.fill();
   }
   // 地雷
-  for (const m of gim.mines) {
+  for (const m of gm.mines) {
     if (m.taken) continue;
     ctx.fillStyle = "#3a1a1a";
     ctx.strokeStyle = "#ff5b3a";
@@ -3716,8 +3792,8 @@ function drawGimmicks() {
   ctx.restore();
 }
 
-function drawRocks() {
-  for (const o of rocks) {
+function drawRocks(list = rocks) {
+  for (const o of list) {
     if (o.block) {
       // 動くブロック（金属の箱）
       ctx.save();
@@ -3994,7 +4070,7 @@ function drawHud() {
   ctx.save();
   txt(quest.name, 10, 13, 12, "#cfd6ff");
   txt(`WAVE ${waveIdx + 1}/${quest.waves.length}`, 10, 29, 13, "#ffd35c", "left", "900");
-  txt(quest.kind === "raid" ? `TURN ${turn}/${quest.turnLimit}` : `TURN ${turn}`, W / 2, TOP / 2, 16, "#fff", "center", "900");
+  txt(quest.turnLimit ? `TURN ${turn}/${quest.turnLimit}` : `TURN ${turn}`, W / 2, TOP / 2, 16, quest.turnLimit && quest.turnLimit - turn <= 3 ? "#ff6b6b" : "#fff", "center", "900");
   ctx.restore();
   button(W - 62, 8, 54, 24, quest.kind === "raid" || quest.kind === "rush" ? "終了" : "やめる", () => { if (quest.kind === "coop") { coopLeave(); go("coop"); } else if (quest.kind === "raid" && state !== "clear") finishRaid(); else if (quest.kind === "rush" && state !== "clear") finishRush(false); else go(questHome()); }, { size: 11, c1: "#4a5280", c2: "#2b3158", fg: "#fff" });
 
@@ -4212,6 +4288,8 @@ function drawResult() {
     next = "u" + (quest.floor + 1);
   } else if (state === "clear" && quest.kind === "typed" && quest.idx + 1 < TYPE_STAGES) {
     next = typeId(quest.ptype, quest.idx + 1);
+  } else if (state === "clear" && quest.kind === "god" && quest.idx + 1 < GOD.length) {
+    next = "gd" + (quest.idx + 1);
   } else if (state === "clear" && quest.kind === "extreme" && quest.idx + 1 < EXTREME.length) {
     next = "h" + (quest.idx + 1);
   }
@@ -4230,12 +4308,35 @@ function drawResult() {
 function drawBattle() {
   ctx.save();
   if (shake) ctx.translate(rand(-shake, shake), rand(-shake, shake));
-  drawField();
+  // 次のWAVEへ進む時: 前のWAVEの地形は下へ流れ、次のWAVEが上から降りてくる
+  const fh = FB - TOP, p = waveScroll ? waveScroll.t / waveScroll.max : 1, ep = p * p * (3 - 2 * p);
+  drawField(waveScroll ? ep * fh : 0);
+  if (waveScroll) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, TOP, W, fh); ctx.clip();
+    ctx.translate(0, ep * fh);
+    drawGimmicks(waveScroll.old.gim, false);
+    drawRocks(waveScroll.old.rocks);
+    ctx.restore();
+    // 流れる線（スピード感）
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,255,255,${0.25 * Math.sin(p * Math.PI)})`;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 12; i++) {
+      const x = (i * 67 + 13) % W, y = TOP + ((frameNo * 18 + i * 97) % fh);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 40); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, TOP, W, fh); ctx.clip();
+    ctx.translate(0, -(1 - ep) * fh);
+  }
   drawGimmicks();
   drawRocks();
   for (const h of hearts) drawHeart(h.x, h.y + Math.sin(frameNo * 0.1) * 2, 11);
   drawFxUnder();
   for (const e of enemies) drawEnemy(e);
+  if (waveScroll) ctx.restore();
   drawAllies();
   drawBolts();
   drawFx();
@@ -4559,10 +4660,18 @@ function drawTrialList() {
 }
 
 // 絶級: いちばん難しい10ステージ（ガード・再生＋ギミック3つまで、4WAVE）
+let extremeMode = "extreme";
 function drawExtremeList() {
-  txt(`極限・神々の黄昏をクリアで解放。ギミックは最大${MAX_GIMS}つ`, W / 2, 122, 11, "#ff9ab8", "center");
+  // 絶級 / 神域 の切り替え
+  [["extreme", "絶級"], ["god", "神域"]].forEach(([k, label], i) => {
+    const on = extremeMode === k;
+    button(W / 2 - 124 + i * 128, 114, 120, 26, label, () => { extremeMode = k; },
+      { size: 12, c1: on ? (k === "god" ? "#ffe066" : "#ff6b8b") : "#4a5280", c2: on ? (k === "god" ? "#c08a10" : "#a02a4a") : "#2b3158", fg: on ? "#1a1030" : "#cfd6ff" });
+  });
+  if (extremeMode === "god") { drawGodList(); return; }
+  txt(`極限・神々の黄昏をクリアで解放。ギミックは最大${MAX_GIMS}つ`, W / 2, 150, 11, "#ff9ab8", "center");
   EXTREME.forEach((_, i) => {
-    const q = extremeStage(i), y = 132 + i * 44, unlocked = extremeUnlocked(i), cleared = !!save.cleared[q.id];
+    const q = extremeStage(i), y = 160 + i * 42, unlocked = extremeUnlocked(i), cleared = !!save.cleared[q.id];
     button(14, y, W - 28, 40, "", () => {
       if (!unlocked) { showToast(i === 0 ? "スペシャルの「極限・神々の黄昏」をクリアしよう" : "前の絶級をクリアしよう"); return; }
       openPrep(q.id);
@@ -5094,6 +5203,7 @@ const TITLES = [
   { id: "abyss",   n: "深淵の探求者",     d: "深淵の塔30階",                    ok: () => (save.abyssMax || 0) >= 30 },
   { id: "goku",    n: "極限突破",         d: "極限・神々の黄昏をクリア",        ok: () => !!save.cleared[8] },
   { id: "zekkyu",  n: "絶級の王者",       d: "絶級Ⅹをクリア",                  ok: () => !!save.cleared["h9"] },
+  { id: "god",     n: "神域の覇者",       d: "神域Ⅴをクリア",                  ok: () => !!save.cleared["gd4"] },
   { id: "reflect", n: "反射の達人",       d: "反射専用10をクリア",              ok: () => !!save.cleared["yr9"] },
   { id: "pierce",  n: "貫通の達人",       d: "貫通専用10をクリア",              ok: () => !!save.cleared["yp9"] },
   { id: "shin",    n: "真の力の使い手",   d: "試練Ⅲをクリア",                  ok: () => Object.values(save.trial || {}).some(v => v >= TRIAL_TIERS) },
@@ -5640,6 +5750,7 @@ function coopBegin(lv, members) {
   turn = 1; cur = 0; ssArmed = false; shot = null;
   bolts = []; fx = []; particles = []; texts = []; events = [];
   bstat = { hits: 0, weak: 0, kills: 0, combos: 0, maxHit: 0, dmg: 0 };
+  waveScroll = null;
   prepHelper = null;
   loadWave();
   state = "aim";
@@ -5666,7 +5777,7 @@ function coopApply(s) {
   gim = s.gim || emptyGim();
   hearts = s.hearts || [];
   (s.allies || []).forEach((v, i) => { if (allies[i]) Object.assign(allies[i], v); });
-  shot = null; bolts = []; events = []; ssArmed = false;
+  shot = null; bolts = []; events = []; ssArmed = false; waveScroll = null;
   state = "aim";
 }
 function coopRecvShot(p) {
@@ -6461,6 +6572,10 @@ function campaign() {
 // お知らせ
 // アップデートのお知らせ（ゲームを更新するたびにここへ足すと、全員のお知らせに自動で届く）
 const GAME_NEWS = [
+  { id: "up-2026-10-20-g", date: "2026-10-20", title: "新BGM・神域・WAVEの演出",
+    body: "BGMを全部作り直しました（ホーム・バトル・ボス戦、高難易度のボス戦は専用の決戦曲）。スマホで音が出なかった問題も直しました。"
+      + "音が出ない時は、ホームの「♪ 音」がONか確認してね。\n次のWAVEへ進む時、マップが流れて前に進む演出が入ります。"
+      + "クエストの「絶級」タブに、限界まで育てても腕がないと勝てない「神域」5ステージ（20ターン制限）を追加！" },
   { id: "up-2026-10-20-f", date: "2026-10-20", title: "出撃前のおすすめキャラ",
     body: "出撃前の編成画面に、そのクエストのおすすめキャラが金色の枠で出るようになりました。"
       + "敵の属性に有利か・ギミック対策の能力があるか・強さから選びます。有利な属性も表示。\n右上の「おすすめ編成」を押すと、一発でおすすめの4体に編成できます。" },
@@ -7117,21 +7232,31 @@ function draw() {
 let actx = null, masterGain = null, bgmGain = null, seGain = null, noiseBuf = null;
 let bgmName = null, bgmStep = 0, bgmNext = 0, bgmTimer = null;
 const seLast = {};
+// スマホは「指を離した時」など決まった操作の中でしか音を出せないので、いろいろな操作で呼ぶ
 function audioUnlock() {
   if (!save || !save.sound) return;
   try {
+    // iPhone のマナーモードでも鳴るようにする（対応しているブラウザだけ）
+    if (navigator.audioSession && navigator.audioSession.type !== "playback") navigator.audioSession.type = "playback";
     if (!actx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       actx = new AC();
-      masterGain = actx.createGain(); masterGain.gain.value = 0.5; masterGain.connect(actx.destination);
-      bgmGain = actx.createGain(); bgmGain.gain.value = 0.3; bgmGain.connect(masterGain);
-      seGain = actx.createGain(); seGain.gain.value = 0.6; seGain.connect(masterGain);
+      masterGain = actx.createGain(); masterGain.gain.value = 0.6; masterGain.connect(actx.destination);
+      bgmGain = actx.createGain(); bgmGain.gain.value = 0.32; bgmGain.connect(masterGain);
+      seGain = actx.createGain(); seGain.gain.value = 0.7; seGain.connect(masterGain);
       bgmTimer = setInterval(bgmTick, 50);
     }
-    if (actx.state === "suspended") actx.resume();
-  } catch (e) { actx = null; }
+    if (actx.state !== "running") actx.resume();
+    // 無音を一瞬鳴らして、音を出す許可をもらう（古い iPhone 向け）
+    if (!audioUnlock.done) {
+      const b = actx.createBuffer(1, 1, 22050), s = actx.createBufferSource();
+      s.buffer = b; s.connect(actx.destination); s.start(0);
+      audioUnlock.done = true;
+    }
+  } catch (e) { /* 音が出せない環境 */ }
 }
+for (const ev of ["pointerup", "touchend", "click", "keydown"]) document.addEventListener(ev, () => audioUnlock(), { passive: true });
 function setSound(on) {
   save.sound = on;
   persist();
@@ -7197,23 +7322,67 @@ function playSe(name) {
     case "fanfare": [72, 72, 72, 76, 79, 84].forEach((m, i) => tone("square", mtof(m), i === 5 ? 0.7 : 0.12, 0.1, now + [0, 0.1, 0.2, 0.35, 0.5, 0.7][i]));
                     noise(0.6, 0.12, now + 0.7, 3000); break;
     case "coin":    tone("square", 988, 0.07, 0.08, now); tone("square", 1319, 0.2, 0.08, now + 0.07); break;
+    case "advance": tone("sawtooth", 180, 0.6, 0.08, now, 520); noise(0.6, 0.08, now, 2500); seq([67, 71, 74, 79], "square", 0.1, 0.06, 0.1); break;
   }
 }
-// BGM（オリジナル曲）: 8分音符 32コマ（4小節）を繰り返す。chords は小節ごとのベースの音
+// ---- BGM（すべてオリジナル曲。8小節を16分音符で鳴らす） --------------------------------
+// chords: 小節ごとの和音 [ルート(3オクターブ目のMIDI), 種類] / mel: 8分音符ごとのメロディ（0は休み）
+// bass: 8分音符ごとのベース（ルートからの音程、null は休み） / kick・snare・hat: 16分音符ごとの "x"
+const CHORD = { M: [0, 4, 7], m: [0, 3, 7], M7: [0, 4, 7, 11], m7: [0, 3, 7, 10], s: [0, 5, 7], d7: [0, 4, 7, 10] };
 const SONGS = {
-  home: { bpm: 100, lead: "triangle", chords: [48, 45, 41, 43], bass: [0, null, 7, null, 12, null, 7, null], drums: false,
-    mel: [72, 0, 76, 79, 0, 76, 74, 72,  69, 0, 72, 76, 0, 74, 72, 69,  65, 69, 72, 0, 74, 72, 69, 0,  67, 71, 74, 0, 79, 0, 77, 74] },
-  battle: { bpm: 140, lead: "square", chords: [45, 41, 43, 40], bass: [0, 0, 12, 0, 0, 0, 12, 7], drums: true,
-    mel: [69, 72, 76, 72, 69, 72, 76, 77,  77, 76, 72, 69, 65, 69, 72, 0,  74, 0, 71, 74, 79, 77, 76, 74,  76, 80, 83, 80, 76, 0, 0, 0] },
-  boss: { bpm: 152, lead: "sawtooth", chords: [38, 46, 48, 45], bass: [0, 12, 0, 12, 0, 12, 7, 12], drums: true,
-    mel: [74, 0, 74, 77, 74, 72, 70, 69,  70, 0, 74, 77, 82, 81, 77, 74,  72, 0, 76, 79, 84, 82, 81, 79,  81, 0, 73, 76, 81, 0, 79, 0] },
+  // ホーム: さわやかで少しかっこいいポップ
+  home: { bpm: 112, lead: "square", leadVol: 0.05, pad: 0.018, arp: 0.022,
+    chords: [[48, "M7"], [45, "m7"], [41, "M7"], [43, "s"], [48, "M7"], [45, "m7"], [50, "m7"], [43, "M"]],
+    mel: [76, 0, 79, 0, 84, 0, 83, 79,  81, 0, 76, 0, 72, 0, 74, 76,  77, 0, 81, 0, 84, 0, 81, 77,  79, 0, 0, 74, 79, 0, 83, 0,
+          84, 0, 83, 79, 76, 0, 79, 84,  81, 0, 79, 76, 72, 0, 76, 79,  77, 0, 74, 77, 81, 0, 77, 74,  79, 0, 83, 86, 84, 0, 0, 0],
+    bass: [0, null, 7, null, 12, null, 7, 10],
+    kick: "x.......x.......", snare: "....x.......x...", hat: "..x...x...x...x.", crash: false },
+  // 通常バトル: 走るようなロック
+  battle: { bpm: 150, lead: "square", leadVol: 0.065, pad: 0.016, arp: 0.02,
+    chords: [[45, "m"], [41, "M"], [43, "M"], [40, "m"], [45, "m"], [41, "M"], [43, "M"], [40, "M"]],
+    mel: [69, 0, 72, 76, 74, 72, 71, 72,  77, 76, 74, 72, 74, 0, 72, 0,  71, 0, 74, 79, 77, 76, 74, 71,  71, 72, 74, 76, 0, 76, 79, 0,
+          81, 0, 79, 76, 79, 0, 76, 74,  77, 0, 76, 74, 72, 74, 76, 77,  79, 0, 77, 74, 71, 74, 79, 83,  80, 0, 76, 0, 80, 83, 88, 0],
+    bass: [0, 0, 12, 0, 0, 12, 0, 7],
+    kick: "x...x...x...x...", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.x.", crash: true },
+  // ボス: 速くて激しい
+  boss: { bpm: 162, lead: "sawtooth", leadVol: 0.045, pad: 0.02, arp: 0.018,
+    chords: [[50, "m"], [46, "M"], [48, "M"], [45, "M"], [50, "m"], [46, "M"], [43, "m"], [45, "d7"]],
+    mel: [74, 0, 74, 77, 76, 74, 72, 74,  70, 0, 74, 77, 82, 0, 81, 77,  72, 0, 76, 79, 84, 0, 82, 79,  81, 0, 73, 76, 81, 0, 85, 0,
+          86, 0, 84, 81, 82, 0, 81, 77,  82, 81, 77, 74, 77, 0, 74, 70,  79, 0, 82, 79, 74, 0, 79, 82,  81, 85, 88, 85, 81, 0, 0, 0],
+    bass: [0, 12, 0, 12, 0, 12, 7, 12],
+    kick: "x..xx...x..xx...", snare: "....x.......x..x", hat: "xxxxxxxxxxxxxxxx", crash: true },
+  // 高難易度のボス: 壮大で緊迫した決戦
+  hardboss: { bpm: 174, lead: "sawtooth", leadVol: 0.05, pad: 0.03, arp: 0.02, choir: true,
+    chords: [[40, "m"], [48, "M"], [50, "M"], [47, "M"], [40, "m"], [48, "M"], [45, "m"], [47, "d7"]],
+    mel: [76, 0, 0, 79, 0, 76, 83, 0,  84, 0, 83, 79, 76, 0, 72, 0,  74, 0, 78, 81, 86, 0, 84, 81,  83, 0, 0, 78, 75, 0, 71, 0,
+          88, 0, 86, 83, 84, 0, 83, 79,  84, 0, 88, 91, 88, 0, 84, 79,  81, 0, 84, 88, 86, 84, 81, 79,  83, 87, 90, 87, 83, 0, 0, 0],
+    bass: [0, 0, 0, 12, 0, 0, 7, 0],
+    kick: "x.x.x.x.x.x.x.x.", snare: "....x.......x...", hat: "x.x.x.x.x.x.x.x.", crash: true, toms: true },
 };
+// 高難易度のステージか（ボス戦の曲が変わる）
+const hardQuest = q => !!q && (q.diff >= 8 || ["extreme", "super", "abyss", "raid", "rush", "god"].includes(q.kind));
 function wantBgm() {
   if (BATTLE.has(state)) {
     if (state === "clear" || state === "over") return null;
-    return enemies.some(e => e.boss && !e.dead) ? "boss" : "battle";
+    if (!enemies.some(e => e.boss && !e.dead)) return "battle";
+    return hardQuest(quest) ? "hardboss" : "boss";
   }
   return state === "gachaAnim" ? null : "home";
+}
+// やわらかい和音（ノコギリ波を低音だけ通す）
+function padNote(freq, dur, vol, t0) {
+  const o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+  o.type = "sawtooth";
+  o.frequency.value = freq;
+  f.type = "lowpass";
+  f.frequency.value = 1100;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(vol, t0 + 0.12);
+  g.gain.setValueAtTime(vol, t0 + dur * 0.8);
+  g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(f); f.connect(g); g.connect(bgmGain);
+  o.start(t0);
+  o.stop(t0 + dur + 0.05);
 }
 function bgmTick() {
   if (!soundOk()) return;
@@ -7224,23 +7393,39 @@ function bgmTick() {
     bgmNext = actx.currentTime + 0.1;
   }
   if (!bgmName) return;
-  const song = SONGS[bgmName], step = 60 / song.bpm / 2;
+  const song = SONGS[bgmName], s16 = 60 / song.bpm / 4, bars = song.chords.length;
   if (bgmNext < actx.currentTime - 0.3) bgmNext = actx.currentTime + 0.05;   // 裏に回っていた時など
   while (bgmNext < actx.currentTime + 0.2) {
-    const i = bgmStep % 32, root = song.chords[Math.floor(i / 8)];
-    const m = song.mel[i];
-    if (m) tone(song.lead, mtof(m), step * 0.85, song.lead === "sawtooth" ? 0.05 : 0.08, bgmNext, null, bgmGain);
-    const b = song.bass[i % 8];
-    if (b !== null) tone("triangle", mtof(root + b), step * 0.9, 0.16, bgmNext, null, bgmGain);
-    if (song.drums) {
-      if (i % 4 === 0) tone("sine", 150, 0.15, 0.3, bgmNext, 45, bgmGain);
-      if (i % 4 === 2) noise(0.1, 0.12, bgmNext, 1500, bgmGain);
-      noise(0.03, 0.04, bgmNext, 7000, bgmGain);
-    } else if (i % 8 === 0) {
-      // 小節の頭にやわらかい和音
-      for (const d of [12, 19, 24]) tone("sine", mtof(root + d), step * 7, 0.03, bgmNext, null, bgmGain);
+    const i = bgmStep % (bars * 16), bar = Math.floor(i / 16), s = i % 16, t = bgmNext;
+    const [root, kind] = song.chords[bar], tones = CHORD[kind].map(d => root + d);
+    // メロディ（8分）
+    if (s % 2 === 0) {
+      const m = song.mel[bar * 8 + s / 2];
+      if (m) tone(song.lead, mtof(m), s16 * 1.8, song.leadVol, t, null, bgmGain);
     }
-    bgmNext += step;
+    // ベース（8分）
+    if (s % 2 === 0) {
+      const b = song.bass[(s / 2) % 8];
+      if (b !== null) {
+        tone("triangle", mtof(root - 12 + b), s16 * 1.8, 0.17, t, null, bgmGain);
+        if (song.choir && s === 0) tone("sine", mtof(root - 24), s16 * 14, 0.12, t, null, bgmGain);   // 重い低音
+      }
+    }
+    // 和音（小節の頭に1小節ぶん）
+    if (s === 0) {
+      for (const n of tones) padNote(mtof(n + 12), s16 * 16, song.pad, t);
+      if (song.choir) for (const n of tones) tone("sine", mtof(n + 24), s16 * 15, 0.02, t, null, bgmGain);   // 合唱のような高い和音
+    }
+    // アルペジオ（16分）
+    tone("triangle", mtof(tones[s % tones.length] + 24 + (s >= 8 ? 12 : 0)), s16 * 0.9, song.arp, t, null, bgmGain);
+    // ドラム
+    if (song.kick[s] === "x") tone("sine", 160, 0.16, 0.38, t, 42, bgmGain);
+    if (song.snare[s] === "x") { noise(0.12, 0.16, t, 1600, bgmGain); tone("triangle", 220, 0.08, 0.07, t, 120, bgmGain); }
+    if (song.hat[s] === "x") noise(0.035, s % 4 === 2 ? 0.05 : 0.03, t, 7500, bgmGain);
+    if (song.crash && s === 0 && bar % 4 === 0) noise(0.9, 0.06, t, 3500, bgmGain);
+    // 最後の小節はタムで盛り上げる
+    if (song.toms && bar === bars - 1 && s >= 8 && s % 2 === 0) tone("sine", 220 - (s - 8) * 15, 0.15, 0.22, t, 70, bgmGain);
+    bgmNext += s16;
     bgmStep++;
   }
 }
