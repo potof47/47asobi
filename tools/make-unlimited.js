@@ -21,12 +21,13 @@ patch("if (on.url && on.key) {", "if (false && on.url && on.key) {", "online con
 // ジェム・コイン・結晶を常に満タンにする
 const refill = `
 // ---- 無制限版: ジェム・コイン・結晶が減らない -----------------------------------
-const UNLIMITED = { gems: 9999999, coins: 9999999, cr: 9999 };
+const UNLIMITED = { gems: 9999999, coins: 9999999, cr: 9999, tickets: 9999 };
 function refillItems() {
   if (!save) return;
   save.gems = UNLIMITED.gems;
   save.coins = UNLIMITED.coins;
   for (const k of EL_KEYS) save.cr[k] = UNLIMITED.cr;
+  save.skinTickets = UNLIMITED.tickets; // 着せ替えチケット
 }
 `;
 patch("function persist() {", refill + "function persist() {\n  refillItems();", "persist");

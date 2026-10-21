@@ -1,0 +1,32 @@
+# index.html が更新されたら、アイテム無制限版 unlimited.html を自動で作り直してコミットする
+name: Sync unlimited.html
+
+on:
+  push:
+    paths:
+      - index.html
+      - tools/make-unlimited.js
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/make-unlimited.js
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- unlimited.html; then
+            echo "変更なし"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add unlimited.html
+          git commit -m "Sync unlimited.html with index.html"
+          git push
