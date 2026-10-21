@@ -21,12 +21,13 @@
 //   onFail   "retry" … 全滅したら同じステージをやり直す（既定）/ "stop" … 止める
 //   maxFail  連続で全滅したら止める回数（既定 5）
 //   useSS    SSが使えるときは撃つ（既定 true）
+//   aim      "side" … 真横に撃つ（既定）/ "enemy" … 敵を直接狙う
 //
 // 注意: ひとりプレイ専用（協力プレイ中は動かない）。放置中はタブを閉じない・画面を消さない。
 (() => {
   if (window.autoStory && window.autoStory.stop) window.autoStory.stop();
 
-  const DEF = { mode: "repeat", stage: 0, toStage: 400, count: 0, speed: 6, onFail: "retry", maxFail: 5, useSS: true };
+  const DEF = { mode: "repeat", stage: 0, toStage: 400, count: 0, speed: 6, onFail: "retry", maxFail: 5, useSS: true, aim: "side" };
   const BATTLE_STATES = ["aim", "shoot", "enemy", "wave"];
 
   let cfg = { ...DEF };
@@ -66,7 +67,8 @@
     if (!a) return;
     const e = pickTarget(a);
     if (!e) return;
-    const { dx, dy } = aimAt(a, e);
+    // 既定は真横に撃つ（狙う敵のいる側。真上・真下なら右）。aim: "enemy" なら敵を直接狙う
+    const { dx, dy } = cfg.aim === "enemy" ? aimAt(a, e) : { dx: e.x < a.x ? -1 : 1, dy: 0 };
     ssArmed = cfg.useSS && a.ssLeft === 0;
     fire(dx, dy);
   }
