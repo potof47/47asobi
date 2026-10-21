@@ -370,3 +370,11 @@
 ```
 node tools/make-unlimited.js
 ```
+
+## ストーリー自動周回ツール
+
+`tools/auto-story.js` … ストーリーを自動で周回・進行するツール（ひとりプレイ専用）。ゲームのページを開いて実行すると左上にパネルが出る。
+- 使い方: ゲームを開いた状態でコンソールに `tools/auto-story.js` の中身を貼る。スマホは `tools/auto-story-bookmarklet.txt` の1行をブックマークに登録して、ゲームのページで開く
+- 「同じ話を周回」「次の話へ進む（終点の話まで）」、回数の上限、倍速（1〜30）、全滅したらやり直す／止める を選べる
+- 敵を自動で狙い（弱点が向いていれば弱点側）、SSが使えるときは撃つ。ストーリーの会話は自動で閉じる
+- コンソールからは `autoStory.start({ mode: "advance", stage: 1, toStage: 50, speed: 10 })` / `autoStory.stop()`
