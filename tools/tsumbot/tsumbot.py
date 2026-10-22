@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ツムツム自動プレイツール (Android + adb)
+"""ツムツム自動プレイツール (Android: adb / iPhone: WebDriverAgent)
 
 画面をスクリーンショット → ツムを円検出 → 見た目で種類分け →
 同じツムの最長チェーンを探す → 指でなぞる操作を adb で送る。
@@ -7,9 +7,10 @@
 使い方:
   python3 tsumbot.py --dry-run            # 1回だけ認識して debug.png を出力 (タップしない)
   python3 tsumbot.py                      # 自動プレイ開始 (Ctrl+C で停止)
+  python3 tsumbot.py --ios                # iPhone (WebDriverAgent 起動済みであること)
   python3 tsumbot.py --image shot.png     # 保存済みスクショで認識だけ確認
 """
-import argparse, subprocess, time, random, sys
+import argparse, subprocess, time, random, sys, json, base64, urllib.request
 import cv2, numpy as np
 
 
@@ -20,6 +21,37 @@ def screencap(serial=None):
     if img is None:
         raise RuntimeError("スクリーンショット取得に失敗 (adb接続/USBデバッグを確認)")
     return img
+
+
+class WDA:
+    """iPhone 用: WebDriverAgent (HTTP) 経由でスクショとタッチ操作を行う"""
+
+    def __init__(self, url):
+        self.url = url.rstrip("/")
+        self.sid = self._req("POST", "/session", {"capabilities": {}})
+        self.sid = self.sid.get("sessionId") or self.sid["value"]["sessionId"]
+        size = self._req("GET", f"/session/{self.sid}/window/size")["value"]
+        self.pw, self.ph = size["width"], size["height"]  # ポイント単位
+
+    def _req(self, method, path, body=None):
+        r = urllib.request.Request(self.url + path, method=method,
+                                   data=json.dumps(body).encode() if body is not None else None,
+                                   headers={"Content-Type": "application/json"})
+        return json.load(urllib.request.urlopen(r, timeout=30))
+
+    def screencap(self):
+        b = self._req("GET", "/screenshot")["value"]
+        return cv2.imdecode(np.frombuffer(base64.b64decode(b), np.uint8), cv2.IMREAD_COLOR)
+
+    def swipe_path(self, path, img_size):
+        k = self.pw / img_size[0]  # ピクセル -> ポイント
+        pts = [(int(x * k), int(y * k)) for x, y in path]
+        acts = [{"type": "pointerMove", "duration": 0, "x": pts[0][0], "y": pts[0][1]},
+                {"type": "pointerDown", "button": 0}]
+        acts += [{"type": "pointerMove", "duration": 30, "x": x, "y": y} for x, y in pts[1:]]
+        acts.append({"type": "pointerUp", "button": 0})
+        self._req("POST", f"/session/{self.sid}/actions", {"actions": [
+            {"type": "pointer", "id": "finger", "parameters": {"pointerType": "touch"}, "actions": acts}]})
 
 
 def detect(img, region, rmin, rmax):
@@ -115,6 +147,8 @@ def annotate(img, tsums, labels, chain, path_out):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--ios", metavar="WDA_URL", nargs="?", const="http://localhost:8100",
+                    help="iPhone で動かす。WebDriverAgent の URL (省略時 http://localhost:8100)")
     ap.add_argument("--serial", help="adb デバイスのシリアル")
     ap.add_argument("--image", help="adb を使わずこの画像で認識だけ行う")
     ap.add_argument("--dry-run", action="store_true", help="1回認識して debug.png を出力するだけ")
@@ -128,8 +162,9 @@ def main():
     ap.add_argument("--wait", type=float, default=0.8, help="1回なぞった後の待ち秒数")
     args = ap.parse_args()
 
+    wda = WDA(args.ios) if args.ios and not args.image else None
     while True:
-        img = cv2.imread(args.image) if args.image else screencap(args.serial)
+        img = cv2.imread(args.image) if args.image else (wda.screencap() if wda else screencap(args.serial))
         tsums = detect(img, args.region, args.rmin, args.rmax)
         labels = cluster(tsums, args.same) if tsums else []
         chain = best_chain(tsums, labels, args.link) if tsums else []
@@ -139,7 +174,10 @@ def main():
             print("debug.png に認識結果を出力しました")
             return
         if len(chain) >= args.min_chain:
-            swipe_path(chain, serial=args.serial)
+            if wda:
+                wda.swipe_path(chain, (img.shape[1], img.shape[0]))
+            else:
+                swipe_path(chain, serial=args.serial)
         time.sleep(args.wait)
 
 
