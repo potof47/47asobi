@@ -514,7 +514,101 @@ const CHARS = [
       u: { name: 'ふわーっ', k: 'rise', t: 44, on: 4, off: 24, dvy: -14.5, dvx: 3.6, nog: 1, rise: 1, ghost: 1, dmg: 4, kb: 3.5, ks: .07, ang: 80, hx: 0, hy: -40, w: 50, h: 70, vis: 'sparkle' },
       d: { name: 'おどかし', k: 'scare', t: 50, on: 14, off: 20, daze: 60, dmg: 6, kb: 3, ks: .05, ang: 30, rel: 1, hx: 0, hy: -34, w: 150, h: 104, vis: 'scare' }
     },
-    fs: { name: 'ナイトメア', type: 'aura', fx: 'dark', w: 760, h: 520, hy: -120, dark: 1 } }
+    fs: { name: 'ナイトメア', type: 'aura', fx: 'dark', w: 760, h: 520, hy: -120, dark: 1 } },
+  { id: 'reina', name: 'レイナ', sub: '氷の剣姫', cat: 'カッコいい', body: 'human', arch: 'sword', fx: 'ice',
+    look: { skin: '#ffe6d6', hair: '#bfe8ff', hairStyle: 'long', top: '#4a7ad8', bottom: '#e8f0ff', cape: '#8ad0ff', weapon: 'icesword', boots: '#3a5aa8', band: '#ffffff' },
+    col: '#6ab8ff', weight: 92, run: 3.9, air: .36, jump: 12.8, jumps: 1, grav: .6, fall: 9.4, as: 1.06, pow: .98, kbm: 1, rng: 1.08, bw: 14, bh: 54, stat: [3, 4, 2],
+    quote: '凍てつきなさい。',
+    m: { fsmash: { freeze: 1 }, dair: { freeze: 1 } },
+    sp: {
+      n: { name: 'アイスニードル', k: 'slash', t: 30, on: 10, proj: { ox: 28, oy: -32, vx: 10, r: 8, dmg: 3.5, kb: 2.5, ks: .04, ang: 30, life: 45, shape: 'ice', n: 3, spread: 1.2, freeze: 1 } },
+      s: { name: '氷刃ダッシュ', k: 'thrust', t: 36, on: 6, off: 18, dvx: 12.5, dmg: 9, kb: 5, ks: .12, ang: 38, hx: 30, hy: -30, w: 62, h: 36, freeze: 1, vis: 'icetrail' },
+      u: { name: 'ダイヤモンドスピン', k: 'riseSpin', t: 46, on: 4, off: 26, dvy: -14.2, dvx: 2.8, nog: 1, rise: 1, multi: 6, dmg: 3, kb: 3, ks: .06, ang: 80, rel: 1, hx: 0, hy: -40, w: 76, h: 80, vis: 'whirl' },
+      d: { name: '氷鏡カウンター', k: 'counterPose', t: 40, on: 4, off: 24, counter: { mul: 1.25, min: 9 } }
+    },
+    fs: { name: 'アブソリュート・ゼロ', type: 'aura', fx: 'ice', freeze: 1, w: 560, h: 320 } },
+  { id: 'gou', name: 'ゴウ', sub: '爆炎ボクサー', cat: 'カッコいい', body: 'human', arch: 'brawl', fx: 'fire',
+    look: { skin: '#e8b890', hair: '#ff6a1a', hairStyle: 'spiky', top: '#2a2a2a', bottom: '#c92f2f', gloves: '#ff3a3a', boxing: 1, boots: '#222222', band: '#ffd23f' },
+    col: '#ff5a2a', weight: 104, run: 3.8, air: .32, jump: 12, jumps: 1, grav: .68, fall: 10.2, as: 1.04, pow: 1.12, kbm: 1, rng: .95, bw: 16, bh: 56, stat: [4, 3, 3],
+    quote: '燃えてきたぜぇ！',
+    m: { jab: { rapid: 'atk', multi: 3, dmg: 1.5, kb: 1.2, ks: .02, on: 3, off: 12, t: 16, next: null, fin: 'jab3' }, jab3: { k: 'uppercut', ang: 70 }, ftilt: { k: 'punch' }, fsmash: { dmg: 19, kb: 7.4, vis: 'spark' }, fair: { k: 'punch' } },
+    sp: {
+      n: { name: 'ファイアナックル', k: 'punch', t: 32, on: 12, charge: { max: 70 }, proj: { ox: 30, oy: -32, vx: 9, r: 11, dmg: 6, kb: 3.5, ks: .08, ang: 35, life: 40, shape: 'fire' } },
+      s: { name: 'ブレイズラッシュ', k: 'punch', t: 42, on: 8, off: 22, dvx: 12, armor: 1, dmg: 12, kb: 6, ks: .15, ang: 38, hx: 28, hy: -32, w: 56, h: 40, vis: 'spark' },
+      u: { name: '昇炎拳', k: 'uppercut', t: 44, on: 4, off: 22, dvy: -14.6, dvx: 2.2, nog: 1, rise: 1, multi: 5, dmg: 3, kb: 3, ks: .06, ang: 85, hx: 14, hy: -56, w: 52, h: 80,
+           ex: [{ on: 20, off: 23, dmg: 7, kb: 6, ks: .14, ang: 80, hx: 14, hy: -70, w: 58, h: 90 }] },
+      d: { name: 'バーニングガード', k: 'castDown', t: 40, on: 12, off: 18, armor: 1, dmg: 11, kb: 5.5, ks: .14, ang: 60, rel: 1, hx: 0, hy: -30, w: 140, h: 80, vis: 'burst' }
+    },
+    fs: { name: '爆炎百烈拳', type: 'rush', fx: 'fire' } },
+  { id: 'usami', name: 'ウサミ', sub: 'ぴょんぴょんウサギ', cat: 'かわいい', body: 'beast', kind: 'bunny', arch: 'brawl', fx: 'wind',
+    look: { fur: '#fff4f8', fur2: '#ffd6e4', nose: '#ff7a96', collar: '#ff6aa0' },
+    col: '#ff9ec7', weight: 76, run: 4.4, air: .42, jump: 14, jumps: 2, grav: .6, fall: 9, as: 1.12, pow: .9, kbm: 1, rng: 1, bw: 14, bh: 50, stat: [2, 5, 1],
+    quote: 'ぴょーん♪',
+    m: { jab: { k: 'kick', next: 'jab2' }, jab2: { k: 'kick' }, fsmash: { k: 'kick', dmg: 15 }, usmash: { k: 'flip' }, fair: { k: 'kick' } },
+    sp: {
+      n: { name: 'にんじんブーメラン', k: 'throwP', t: 34, on: 10, proj: { ox: 24, oy: -28, vx: 9, r: 10, dmg: 5, kb: 3, ks: .06, ang: 40, life: 110, shape: 'carrot', boom: 30, pierce: 1, fx: 'normal' } },
+      s: { name: 'ドロップキック', k: 'kick', t: 38, on: 6, off: 18, dvx: 13, nog: 1, dmg: 10, kb: 5, ks: .13, ang: 40, hx: 26, hy: -24, w: 54, h: 40 },
+      u: { name: 'ハイジャンプ', k: 'rise', t: 40, on: 4, off: 20, dvy: -17, dvx: 3, nog: 1, rise: 1, dmg: 5, kb: 4, ks: .08, ang: 85, hx: 0, hy: -44, w: 50, h: 70, vis: 'sparkle' },
+      d: { name: 'ぴょんぴょんスタンプ', k: 'stomp', t: 56, on: 8, off: 52, dive: 1, pound: 1, dmg: 9, kb: 3.5, ks: .07, ang: 270, rel: 1, hx: 0, hy: -8, w: 44, h: 44 }
+    },
+    fs: { name: 'にんじん大雨', type: 'meteor', shape: 'carrot' } },
+  { id: 'piyo', name: 'ピヨ', sub: 'げんきなひよこ', cat: 'どうぶつ', body: 'round', kind: 'chick', arch: 'cute', fx: 'wind',
+    look: { fur: '#ffe14a', fur2: '#fff3a8', beak: '#ff9a3a', cheek: '#ff8a8a', tuft: '#ffcf2a' },
+    col: '#ffd23f', weight: 64, run: 3.4, air: .46, jump: 11, jumps: 3, grav: .5, fall: 7, as: 1.15, pow: .85, kbm: 1, rng: .95, bw: 15, bh: 40, stat: [1, 4, 1],
+    quote: 'ピヨピヨ〜！',
+    sp: {
+      n: { name: 'たまごなげ', k: 'throwP', t: 34, on: 12, proj: { ox: 22, oy: -34, vx: 5.5, vy: -6, gx: .35, r: 10, dmg: 8, kb: 4, ks: .1, ang: 50, life: 100, shape: 'egg', explode: 46, fx: 'normal' } },
+      s: { name: 'つっつき連打', k: 'headbutt', t: 28, on: 4, off: 22, rapid: 'spec', multi: 4, dmg: 1.8, kb: 1.8, ks: .03, ang: 40, hx: 26, hy: -20, w: 44, h: 30 },
+      u: { name: 'パタパタ', k: 'rise', t: 66, on: 6, off: 52, dvy: -9, dvx: 4, nog: 1, rise: 1, dmg: 2, kb: 3, ks: .04, ang: 80, rel: 1, hx: 0, hy: -24, w: 60, h: 50, vis: 'cloud' },
+      d: { name: 'ピヨピヨ', k: 'sing', t: 48, on: 14, off: 22, daze: 50, dmg: 4, kb: 2, ks: .03, ang: 60, rel: 1, hx: 0, hy: -26, w: 130, h: 80, vis: 'notes' }
+    },
+    fs: { name: 'ひよこパレード', type: 'stampede', shape: 'chick' } },
+  { id: 'taiga', name: 'タイガ', sub: '猛虎の戦士', cat: 'どうぶつ', body: 'beast', kind: 'tiger', arch: 'beast', fx: 'slash',
+    look: { fur: '#ff9a2a', fur2: '#fff4e0', stripe: '#2a1a10', nose: '#4a2a1a' },
+    col: '#ff8a1a', weight: 110, run: 4.3, air: .34, jump: 12.6, jumps: 1, grav: .7, fall: 10.6, as: 1.05, pow: 1.1, kbm: 1, rng: 1.05, bw: 17, bh: 58, stat: [4, 4, 3],
+    quote: 'ガルルル…！',
+    sp: {
+      n: { name: '爪の衝撃波', k: 'claw', t: 32, on: 10, proj: { ox: 26, oy: -34, vx: 9, r: 14, dmg: 7, kb: 4, ks: .08, ang: 35, life: 45, shape: 'crescent', pierce: 1 } },
+      s: { name: '猛虎突進', k: 'dash', t: 40, on: 6, off: 22, dvx: 13, multi: 5, dmg: 3.5, kb: 3, ks: .06, ang: 40, hx: 26, hy: -30, w: 56, h: 44, vis: 'claws',
+           ex: [{ on: 22, off: 25, dmg: 6, kb: 5.5, ks: .13, ang: 40, hx: 30, hy: -30, w: 60, h: 46 }] },
+      u: { name: '虎牙昇天', k: 'clawUp', t: 46, on: 5, off: 24, dvy: -14, dvx: 2.6, nog: 1, rise: 1, multi: 6, dmg: 3.5, kb: 3.5, ks: .07, ang: 82, hx: 14, hy: -56, w: 60, h: 84, vis: 'claws' },
+      d: { name: '虎の威圧', k: 'roar', t: 48, on: 14, off: 22, daze: 45, dmg: 5, kb: 4, ks: .08, ang: 40, rel: 1, hx: 0, hy: -34, w: 150, h: 90, vis: 'roar' }
+    },
+    fs: { name: '猛虎乱舞', type: 'rush', fx: 'slash' } },
+  { id: 'gamma', name: 'ガンマ', sub: '重装ガンナー', cat: 'メカ・巨人', body: 'robot', arch: 'robot', fx: 'fire',
+    look: { metal: '#7a8a5a', metal2: '#3a4a2a', joint: '#3a3a3a', visor: '#1a1a1a', eye: '#ff4a3a', light: '#ffd23f' },
+    col: '#7a8a5a', weight: 124, run: 2.8, air: .26, jump: 11, jumps: 1, grav: .72, fall: 10.5, as: .86, pow: 1.18, kbm: 1.04, rng: 1.06, bw: 19, bh: 60, stat: [5, 1, 5],
+    quote: '一斉射撃、開始。',
+    sp: {
+      n: { name: 'ガトリング', k: 'beam', t: 40, on: 8, at: [8, 12, 16, 20, 24, 28], proj: { ox: 32, oy: -36, vx: 13, r: 6, dmg: 2, kb: 1.2, ks: .02, ang: 15, life: 36, shape: 'laser', fx: 'fire' } },
+      s: { name: 'グレネード', k: 'throwP', t: 40, on: 14, proj: { ox: 24, oy: -40, vx: 6.5, vy: -7, gx: .4, r: 10, dmg: 13, kb: 6, ks: .15, ang: 60, life: 110, shape: 'cbomb', explode: 70, fx: 'fire' } },
+      u: { name: 'ロケットジャンプ', k: 'rise', t: 48, on: 4, off: 22, dvy: -15, dvx: 2.4, nog: 1, rise: 1, dmg: 10, kb: 6, ks: .14, ang: 270, rel: 1, hx: 0, hy: 10, w: 70, h: 40, vis: 'jet' },
+      d: { name: 'シールドバリア', k: 'cast', t: 40, on: 4, off: 28, reflect: 1, dmg: 4, kb: 4, ks: .08, ang: 50, rel: 1, hx: 0, hy: -32, w: 96, h: 90, vis: 'barrier' }
+    },
+    fs: { name: 'フルバースト', type: 'beam', fx: 'fire', w: 880, h: 160 } },
+  { id: 'pop', name: 'ポップ', sub: 'キラキラアイドル', cat: 'かわいい', body: 'human', arch: 'magic', fx: 'magic',
+    look: { skin: '#ffe8d8', hair: '#8a6aff', hairStyle: 'twin', top: '#ff8ec7', bottom: '#ffffff', weapon: 'mic', boots: '#ff6aa0', robe: 1, band: '#ffe14a' },
+    col: '#ff8ec7', weight: 74, run: 3.4, air: .4, jump: 12, jumps: 2, grav: .52, fall: 7.2, as: 1.05, pow: .92, kbm: 1, rng: 1, bw: 13, bh: 50, stat: [2, 3, 1],
+    quote: 'みんな〜、ありがと〜♪',
+    sp: {
+      n: { name: '音符ショット', k: 'sing', t: 28, on: 10, proj: { ox: 24, oy: -34, vx: 7, r: 10, dmg: 4, kb: 2.5, ks: .05, ang: 35, life: 70, shape: 'note', n: 2, spread: 1.6 } },
+      s: { name: 'アイドルステップ', k: 'dash', t: 34, on: 4, off: 16, dvx: 15, ghost: 1, nog: 1, dmg: 6, kb: 4.5, ks: .11, ang: 40, hx: 14, hy: -30, w: 56, h: 40, vis: 'sparkle' },
+      u: { name: 'ハートジャンプ', k: 'rise', t: 44, on: 4, off: 24, dvy: -14.5, dvx: 3.4, nog: 1, rise: 1, dmg: 4, kb: 3.5, ks: .07, ang: 80, hx: 0, hy: -40, w: 54, h: 70, vis: 'sparkle' },
+      d: { name: 'ファンサービス', k: 'taunt', t: 50, on: 18, off: 24, heal: 5, dmg: 5, kb: 4.5, ks: .09, ang: 70, rel: 1, hx: 0, hy: -34, w: 120, h: 80, vis: 'flower' }
+    },
+    fs: { name: 'ライブステージ', type: 'aura', fx: 'magic', w: 600, h: 340 } },
+  { id: 'draco', name: 'ドラコ', sub: 'わんぱく子ドラゴン', cat: 'どうぶつ', body: 'dragon', arch: 'beast', fx: 'fire',
+    look: { plate: '#5ac85a', plate2: '#3a8a3a', accent: '#ffd23f', eye: '#ffb000', wing: '#2e8a4a', belly: '#fff0a8' },
+    col: '#5ac85a', weight: 100, run: 3.5, air: .36, jump: 12, jumps: 2, grav: .6, fall: 9, as: 1, pow: 1.05, kbm: 1, rng: 1.02, bw: 17, bh: 52, stat: [3, 3, 3],
+    quote: 'ガオー！…なんちゃって',
+    m: { fsmash: { k: 'bite', fx: 'fire' } },
+    sp: {
+      n: { name: 'ファイアブレス', k: 'breath', t: 34, on: 8, at: [8, 14, 20], proj: { ox: 30, oy: -40, vx: 7, vy: -1, gx: .12, r: 10, dmg: 3.5, kb: 2.5, ks: .04, ang: 30, life: 40, shape: 'fire' } },
+      s: { name: 'ドラゴンタックル', k: 'dash', t: 42, on: 8, off: 22, dvx: 11.5, armor: 1, dmg: 11, kb: 5.5, ks: .14, ang: 40, hx: 24, hy: -30, w: 60, h: 50 },
+      u: { name: 'つばさでとぶ', k: 'rise', t: 56, on: 6, off: 40, dvy: -11, dvx: 3.6, nog: 1, rise: 1, multi: 8, dmg: 2.5, kb: 2.5, ks: .04, ang: 80, rel: 1, hx: 0, hy: -40, w: 80, h: 70, vis: 'wings' },
+      d: { name: 'しっぽたたき', k: 'tail', t: 34, on: 8, off: 16, dmg: 9, kb: 5, ks: .13, ang: 45, rel: 1, hx: 0, hy: -14, w: 124, h: 40 }
+    },
+    fs: { name: 'ドラゴンブレス', type: 'beam', fx: 'fire', w: 820, h: 150 } }
 ];
 
 // 技表を組み立てる
@@ -890,7 +984,7 @@ function spawnProj(f, pr, k = 0) {
 }
 function spawnMeteor(f, met) {
   const xs = G.st.plats.filter(p => p.t === 'solid'), p = pick(xs);
-  const x = rnd(p.x1 - 40, p.x2 + 40), laser = met.shape === 'laser';
+  const x = rnd(p.x1 - 40, p.x2 + 40), laser = met.shape === 'laser' || met.shape === 'carrot';
   G.projs.push(mkProj(f, { x, y: G.cam.y - 360 / G.cam.z - rnd(0, 80), vx: laser ? 0 : rnd(-1.5, 1.5), vy: laser ? 15 : 9.5, r: laser ? 9 : 17, dmg: laser ? 5 : 7,
     kb: 4, ks: .1, ang: 70, rel: 1, life: 140, shape: met.shape, fx: met.fx, explode: laser ? 0 : 56, fall: 1, pierce: laser }));
 }
@@ -2062,6 +2156,14 @@ function drawWeapon(L, kind, hx, hy, a, s, P) {
     g.beginPath(); g.moveTo(2, -5 * s); g.lineTo(52 * s, -4 * s); g.lineTo(62 * s, 0); g.lineTo(52 * s, 4 * s); g.lineTo(2, 5 * s); g.closePath(); fs_('#3a3550', 1.8);
     g.fillStyle = '#b48aff'; g.fillRect(8 * s, -1.2 * s, 44 * s, 2.4 * s);
     rr(-3 * s, -10 * s, 6 * s, 20 * s, 2); fs_('#a070ff', 1.4); rr(-13 * s, -3 * s, 11 * s, 6 * s, 2); fs_('#22243a', 1.4);
+  } else if (kind === 'icesword') {
+    g.fillStyle = 'rgba(160,230,255,.35)'; g.beginPath(); g.moveTo(2, -6 * s); g.lineTo(46 * s, -4 * s); g.lineTo(54 * s, 0); g.lineTo(46 * s, 4 * s); g.lineTo(2, 6 * s); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(2, -3 * s); g.lineTo(42 * s, -2.6 * s); g.lineTo(50 * s, 0); g.lineTo(42 * s, 2.6 * s); g.lineTo(2, 3 * s); g.closePath(); fs_('#dff6ff', 1.6);
+    g.fillStyle = '#ffffff'; g.fillRect(8 * s, -.8 * s, 32 * s, 1.6 * s);
+    rr(-2 * s, -8 * s, 5 * s, 16 * s, 2); fs_('#7fd4ff', 1.4); rr(-11 * s, -2.5 * s, 9 * s, 5 * s, 2); fs_('#3a5aa8', 1.4);
+  } else if (kind === 'mic') {
+    limb(0, 0, 14 * s, 0, 3.5 * s, '#4a4a5a'); circ(18 * s, 0, 5.5 * s); fs_('#cfd8e8', 1.4);
+    g.strokeStyle = 'rgba(60,60,80,.6)'; g.lineWidth = 1; g.beginPath(); g.moveTo(14 * s, -2 * s); g.lineTo(22 * s, 2 * s); g.moveTo(14 * s, 2 * s); g.lineTo(22 * s, -2 * s); g.stroke();
   } else if (kind === 'kunai') {
     g.beginPath(); g.moveTo(0, -2.5 * s); g.lineTo(18 * s, 0); g.lineTo(0, 2.5 * s); g.closePath(); fs_('#cfd8e8', 1.3);
     g.strokeStyle = '#ff4a7a'; g.lineWidth = 2 * s; g.beginPath(); g.moveTo(-2, 0); g.lineTo(-8 * s, 0); g.stroke();
@@ -2121,7 +2223,7 @@ function drawHuman(c, L, P, s, opt) {
   if (L.scarf) { const sw = Math.sin((G ? G.t : 0) * .15) * 4; g.beginPath(); g.moveTo(-bw * .2, shY - 2); g.quadraticCurveTo(-bw * 1.8, shY + 2 + sw, -bw * 2.3, shY + 12 + sw); g.lineTo(-bw * 1.7, shY + 14 + sw); g.quadraticCurveTo(-bw * 1.2, shY + 6, -bw * .1, shY + 4); g.closePath(); fs_(L.scarf, 1.6); }
   // うしろの腕・脚
   const [abx, aby] = limbEnd(-bw * .15, shY + 3, P.aB.a, armL * P.aB.e);
-  limb(-bw * .15, shY + 3, abx, aby, 5.5 * s, L.armor ? top : (L.gloves ? top : skin)); g.fillStyle = L.gloves || skin; circ(abx, aby, 4.6 * s); fs_(L.gloves || skin, 1.6);
+  limb(-bw * .15, shY + 3, abx, aby, 5.5 * s, L.armor ? top : (L.gloves && !L.boxing ? top : skin)); g.fillStyle = L.gloves || skin; circ(abx, aby, (L.boxing ? 7 : 4.6) * s); fs_(L.gloves || skin, 1.6);
   const [lbx, lby] = limbEnd(-bw * .2, hipY, P.lB.a, legL * P.lB.e);
   limb(-bw * .2, hipY, lbx, lby, 6.5 * s, bot); ell(lbx + 2 * s, lby - 1, 5.5 * s, 4 * s); fs_(boots, 1.6);
   // からだ
@@ -2135,6 +2237,7 @@ function drawHuman(c, L, P, s, opt) {
   limb(bw * .2, hipY, lfx, lfy, 6.5 * s, bot); ell(lfx + 2 * s, lfy - 1, 5.5 * s, 4 * s); fs_(boots, 1.6);
   // あたま
   const hx = bw * .08;
+  if (L.hairStyle === 'twin') { const sw = Math.sin((G ? G.t : 0) * .12) * 3; for (const k of [-1, .55]) { g.beginPath(); ell(hx + k * R * 1.05, headY + R * .5 + sw * (k < 0 ? 1 : -1), R * .38, R * .9, k * .3); fs_(L.hair, 1.8); } }
   if (L.hairStyle === 'long') { g.beginPath(); g.moveTo(hx - R * 1.05, headY - R * .2); g.quadraticCurveTo(hx - R * 1.5, headY + R * 1.4, hx - R * .2, headY + R * 1.3); g.lineTo(hx + R * .3, headY); g.closePath(); fs_(L.hair); }
   circ(hx, headY, R); fs_(L.hairStyle === 'helmet' ? L.hair : skin);
   if (L.hairStyle === 'helmet') {
@@ -2152,7 +2255,7 @@ function drawHuman(c, L, P, s, opt) {
     if (L.hairStyle === 'spiky') { g.beginPath(); g.moveTo(hx - R * 1.05, headY + R * .1); g.lineTo(hx - R * 1.5, headY - R * .5); g.lineTo(hx - R * .9, headY - R * .6); g.lineTo(hx - R * 1.1, headY - R * 1.35); g.lineTo(hx - R * .3, headY - R * .95); g.lineTo(hx - R * .1, headY - R * 1.6); g.lineTo(hx + R * .4, headY - R * .95); g.lineTo(hx + R * 1.1, headY - R * 1.25); g.lineTo(hx + R * .95, headY - R * .45); g.quadraticCurveTo(hx + R * .2, headY - R * .55, hx - R * .2, headY - R * .2); g.lineTo(hx - R * .7, headY + R * .1); g.closePath(); fs_(L.hair, 1.8); }
     else if (L.hairStyle === 'ninja') { g.beginPath(); g.arc(hx, headY, R, Math.PI * 1.02, Math.PI * 1.98); g.lineTo(hx + R * .9, headY - R * .25); g.lineTo(hx - R * .9, headY - R * .25); g.closePath(); fs_(L.hair, 1.8); }
     else if (L.hairStyle === 'flat') { g.beginPath(); g.arc(hx, headY, R * 1.02, Math.PI * 1.05, Math.PI * 1.95); g.lineTo(hx + R * .9, headY - R * .45); g.lineTo(hx - R * .4, headY - R * .4); g.lineTo(hx - R * .95, headY + R * .1); g.closePath(); fs_(L.hair, 1.8); }
-    else if (L.hairStyle === 'long' || L.hairStyle === 'flower') { g.beginPath(); g.arc(hx, headY, R * 1.04, Math.PI * .95, Math.PI * 1.9); g.quadraticCurveTo(hx + R * .2, headY - R * .3, hx - R * .3, headY - R * .1); g.lineTo(hx - R * .95, headY + R * .4); g.closePath(); fs_(L.hair, 1.8); }
+    else if (L.hairStyle === 'long' || L.hairStyle === 'flower' || L.hairStyle === 'twin') { g.beginPath(); g.arc(hx, headY, R * 1.04, Math.PI * .95, Math.PI * 1.9); g.quadraticCurveTo(hx + R * .2, headY - R * .3, hx - R * .3, headY - R * .1); g.lineTo(hx - R * .95, headY + R * .4); g.closePath(); fs_(L.hair, 1.8); }
     if (L.band) { g.fillStyle = L.band; g.beginPath(); g.moveTo(hx - R * .98, headY - R * .38); g.lineTo(hx + R * .95, headY - R * .5); g.lineTo(hx + R * .93, headY - R * .3); g.lineTo(hx - R * .99, headY - R * .18); g.closePath(); g.fill(); if (L.hairStyle === 'ninja' || L.hairStyle === 'flat') { g.beginPath(); g.moveTo(hx - R * .95, headY - R * .3); g.lineTo(hx - R * 1.7, headY - R * .1 + Math.sin((G ? G.t : 0) * .2) * 2); g.lineTo(hx - R * 1.6, headY + R * .15); g.closePath(); g.fill(); } }
     if (L.hat) { g.beginPath(); g.moveTo(hx - R * 1.5, headY - R * .5); g.lineTo(hx + R * 1.4, headY - R * .5); g.lineTo(hx + R * .2, headY - R * 2.5); g.quadraticCurveTo(hx - R * .2, headY - R * 1.6, hx - R * 1.5, headY - R * .5); g.closePath(); fs_(L.hat, 1.8); g.fillStyle = '#ffe14a'; star(hx - R * .1, headY - R * 1.15, 4.5 * s); g.fill(); }
     if (L.flower) { for (let i = 0; i < 5; i++) { const a = i * TAU / 5; circ(hx - R * .5 + Math.cos(a) * 4 * s, headY - R * .9 + Math.sin(a) * 4 * s, 3.2 * s); fs_(L.flower, 1.1); } g.fillStyle = '#ffe14a'; circ(hx - R * .5, headY - R * .9, 2.4 * s); g.fill(); }
@@ -2160,17 +2263,22 @@ function drawHuman(c, L, P, s, opt) {
   // まえの腕＋武器
   const [afx, afy] = limbEnd(bw * .2, shY + 3, P.aF.a, armL * P.aF.e);
   if (L.weapon && !opt.item && !opt.hammer) drawWeapon(L, L.weapon, afx, afy, P.aF.a, s, P);
-  limb(bw * .2, shY + 3, afx, afy, 5.5 * s, L.armor ? top : L.gloves ? top : skin); circ(afx, afy, 4.8 * s); fs_(L.gloves || (L.armor ? shade(top, .2) : skin), 1.6);
+  limb(bw * .2, shY + 3, afx, afy, 5.5 * s, L.armor ? top : L.gloves && !L.boxing ? top : skin); circ(afx, afy, (L.boxing ? 7.5 : 4.8) * s); fs_(L.gloves || (L.armor ? shade(top, .2) : skin), 1.6);
+  if (L.boxing) { g.fillStyle = 'rgba(255,255,255,.4)'; circ(afx - 2 * s, afy - 2 * s, 2.4 * s); g.fill(); }
   return [afx, afy, P.aF.a];
 }
 // ---- 動物（ネコ・ライオン） ----
 function drawBeast(c, L, P, s, opt) {
-  const bh = c.bh, bw = c.bw, lion = c.kind === 'lion';
+  const bh = c.bh, bw = c.bw, lion = c.kind === 'lion', bunny = c.kind === 'bunny', tiger = c.kind === 'tiger';
   const hipY = -bh * .28, shY = -bh * .55, headY = -bh * .78, R = bh * .25, legL = bh * .25, armL = bh * .23, fur = L.fur, fur2 = L.fur2;
   // しっぽ
   const tw = Math.sin((G ? G.t : 0) * .12) * 6;
-  g.lineCap = 'round'; g.strokeStyle = OUT; g.lineWidth = 8 * s; g.beginPath(); g.moveTo(-bw * .5, hipY); g.quadraticCurveTo(-bw * 2, hipY + tw, -bw * 1.7, hipY - bh * .4); g.stroke();
-  g.strokeStyle = fur; g.lineWidth = 5 * s; g.stroke();
+  if (bunny) { circ(-bw * .75, hipY - 2, 7 * s); fs_(fur, 1.8); }
+  else {
+    g.lineCap = 'round'; g.strokeStyle = OUT; g.lineWidth = 8 * s; g.beginPath(); g.moveTo(-bw * .5, hipY); g.quadraticCurveTo(-bw * 2, hipY + tw, -bw * 1.7, hipY - bh * .4); g.stroke();
+    g.strokeStyle = fur; g.lineWidth = 5 * s; g.stroke();
+    if (tiger) { g.strokeStyle = L.stripe; g.setLineDash([4 * s, 6 * s]); g.stroke(); g.setLineDash([]); }
+  }
   if (lion) { g.fillStyle = L.mane; circ(-bw * 1.7, hipY - bh * .4, 5 * s); fs_(L.mane, 1.5); }
   const [abx, aby] = limbEnd(-bw * .1, shY + 4, P.aB.a, armL * P.aB.e);
   limb(-bw * .1, shY + 4, abx, aby, 6.5 * s, shade(fur, -.1)); circ(abx, aby, 5 * s); fs_(fur2, 1.5);
@@ -2184,10 +2292,13 @@ function drawBeast(c, L, P, s, opt) {
   const hx = bw * .15;
   if (lion) { const mt = (G ? G.t : 0) * .05; g.beginPath(); for (let i = 0; i < 16; i++) { const a = i * TAU / 16, q = i % 2 ? R * 1.25 : R * 1.6 + Math.sin(mt + i) * 1.5; g.lineTo(hx - R * .15 + Math.cos(a) * q, headY + Math.sin(a) * q); } g.closePath(); fs_(L.mane, 2); }
   // 耳
-  if (!lion) { for (const ex of [-R * .7, R * .55]) { g.beginPath(); g.moveTo(hx + ex - R * .35, headY - R * .55); g.lineTo(hx + ex + R * .05, headY - R * 1.45); g.lineTo(hx + ex + R * .4, headY - R * .55); g.closePath(); fs_(fur, 1.8); g.fillStyle = '#ff9bb0'; g.beginPath(); g.moveTo(hx + ex - R * .15, headY - R * .65); g.lineTo(hx + ex + R * .04, headY - R * 1.15); g.lineTo(hx + ex + R * .22, headY - R * .65); g.closePath(); g.fill(); } }
+  if (bunny) { for (const [ex, rot] of [[-R * .45, -.25], [R * .3, .15]]) { ell(hx + ex, headY - R * 1.55, R * .28, R * .85, rot); fs_(fur, 1.8); ell(hx + ex, headY - R * 1.5, R * .13, R * .6, rot); g.fillStyle = '#ffb0c8'; g.fill(); } }
+  else if (tiger) { for (const ex of [-R * .65, R * .5]) { circ(hx + ex, headY - R * .8, R * .32); fs_(fur, 1.6); g.fillStyle = '#2a1a10'; circ(hx + ex, headY - R * .8, R * .14); g.fill(); } }
+  else if (!lion) { for (const ex of [-R * .7, R * .55]) { g.beginPath(); g.moveTo(hx + ex - R * .35, headY - R * .55); g.lineTo(hx + ex + R * .05, headY - R * 1.45); g.lineTo(hx + ex + R * .4, headY - R * .55); g.closePath(); fs_(fur, 1.8); g.fillStyle = '#ff9bb0'; g.beginPath(); g.moveTo(hx + ex - R * .15, headY - R * .65); g.lineTo(hx + ex + R * .04, headY - R * 1.15); g.lineTo(hx + ex + R * .22, headY - R * .65); g.closePath(); g.fill(); } }
   else { for (const ex of [-R * .6, R * .5]) { circ(hx + ex, headY - R * .8, R * .3); fs_(fur, 1.6); } }
   circ(hx, headY, R); fs_(fur);
   ell(hx + R * .45, headY + R * .35, R * .55, R * .4); fs_(fur2, 1.4);
+  if (tiger) { g.strokeStyle = L.stripe; g.lineWidth = 2.2 * s; g.lineCap = 'round'; for (const k of [-1, 0, 1]) { g.beginPath(); g.moveTo(hx + k * R * .3, headY - R * .95); g.lineTo(hx + k * R * .25, headY - R * .6); g.stroke(); } for (const k of [1, -1]) { g.beginPath(); g.moveTo(hx - R * .95, headY + k * R * .15); g.lineTo(hx - R * .55, headY + k * R * .1); g.stroke(); } }
   drawEyes(c, hx + R * .05, headY - R * .1, s, P, R * .55);
   g.fillStyle = L.nose; ell(hx + R * .62, headY + R * .15, 2.6 * s, 2 * s); g.fill();
   if (P.mouth > .3) { g.fillStyle = '#7a1a2a'; ell(hx + R * .55, headY + R * .55, 4 * s, 3.5 * s * P.mouth); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(hx + R * .3, headY + R * .4); g.lineTo(hx + R * .38, headY + R * .6); g.lineTo(hx + R * .46, headY + R * .4); g.fill(); }
@@ -2226,14 +2337,16 @@ function drawRound(c, L, P, s, opt) {
     g.fillStyle = L.ribbon; g.beginPath(); g.moveTo(hx - bw * .55, hy - bh * .16); g.lineTo(hx - bw * .9, hy - bh * .28); g.lineTo(hx - bw * .85, hy - bh * .04); g.closePath(); fs_(L.ribbon, 1.2);
     g.fillStyle = L.bell; circ(hx - bw * .1, hy + bh * .22, 4 * s); fs_(L.bell, 1.4);
   } else {
+    const chick = c.kind === 'chick';
+    if (chick) { g.strokeStyle = OUT; g.lineWidth = 2; g.lineCap = 'round'; for (const k of [-1, 0, 1]) { g.beginPath(); g.moveTo(bw * .1, cy - ry * .9); g.quadraticCurveTo(bw * .1 + k * 6 * s, cy - ry * 1.3, bw * .1 + k * 9 * s, cy - ry * 1.2); g.stroke(); } }
     ell(0, cy, rx * .92, ry); fs_(L.fur, 2.2);
     ell(bw * .3, cy + ry * .15, rx * .55, ry * .78); g.fillStyle = L.fur2; g.fill();
     const hy = cy - ry * .45, hx = bw * .35;
     drawEyes(c, hx - bw * .1, hy, s, P, bw * .36, .95);
     g.fillStyle = L.cheek; ell(hx + bw * .5, hy + bh * .08, 3 * s, 2 * s); g.fill();
     g.beginPath(); g.moveTo(hx + bw * .45, hy + bh * .02); g.lineTo(hx + bw * (P.mouth > .3 ? 1.05 : .95), hy + bh * .06); g.lineTo(hx + bw * .45, hy + bh * (P.mouth > .3 ? .16 : .1)); g.closePath(); fs_(L.beak, 1.4);
-    g.fillStyle = L.scarf; rr(-bw * .7, cy - ry * .12, bw * 1.5, 6 * s, 3); fs_(L.scarf, 1.4);
-    const sw = Math.sin((G ? G.t : 0) * .15) * 3; g.beginPath(); g.moveTo(-bw * .6, cy - ry * .08); g.lineTo(-bw * 1.4, cy + sw); g.lineTo(-bw * 1.2, cy + 8 + sw); g.lineTo(-bw * .5, cy + 4); g.closePath(); fs_(L.scarf, 1.4);
+    if (L.scarf) { g.fillStyle = L.scarf; rr(-bw * .7, cy - ry * .12, bw * 1.5, 6 * s, 3); fs_(L.scarf, 1.4); }
+    const sw = Math.sin((G ? G.t : 0) * .15) * 3; if (L.scarf) { g.beginPath(); g.moveTo(-bw * .6, cy - ry * .08); g.lineTo(-bw * 1.4, cy + sw); g.lineTo(-bw * 1.2, cy + 8 + sw); g.lineTo(-bw * .5, cy + 4); g.closePath(); fs_(L.scarf, 1.4); }
   }
   const [lfx, lfy] = limbEnd(bw * .3, -bh * .1, P.lF.a, legL * P.lF.e);
   limb(bw * .3, -bh * .1, lfx, lfy, 6 * s, sheep ? '#5a4a4a' : L.beak); ell(lfx + 2 * s, lfy, 5.5 * s, 3.4 * s); fs_(sheep ? '#3a2a2a' : L.beak, 1.4);
@@ -2575,6 +2688,10 @@ function drawProj(p) {
     case 'star': g.rotate(p.rot); g.fillStyle = '#ffe14a'; star(0, 0, r * 1.25); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); break;
     case 'meteor': { const gr = g.createRadialGradient(0, 0, 2, 0, 0, r * 2); gr.addColorStop(0, '#fff'); gr.addColorStop(.3, '#ffe14a'); gr.addColorStop(1, 'rgba(255,120,60,0)'); g.fillStyle = gr; circ(0, 0, r * 2); g.fill(); g.fillStyle = 'rgba(255,200,80,.5)'; g.beginPath(); g.moveTo(-r, 0); g.lineTo(-p.vx * 5, -p.vy * 5); g.lineTo(r, 0); g.fill(); g.fillStyle = '#ffe14a'; star(0, 0, r * .8); g.fill(); break; }
     case 'wave': g.fillStyle = hexA(E[0], .7); g.beginPath(); g.moveTo(-r * 1.2, r); g.quadraticCurveTo(0, -r * 2, r * 1.2, r); g.closePath(); g.fill(); g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.moveTo(-r * .6, r); g.quadraticCurveTo(0, -r, r * .6, r); g.fill(); break;
+    case 'carrot': g.rotate(p.rot * 2); g.beginPath(); g.moveTo(-r * 1.3, 0); g.lineTo(r, -r * .45); g.lineTo(r, r * .45); g.closePath(); fs_('#ff8a2a', 1.4); g.fillStyle = '#4ac04a'; g.beginPath(); g.moveTo(r, 0); g.lineTo(r * 1.7, -r * .5); g.lineTo(r * 1.5, 0); g.lineTo(r * 1.7, r * .5); g.closePath(); g.fill(); break;
+    case 'egg': g.rotate(p.rot * .5); ell(0, 0, r * .85, r * 1.05); fs_('#fffaf0', 1.6); g.fillStyle = '#ffe14a'; circ(-r * .2, -r * .3, r * .2); g.fill(); break;
+    case 'crescent': g.scale(sgn(p.vx) || 1, 1); g.beginPath(); g.arc(0, 0, r * 1.3, -1.3, 1.3); g.arc(-r * .6, 0, r * 1.1, 1.2, -1.2, true); g.closePath(); g.fillStyle = 'rgba(255,255,255,.9)'; g.fill(); g.strokeStyle = 'rgba(255,170,80,.9)'; g.lineWidth = 2; g.stroke(); break;
+    case 'note': g.translate(0, Math.sin(p.t * .3) * 4); txt(p.id % 2 ? '♪' : '♫', 0, 0, r * 2.4, '#ff6ab8', 'center', '#fff', 4); break;
     case 'ink': g.fillStyle = '#2a1a3a'; circ(0, 0, r); g.fill(); g.fillStyle = '#4a3a5a'; circ(-r * .3, -r * .3, r * .35); g.fill(); break;
     case 'wisp': { const gr = g.createRadialGradient(0, 0, 1, 0, 0, r * 1.8); gr.addColorStop(0, '#fff'); gr.addColorStop(.4, '#9fd0ff'); gr.addColorStop(1, 'rgba(120,120,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r * 1.3, 0, Math.PI); g.quadraticCurveTo(-r, -r * 2, 0, -r * 2.6 + Math.sin(G.t * .3) * 3); g.quadraticCurveTo(r, -r * 2, r * 1.3, 0); g.fill(); break; }
     case 'darkorb': { const gr = g.createRadialGradient(0, 0, 1, 0, 0, r * 1.8); gr.addColorStop(0, '#fff'); gr.addColorStop(.35, '#b48aff'); gr.addColorStop(1, 'rgba(90,30,180,0)'); g.fillStyle = gr; circ(0, 0, r * 1.8); g.fill(); g.strokeStyle = '#2a0a4a'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, r * .9, p.rot, p.rot + 4); g.stroke(); break; }
@@ -2996,7 +3113,7 @@ function drawTitle() {
   button(W / 2 + 4, 312, 166, 48, 'トレーニング', () => goSelect('training'), { size: 18 });
   button(W / 2 - 170, 370, 166, 42, 'あそびかた', () => { showHow = true; howPage = 0; }, { size: 17 });
   button(W / 2 + 4, 370, 166, 42, muted ? '♪ 音：OFF' : '♪ 音：ON', () => { muted = !muted; if (!muted) unlockAudio(); }, { size: 17 });
-  txt('16人のファイター・5つのステージ・16種のアイテム', W / 2, 438, 15, '#fff', 'center', '#000', 4);
+  txt('24人のファイター・5つのステージ・16種のアイテム', W / 2, 438, 15, '#fff', 'center', '#000', 4);
   txt('キャラ・絵・音はすべてオリジナル（ファンメイドの対戦ゲーム）', W / 2, 518, 12, 'rgba(255,255,255,.6)');
   if (showHow) drawHow();
 }
@@ -3052,21 +3169,20 @@ function drawSelect() {
   if (cfg.mode === 'vs') button(640, 8, 150, 34, 'ルール：' + (cfg.rule === 'stock' ? 'ストック' + cfg.stocks : 'タイム' + cfg.time + '分'), () => { cfg.showRules = true; }, { size: 13 });
   button(800, 6, 150, 38, 'つぎへ ▶', selectNext, { primary: 1, size: 18 });
   // キャラ一覧
-  const cols = 9, cw = 99, ch = 128, x0 = 12, y0 = 52;
+  const cols = 9, cw = 99, ch = 84, x0 = 12, y0 = 50;
   const cur = cfg.slots[cfg.cur];
   for (let i = 0; i <= CHARS.length; i++) {
-    const x = x0 + (i % cols) * (cw + 5), y = y0 + ((i / cols) | 0) * (ch + 6);
+    const x = x0 + (i % cols) * (cw + 5), y = y0 + ((i / cols) | 0) * (ch + 4);
     const rand = i === CHARS.length, c = CHARS[i];
     const sel = rand ? cur.c < 0 : cur.c === i;
     ui.push({ x, y, w: cw, h: ch, fn: () => { cur.c = rand ? -1 : i; sfx.select(); if (!rand && cur === cfg.slots[0]) say(CHARS[i].name); } });
     const gg = g.createLinearGradient(0, y, 0, y + ch); gg.addColorStop(0, rand ? 'rgba(120,120,160,.6)' : hexA(c.col, sel ? .85 : .45)); gg.addColorStop(1, 'rgba(10,14,40,.92)');
     g.fillStyle = gg; rr(x, y, cw, ch, 10); g.fill(); g.lineWidth = sel ? 4 : 1.5; g.strokeStyle = sel ? '#ffe14a' : 'rgba(120,140,220,.6)'; g.stroke();
-    if (rand) { txt('?', x + cw / 2, y + 52, 60, '#fff', 'center', '#000', 6); txt('おまかせ', x + cw / 2, y + 108, 14, '#fff', 'center', '#000', 3); }
+    if (rand) { txt('?', x + cw / 2, y + 34, 44, '#fff', 'center', '#000', 6); txt('おまかせ', x + cw / 2, y + 72, 13, '#fff', 'center', '#000', 3); }
     else {
-      g.save(); rr(x, y, cw, ch, 10); g.clip(); g.translate(x + cw / 2, y + 92); const k = 52 / Math.max(52, c.bh); g.scale(1.25 * k, 1.25 * k);
+      g.save(); rr(x, y, cw, ch, 10); g.clip(); g.translate(x + cw / 2, y + 64); const k = 52 / Math.max(52, c.bh); g.scale(.9 * k, .9 * k);
       drawChar(c, sel ? attackPose('taunt', (t * .01) % 1, idlePose(t)) : portraitPose(t, i)); g.restore();
-      txt(c.name, x + cw / 2, y + 106, 15, '#fff', 'center', '#000', 4);
-      txt(c.cat, x + cw / 2, y + 121, 10, 'rgba(255,255,255,.75)');
+      txt(c.name, x + cw / 2, y + 74, 14, '#fff', 'center', '#000', 4);
     }
     // 割り当てマーク
     cfg.slots.forEach((s, k) => { if (k < slotCount() && (k === 0 || s.on || cfg.mode !== 'vs') && s.c === (rand ? -2 : i)) { circ(x + 14 + k * 10, y + 13, 8); fs_(TAGS[k].c, 1.5); txt(k === 0 ? '1' : 'C', x + 14 + k * 10, y + 13, 9, '#fff'); } });
