@@ -227,7 +227,8 @@ const sfx = {
   alarm() { for (let i = 0; i < 3; i++) { tone(880, 660, .18, 'square', .05, i * .25); } },
   freeze() { tone(3000, 1200, .25, 'triangle', .05); },
   sleep() { tone(660, 440, .3, 'sine', .05); tone(440, 330, .3, 'sine', .05, .25); },
-  ball() { tone(800, 1600, .08, 'square', .05); }
+  ball() { tone(800, 1600, .08, 'square', .05); },
+  cancel() { tone(900, 1500, .06, 'triangle', .05); }
 };
 // BGM（ステージごとに曲がかわる）
 const BGMS = [
@@ -632,6 +633,193 @@ const CHARS = [
     fs: { name: 'ドラゴンブレス', type: 'beam', fx: 'fire', w: 820, h: 150 } }
 ];
 
+// ---------------------------------------------------------------------
+//  キャラごとの通常技（全員ちがう技）
+// ---------------------------------------------------------------------
+// n=技の名前。ここに書いた値で、タイプ共通の技を上書きする
+const NOMELEE = { w: 0, ex: null };
+const MOVESETS = {
+  sora: {
+    jab: { n: '火花斬り', fx: 'fire' }, ftilt: { n: '炎の横なぎ', fx: 'fire', dmg: 9.5 }, utilt: { n: '炎輪斬り', fx: 'fire', w: 96 },
+    dtilt: { n: '足払い斬り', ang: 72 }, dash: { n: '踏みこみ突き', fx: 'fire' },
+    fsmash: { n: '爆炎斬', fx: 'fire', dmg: 18, ex: [{ on: 20, off: 23, dmg: 6, kb: 6, ks: .15, ang: 40, hx: 92, hy: -30, w: 60, h: 60, vis: 'burst', fx: 'fire' }] },
+    usmash: { n: '昇炎柱', k: 'slashUp', fx: 'fire', vis: 'burst', hy: -96, h: 110 }, dsmash: { n: '回転斬り', fx: 'fire' },
+    nair: { n: '火車', multi: 5, dmg: 2.5, kb: 2, ks: .03, off: 18, t: 32, ex: [{ on: 18, off: 21, dmg: 5, kb: 5, ks: .11, ang: 45, rel: 1, hx: 0, hy: -28, w: 92, h: 78 }] },
+    fair: { n: '流れ斬り' }, bair: { n: 'うしろ斬り' }, uair: { n: '天斬' }, dair: { n: '落下突き', fx: 'fire', ang: 280 }
+  },
+  kage: {
+    jab: { n: 'クナイ連撃' }, ftilt: { n: '回し蹴り', t: 20, on: 4, off: 8, dmg: 7 }, utilt: { n: '宙返り蹴り', k: 'flip', hy: -62 },
+    dtilt: { n: '足払い', ang: 82, kb: 4, ks: .05 }, dash: { n: '影すべり', k: 'slide', fx: 'dark', vis: 'shadow', hy: -12, h: 24 },
+    fsmash: { n: '影突き', fx: 'dark', vis: 'shadow', hx: 62, w: 96, h: 26 },
+    usmash: { n: 'つむじ風', k: 'spin', fx: 'wind', vis: 'whirl', multi: 5, dmg: 3, kb: 2.5, ks: .03, off: 28, t: 50, ex: [{ on: 28, off: 31, dmg: 7, kb: 6.5, ks: .17, ang: 88, rel: 1, hx: 0, hy: -74, w: 70, h: 70 }] },
+    dsmash: { n: '両手クナイ', fx: 'slash' }, nair: { n: 'つむじ蹴り', fx: 'wind', vis: 'whirl', multi: 3, dmg: 3, kb: 2.5, ks: .03 }, fair: { n: '飛び斬り', fx: 'slash' },
+    bair: { n: '影返し', fx: 'dark' }, uair: { n: '昇り斬り', k: 'slashUp', fx: 'slash' },
+    dair: { n: 'クナイ落とし', ...NOMELEE, t: 30, on: 8, land: 12, proj: { ox: 6, oy: -10, vx: 4, vy: 8, r: 7, dmg: 4, kb: 3, ks: .05, ang: 280, life: 30, shape: 'shuriken', n: 3, spread: 2.2, fx: 'slash' } }
+  },
+  raiga: {
+    jab: { n: '雷拳連打' }, ftilt: { n: '雷脚', vis: 'spark' }, utilt: { n: '雷アッパー', k: 'uppercut', vis: 'spark' },
+    dtilt: { n: '低空雷撃', vis: 'spark' }, dash: { n: '雷ショルダー', k: 'body' },
+    fsmash: { n: '雷神拳' }, usmash: { n: '天雷', k: 'castUp', vis: 'bolt', hy: -150, h: 220, w: 54 },
+    dsmash: { n: '放電', k: 'castDown', vis: 'spark', w: 160 }, nair: { n: '放電スピン', vis: 'spark', multi: 5, dmg: 2.2, kb: 2.5, ks: .03 },
+    fair: { n: '雷撃チョップ', k: 'punch', ang: 290, vis: 'spark' }, bair: { n: 'うしろ雷蹴り' }, uair: { n: '雷とうげり' }, dair: { n: '雷鳴落とし' }
+  },
+  noir: {
+    jab: { n: '大剣払い' }, ftilt: { n: '闇の突き', k: 'thrust', hx: 56, w: 96, h: 26 }, utilt: { n: '闇円斬' },
+    dtilt: { n: '地這い斬', proj: { ox: 30, oy: -12, vx: 6.5, r: 12, dmg: 5, kb: 3, ks: .06, ang: 60, life: 26, shape: 'wave', ground: 1, fx: 'dark' } },
+    dash: { n: '暗黒突撃', armor: 1 },
+    fsmash: { n: '闇の一閃', dmg: 22, on: 22, off: 26, t: 58 }, usmash: { n: '暗黒柱', k: 'castUp', vis: 'burst', hy: -110, h: 160, w: 72 },
+    dsmash: { n: '大地裂き', k: 'stomp', vis: 'quake' }, nair: { n: '闇旋風' },
+    fair: { n: '振り下ろし', ang: 285, dmg: 14, on: 14, off: 18, t: 44 }, bair: { n: 'うしろなぎ' }, uair: { n: '闇翼斬', vis: 'wings' }, dair: { n: '闇落とし' }
+  },
+  maho: {
+    jab: { n: 'スター連発', vis: 'sparkle' }, ftilt: { n: 'ほしくず', vis: 'sparkle' }, utilt: { n: 'ほしのアーチ', vis: 'burst' },
+    dtilt: { n: 'つえはらい', k: 'sweepS' }, dash: { n: 'ほうきタックル', k: 'body' },
+    fsmash: { n: 'ビッグバン', vis: 'burst', dmg: 18 },
+    usmash: { n: 'ながれぼし', proj: { ox: 0, oy: -60, vx: 0, vy: -9, r: 14, dmg: 8, kb: 5, ks: .14, ang: 88, life: 30, shape: 'star' }, w: 60, h: 50, hy: -70, dmg: 8 },
+    dsmash: { n: 'リングスター', vis: 'whirl' }, nair: { n: 'ほしまわし', vis: 'sparkle' }, fair: { n: 'つえ突き', k: 'thrust' },
+    bair: { n: 'うしろ魔法' }, uair: { n: 'ほしぞら' }, dair: { n: 'メテオ', vis: 'burst', ang: 275 }
+  },
+  merry: {
+    jab: { n: 'もふもふ頭突き' }, ftilt: { n: 'ウールパンチ', vis: 'cloud' }, utilt: { n: 'ぴょこん' }, dtilt: { n: 'ころりん' },
+    dash: { n: 'もこもこダッシュ', multi: 4, dmg: 3, kb: 2.5, ks: .04, off: 20, t: 38 }, fsmash: { n: 'ひつじアタック', vis: 'cloud', dmg: 15 },
+    usmash: { n: 'ねむけ雲', k: 'castUp', vis: 'cloud', hy: -86 }, dsmash: { n: 'ゆらゆら', vis: 'cloud' },
+    nair: { n: 'わたあめスピン', vis: 'cloud' }, fair: { n: 'とびつき' }, bair: { n: 'しっぽぽん', vis: 'cloud' }, uair: { n: 'つの突き', k: 'headUp' },
+    dair: { n: 'ふわふわ落下', multi: 4, dmg: 2.5, kb: 2, ks: .03, off: 26, t: 40 }
+  },
+  mike: {
+    jab: { n: 'ネコパンチ' }, ftilt: { n: 'ひっかき', vis: 'claws' }, utilt: { n: 'しっぽアッパー', k: 'flip' }, dtilt: { n: 'しっぽ払い' },
+    dash: { n: 'とびかかり' }, fsmash: { n: 'かみつき' }, usmash: { n: 'ネコジャンプ' }, dsmash: { n: '回転しっぽ' },
+    nair: { n: 'ねこ回転' }, fair: { n: '連続ひっかき', vis: 'claws' }, bair: { n: 'ねこキック' }, uair: { n: 'ねこ宙返り' }, dair: { n: 'ねこドリル' }
+  },
+  gao: {
+    jab: { n: '獣王パンチ', k: 'punch', rapid: null, fin: null, next: 'jab2', multi: 0, dmg: 4, kb: 3, ks: .05, on: 4, off: 7, t: 20 },
+    ftilt: { n: 'たてがみ打ち', k: 'headbutt', dmg: 11 }, utilt: { n: '咆哮アッパー', fx: 'fire' }, dtilt: { n: '爪払い', k: 'sweep' },
+    dash: { n: '獣王突進', k: 'body', armor: 1 }, fsmash: { n: '獣王の一撃', k: 'claw', vis: 'claws', fx: 'fire', dmg: 21 },
+    usmash: { n: '天に吠える', k: 'roar', vis: 'burst', hy: -84 }, dsmash: { n: '地ならし', k: 'stomp', vis: 'quake' },
+    nair: { n: '獣の舞', fx: 'fire' }, fair: { n: '振り下ろし爪', ang: 285, multi: 0, ex: null, dmg: 12, kb: 5, ks: .12, off: 14, t: 36 },
+    bair: { n: 'うしろ蹴り', dmg: 14 }, uair: { n: '天への牙', k: 'bite' }, dair: { n: 'ボディプレス', multi: 0, ex: null, dmg: 15, kb: 5, ks: .12, w: 70, off: 18 }
+  },
+  penta: {
+    jab: { n: 'くちばしつつき', fx: 'ice' }, ftilt: { n: 'フリッパービンタ', k: 'whip', fx: 'ice' }, utilt: { n: 'つらら頭突き', freeze: 1 },
+    dtilt: { n: 'はらばいスライド' }, dash: { n: 'ペンギンすべり' },
+    fsmash: { n: 'こおりのハンマー', k: 'body', vis: 'burst', freeze: 1, dmg: 16 }, usmash: { n: 'つららの柱', k: 'castUp', vis: 'icicle', hy: -90 },
+    dsmash: { n: 'こおりの床', k: 'castDown', vis: 'icetrail', freeze: 1, w: 150 }, nair: { n: 'くるくるペンギン', fx: 'ice' },
+    fair: { n: 'ペンギンダイブ', fx: 'ice' }, bair: { n: 'うしろフリッパー' }, uair: { n: 'つらら', k: 'castUp', vis: 'icicle' }, dair: { n: 'こおりの重し', freeze: 1 }
+  },
+  octo: {
+    jab: { n: 'あし連打' }, ftilt: { n: 'あしのばし' }, utilt: { n: 'タコの傘', k: 'castUp', multi: 4, dmg: 2.4, kb: 2.5, ks: .03, off: 18, t: 30 },
+    dtilt: { n: '足すくい', k: 'tentacle', hy: -8, h: 20, ang: 80 }, dash: { n: 'すべりダコ', k: 'slide', fx: 'water', hy: -12, h: 24 },
+    fsmash: { n: '八本ラッシュ' }, usmash: { n: '噴水', k: 'castUp', vis: 'burst', fx: 'water', multi: 4, dmg: 3.5, kb: 3, ks: .04, off: 26, t: 48, hy: -90, h: 130, w: 60,
+      ex: [{ on: 26, off: 29, dmg: 6, kb: 6.5, ks: .17, ang: 88, rel: 1, hx: 0, hy: -100, w: 64, h: 120 }] },
+    dsmash: { n: '八方あし', w: 170 }, nair: { n: 'あしまわし', multi: 4, dmg: 2.4, kb: 2, ks: .03 }, fair: { n: 'あしムチ', k: 'whip' },
+    bair: { n: 'うしろあし', k: 'tentacle' }, uair: { n: 'あし突き上げ', k: 'tentacle' }, dair: { n: 'タコプレス', multi: 3, dmg: 3, kb: 2, ks: .03 }
+  },
+  doshin: {
+    jab: { n: '岩パンチ' }, ftilt: { n: '岩石ストレート' }, utilt: { n: '岩突き上げ', k: 'uppercut' }, dtilt: { n: '岩すべらせ', k: 'sweep' },
+    dash: { n: '岩転がり', k: 'roll', armor: 1 }, fsmash: { n: 'ギガトンパンチ', dmg: 24, vis: 'spark' },
+    usmash: { n: '岩の柱', k: 'castUp', vis: 'quake', hy: -100, h: 160, w: 60 }, dsmash: { n: '大地踏み', vis: 'quake' },
+    nair: { n: '岩ボディ' }, fair: { n: '岩落とし', k: 'punch', ang: 285 }, bair: { n: 'うしろ岩拳', k: 'punch2' }, uair: { n: '岩頭突き' }, dair: { n: 'ドシン落下' }
+  },
+  robo: {
+    jab: { n: 'メタルジャブ' }, ftilt: { n: 'メタルフック' }, utilt: { n: '対空レーザー' }, dtilt: { n: 'ローキック', k: 'sweep' },
+    dash: { n: 'ブースター突進', k: 'body', vis: 'jet' }, fsmash: { n: 'アームキャノン' },
+    usmash: { n: '回転アーム', k: 'uppercut', multi: 4, dmg: 3.5, kb: 3, ks: .04, off: 24, t: 48, ex: [{ on: 24, off: 27, dmg: 6, kb: 6.5, ks: .17, ang: 88, rel: 1, hx: 0, hy: -74, w: 66, h: 60 }] },
+    dsmash: { n: 'メタルスプリット', fx: 'metal' }, nair: { n: 'スピンアーム', fx: 'metal' },
+    fair: { n: 'ドリルアーム', k: 'punch', multi: 4, dmg: 2.6, kb: 2, ks: .03, off: 20, t: 36, fx: 'metal', ex: [{ on: 20, off: 23, dmg: 5, kb: 5, ks: .12, ang: 40, hx: 36, hy: -30, w: 54, h: 36 }] },
+    bair: { n: 'ジェットキック', vis: 'jet' }, uair: { n: 'アンテナ電撃', k: 'castUp', fx: 'elec', vis: 'spark' }, dair: { n: 'メタルプレス' }
+  },
+  mecha: {
+    jab: { n: 'メタルクロー', k: 'claw' }, ftilt: { n: 'しっぽムチ', k: 'whip' }, utilt: { n: 'つの突き上げ' }, dtilt: { n: 'しっぽすくい' },
+    dash: { n: 'ドラゴン突進', k: 'body' }, fsmash: { n: 'かみくだき' }, usmash: { n: '火柱', k: 'castUp', vis: 'burst', fx: 'fire', hy: -100, h: 140 },
+    dsmash: { n: 'メカテイルスピン', k: 'tail', w: 170 }, nair: { n: '翼はばたき', k: 'spin', vis: 'wings' }, fair: { n: '爪ふりおろし', k: 'claw', ang: 285 },
+    bair: { n: 'しっぽ打ち', k: 'tail' }, uair: { n: '火炎吹き上げ', k: 'castUp', vis: 'burst', fx: 'fire' }, dair: { n: 'メタルストンプ' }
+  },
+  nano: {
+    jab: { n: 'アームパンチ', fx: 'elec' }, ftilt: { n: 'プロペラカッター', k: 'spin', vis: 'whirl', fx: 'metal', multi: 4, dmg: 2.4, kb: 2, ks: .03, off: 18, t: 30 },
+    utilt: { n: 'プロペラアッパー', k: 'castUp', vis: 'whirl', multi: 4, dmg: 2.4, kb: 2.5, ks: .03, off: 20, t: 32 }, dtilt: { n: '電撃チョップ', k: 'castDown', vis: 'spark' },
+    dash: { n: '突撃ドローン', k: 'body', vis: 'jet' }, fsmash: { n: 'レーザーキャノン' },
+    usmash: { n: '上空レーザー', k: 'castUp', vis: 'laser', w: 30, h: 170, hy: -110 }, dsmash: { n: '放電サークル', k: 'castDown', vis: 'spark' },
+    nair: { n: 'ドローンスピン' }, fair: { n: 'レーザーショット', ...NOMELEE, t: 26, on: 8, land: 10, proj: { ox: 24, oy: -24, vx: 14, r: 6, dmg: 4, kb: 2.5, ks: .05, ang: 30, life: 30, shape: 'laser' } },
+    bair: { n: 'うしろ噴射', k: 'castBack', vis: 'jet' }, uair: { n: 'プロペラ', k: 'castUp', vis: 'whirl', multi: 4, dmg: 2.4, kb: 2, ks: .03 },
+    dair: { n: '下向きレーザー', ...NOMELEE, t: 30, on: 8, land: 12, proj: { ox: 0, oy: -6, vx: 0, vy: 13, r: 7, dmg: 6, kb: 4, ks: .08, ang: 280, life: 26, shape: 'laser' } }
+  },
+  hana: {
+    jab: { n: '花びらパンチ', vis: 'petals' }, ftilt: { n: 'つたビンタ', k: 'whip', vis: 'vine', hx: 60, w: 94, h: 22 }, utilt: { n: '花火', vis: 'flower' },
+    dtilt: { n: '草むすび', ang: 82 }, dash: { n: '花ふぶき', k: 'body', vis: 'petals' }, fsmash: { n: '大輪の花', vis: 'flower', dmg: 17 },
+    usmash: { n: 'ひまわりアッパー', vis: 'flower' }, dsmash: { n: '草のじゅうたん', vis: 'petals', w: 172 }, nair: { n: '花かんむり', vis: 'petals' },
+    fair: { n: 'リーフブレード', vis: 'petals' }, bair: { n: 'うしろ花粉' }, uair: { n: 'たんぽぽ' },
+    dair: { n: 'たねまき', ...NOMELEE, t: 30, on: 8, land: 12, proj: { ox: 0, oy: -10, vx: 2, vy: 7, r: 6, dmg: 3.5, kb: 2.5, ks: .04, ang: 280, life: 34, shape: 'petal', n: 3, spread: 2.5 } }
+  },
+  yurei: {
+    jab: { n: 'ぺちぺち', vis: 'smoke' }, ftilt: { n: 'うらめしパンチ', vis: 'smoke' }, utilt: { n: 'ひゅ〜どろ', vis: 'smoke' },
+    dtilt: { n: 'すそはらい', k: 'sweep' }, dash: { n: 'すりぬけ', ghost: 1, dmg: 7 }, fsmash: { n: 'おばけフラッシュ', vis: 'burst', dmg: 17 },
+    usmash: { n: 'ひとだま柱', fx: 'fire', vis: 'burst' }, dsmash: { n: 'ぶるぶる', vis: 'scare' }, nair: { n: 'くるくるおばけ' },
+    fair: { n: 'のろいの手' }, bair: { n: 'うしろベロ' }, uair: { n: '王冠アタック', k: 'headUp' }, dair: { n: 'ずしーん', k: 'stomp' }
+  },
+  reina: {
+    jab: { n: '氷刃', fx: 'ice' }, ftilt: { n: 'つらら突き', k: 'thrust', fx: 'ice' }, utilt: { n: 'ダイヤモンドアーク', fx: 'ice', vis: 'icicle' },
+    dtilt: { n: '氷すべり斬り', fx: 'ice', vis: 'icetrail' }, dash: { n: 'スケートスラッシュ', k: 'slide', fx: 'ice', hy: -14, h: 26 },
+    fsmash: { n: '氷華一閃', fx: 'ice', ex: [{ on: 20, off: 23, dmg: 5, kb: 5, ks: .12, ang: 40, hx: 92, hy: -30, w: 56, h: 56, vis: 'burst', fx: 'ice', freeze: 1 }] },
+    usmash: { n: '氷柱乱立', k: 'castUp', vis: 'icicle', fx: 'ice' }, dsmash: { n: '氷結陣', k: 'castDown', vis: 'icewall', fx: 'ice', freeze: 1 },
+    nair: { n: 'ブリザードスピン', fx: 'ice' }, fair: { n: '氷の弧', fx: 'ice' }, bair: { n: '反転氷刃', fx: 'ice' }, uair: { n: 'つらら天突き', fx: 'ice' }, dair: { n: 'アイスドロップ' }
+  },
+  gou: {
+    jab: { n: 'ジャブ連打' }, ftilt: { n: 'ストレート' }, utilt: { n: 'ジャンピングアッパー', k: 'uppercut', fx: 'fire' },
+    dtilt: { n: 'ボディブロー', k: 'punch2', hy: -20 }, dash: { n: 'ダッシュフック', k: 'punch' }, fsmash: { n: 'メガトンストレート' },
+    usmash: { n: '昇炎アッパー', vis: 'burst', fx: 'fire' }, dsmash: { n: '両フック', k: 'punch2' }, nair: { n: 'ファイアスピン', fx: 'fire', multi: 3, dmg: 3, kb: 2.5, ks: .04 },
+    fair: { n: '空中ストレート' }, bair: { n: 'バックブロー', k: 'punch2' }, uair: { n: '空中アッパー', k: 'uppercut' }, dair: { n: 'ハンマーパンチ', k: 'punch', ang: 282 }
+  },
+  usami: {
+    jab: { n: 'うさキック' }, ftilt: { n: '前げり' }, utilt: { n: 'みみアッパー', k: 'headUp' }, dtilt: { n: 'ぴょん足払い' },
+    dash: { n: 'スライディングキック', k: 'kick', slide: 1 }, fsmash: { n: 'うさぎ回しげり', vis: 'sparkle' }, usmash: { n: 'サマーソルト' },
+    dsmash: { n: 'ぴょんぴょん開脚', dmg: 15, vis: 'sparkle' }, nair: { n: 'うさぎ旋風', vis: 'cloud', dmg: 7 }, fair: { n: 'とびげり' }, bair: { n: 'うしろげり', dmg: 13 },
+    uair: { n: 'みみはたき', k: 'headUp', vis: 'sparkle', dmg: 9 }, dair: { n: 'ふみつけ', ang: 270, dmg: 11 }
+  },
+  piyo: {
+    jab: { n: 'ピヨつつき', rapid: 'atk', multi: 4, dmg: 1.2, kb: 1, ks: .02, on: 3, off: 12, t: 16 }, ftilt: { n: 'つばさビンタ', k: 'whip' },
+    utilt: { n: 'とさかアタック', hy: -56, dmg: 6, vis: 'sparkle' }, dtilt: { n: 'ころころ', multi: 3, dmg: 2.5, kb: 2, ks: .04, off: 14, t: 26 }, dash: { n: 'ひよこダッシュ' }, fsmash: { n: 'たまごハンマー', vis: 'burst', dmg: 14 },
+    usmash: { n: 'ぴよジャンプ', vis: 'cloud', dmg: 13 }, dsmash: { n: 'ピヨピヨ回転', k: 'spin' }, nair: { n: 'パタパタ', vis: 'whirl', multi: 4, dmg: 2, kb: 2, ks: .03 }, fair: { n: 'くちばしダイブ', k: 'headbutt' },
+    bair: { n: 'おしりアタック', k: 'body', dmg: 9 }, uair: { n: 'ひよこヘッド', k: 'headUp', multi: 3, dmg: 3, kb: 2.5, ks: .04 },
+    dair: { n: 'たまごおとし', ...NOMELEE, t: 32, on: 8, land: 12, proj: { ox: 0, oy: -6, vx: 0, vy: 4, gx: .4, r: 9, dmg: 7, kb: 4, ks: .1, ang: 60, life: 60, shape: 'egg', explode: 40 } }
+  },
+  taiga: {
+    jab: { n: '虎爪', rapid: null, fin: null, next: 'jab2', multi: 0, dmg: 3.5, kb: 3, ks: .05, on: 3, off: 6, t: 16 }, ftilt: { n: '猛虎爪', vis: 'claws' },
+    utilt: { n: '虎尾アッパー' }, dtilt: { n: '低空爪', k: 'sweep', vis: 'claws' }, dash: { n: '飛びかかり爪', k: 'claw', vis: 'claws' },
+    fsmash: { n: '虎王の爪', k: 'claw', vis: 'claws', dmg: 19 }, usmash: { n: '昇り虎', vis: 'claws' }, dsmash: { n: '虎旋風', vis: 'whirl' },
+    nair: { n: '虎爪乱舞', vis: 'claws', multi: 4, dmg: 2.4, kb: 2, ks: .03 }, fair: { n: '空中虎爪', vis: 'claws' }, bair: { n: '虎のうしろ蹴り' },
+    uair: { n: '虎牙', k: 'bite' }, dair: { n: '虎の踏みつけ' }
+  },
+  gamma: {
+    jab: { n: 'ガンバット', fx: 'metal', k: 'thrust' }, ftilt: { n: '銃剣', k: 'thrust', fx: 'metal' },
+    utilt: { n: '対空射撃', ...NOMELEE, k: 'castUp', t: 26, on: 5, at: [5, 10], proj: { ox: 0, oy: -64, vx: 0, vy: -12, r: 6, dmg: 4, kb: 3, ks: .07, ang: 88, life: 24, shape: 'laser', fx: 'fire' } },
+    dtilt: { n: 'しゃがみ撃ち', ...NOMELEE, k: 'castDown', t: 22, on: 6, proj: { ox: 30, oy: -12, vx: 13, r: 6, dmg: 4, kb: 2.5, ks: .05, ang: 30, life: 30, shape: 'laser', fx: 'fire' } },
+    dash: { n: 'ヘッドバッシュ', k: 'headbutt', armor: 1, fx: 'metal', dmg: 11 },
+    fsmash: { n: 'ショットガン', ...NOMELEE, k: 'beam', proj: { ox: 34, oy: -36, vx: 11, r: 7, dmg: 3.8, kb: 4.5, ks: .12, ang: 35, life: 20, shape: 'orb', n: 5, spread: 1.1, fx: 'fire' } },
+    usmash: { n: '迫撃砲', ...NOMELEE, k: 'castUp', proj: { ox: 6, oy: -60, vx: 1, vy: -11, gx: .45, r: 10, dmg: 13, kb: 6, ks: .16, ang: 80, life: 70, shape: 'cbomb', explode: 70, fx: 'fire' } },
+    dsmash: { n: 'ボムばらまき', ...NOMELEE, k: 'castDown', proj: { ox: 20, oy: -20, vx: 4, vy: -5, gx: .4, r: 9, dmg: 9, kb: 5, ks: .13, ang: 60, life: 60, shape: 'cbomb', explode: 54, both: 1, fx: 'fire' } },
+    nair: { n: '回転ストック', fx: 'metal', vis: 'jet' }, fair: { n: 'ガンストック', fx: 'metal' }, bair: { n: 'バックブラスト', k: 'castBack', vis: 'jet', fx: 'fire' },
+    uair: { n: '真上撃ち', ...NOMELEE, k: 'castUp', t: 24, on: 6, land: 10, proj: { ox: 0, oy: -64, vx: 0, vy: -13, r: 6, dmg: 4, kb: 3, ks: .07, ang: 88, life: 22, shape: 'laser', fx: 'fire' } },
+    dair: { n: '真下撃ち', ...NOMELEE, k: 'castDown', t: 26, on: 8, land: 12, proj: { ox: 0, oy: -4, vx: 0, vy: 13, r: 6, dmg: 5, kb: 4, ks: .08, ang: 280, life: 24, shape: 'laser', fx: 'fire' } }
+  },
+  pop: {
+    jab: { n: 'ハートタッチ', vis: 'flower', dmg: 3.5 }, ftilt: { n: 'マイクスイング', k: 'slash' }, utilt: { n: 'キラキラ', vis: 'sparkle' },
+    dtilt: { n: 'ステップ', k: 'sweep' }, dash: { n: 'スライディング', k: 'slide', hy: -12, h: 24 },
+    fsmash: { n: 'シャウト', k: 'sing', vis: 'notes', dmg: 16, hx: 52, w: 110, h: 80 }, usmash: { n: 'ハイトーン', k: 'castUp', vis: 'notes' },
+    dsmash: { n: 'ダンスステップ', k: 'split', vis: 'sparkle' }, nair: { n: 'くるりんターン', vis: 'notes' }, fair: { n: 'マイクアタック', k: 'slash' },
+    bair: { n: 'うしろウインク', vis: 'sparkle' }, uair: { n: 'ハイタッチ', k: 'uppercut', dmg: 9 }, dair: { n: 'ステージダイブ', k: 'stomp' }
+  },
+  draco: {
+    jab: { n: '子竜パンチ', k: 'punch', rapid: null, fin: null, next: 'jab2', multi: 0, dmg: 3, kb: 2.5, ks: .04, on: 3, off: 6, t: 16, fx: 'fire' },
+    ftilt: { n: 'しっぽぺちん', k: 'whip' }, utilt: { n: '火の粉', k: 'castUp', vis: 'burst', fx: 'fire' }, dtilt: { n: 'ちびしっぽ払い' },
+    dash: { n: 'ころがりタックル', k: 'roll' }, fsmash: { n: 'がぶり' }, usmash: { n: '火炎噴き上げ', k: 'castUp', vis: 'burst', fx: 'fire' },
+    dsmash: { n: 'ぐるぐるしっぽ' }, nair: { n: 'つばさ旋回', vis: 'wings' }, fair: { n: '爪ひっかき', vis: 'claws' }, bair: { n: 'うしろしっぽアタック', k: 'tail' },
+    uair: { n: '火のいき', k: 'castUp', fx: 'fire', vis: 'burst' }, dair: { n: 'どすこいふみつけ' }
+  }
+};
+// わざ表に出す順番
+const MOVE_LABELS = [['jab', '弱'], ['ftilt', '横強'], ['utilt', '上強'], ['dtilt', '下強'], ['dash', 'ダッシュ'], ['fsmash', '横スマ'], ['usmash', '上スマ'], ['dsmash', '下スマ'],
+  ['nair', '空N'], ['fair', '空前'], ['bair', '空後'], ['uair', '空上'], ['dair', '空下'], ['nsp', '通常ひっさつ'], ['ssp', '横ひっさつ'], ['usp', '上ひっさつ'], ['dsp', '下ひっさつ'], ['fs', '最後の切り札']];
+
 // 技表を組み立てる
 function buildMoves(c) {
   const T = ARCH[c.arch] || {};
@@ -639,6 +827,8 @@ function buildMoves(c) {
   for (const k in B0) m[k] = { ...B0[k], ...(T[k] || {}) };
   for (const k in T) if (!m[k]) m[k] = { ...T[k] };
   for (const k in (c.m || {})) m[k] = { ...(m[k] || {}), ...c.m[k] };
+  const MS = MOVESETS[c.id] || {};
+  for (const k in MS) m[k] = { ...(m[k] || {}), ...MS[k] };
   m.nsp = { ...c.sp.n, sp: 1 }; m.ssp = { ...c.sp.s, sp: 1 }; m.usp = { ...c.sp.u, sp: 1 }; m.dsp = { ...c.sp.d, sp: 1 };
   m.fs = buildFS(c);
   m.counterHit = { t: 32, on: 4, off: 10, dmg: 9, kb: 7, ks: .18, ang: 40, hx: 32, hy: -30, w: 76, h: 56, k: c.arch === 'sword' ? 'slash' : 'kick', vis: 'counter' };
@@ -712,7 +902,10 @@ const TIPS = [
   '走りながらこうげきでダッシュこうげき。相手との距離をつめよう',
   'ガードを使いすぎるとブレイクしてしまう。気をつけて！',
   '同じキャラを選んだら、色ボタンで色を変えられるよ',
-  'ジャンプボタンを短く押すと小ジャンプ。空中でもう一度ジャンプできる'
+  'ジャンプボタンを短く押すと小ジャンプ。空中でもう一度ジャンプできる',
+  '攻撃が当たったら、すぐ次の技でキャンセルできる！ 弱→上強→空上 などでコンボをつなげよう',
+  '下投げや上強で相手を浮かせて、ジャンプ→空中攻撃で追いかけるとコンボになる',
+  '同じ技はコンボで2回使えない。いろんな技を組み合わせよう'
 ];
 
 // ---------------------------------------------------------------------
@@ -879,7 +1072,7 @@ function mkFighter(ci, slot, human, x, lv) {
     inp: { x: 0, y: 0, shield: false, jumpHeld: false, atkHeld: false, specHeld: false, smashHeld: false }, prevShield: false, anim: 0, t: 0,
     pw: 0, spd: 0, star: 0, szMode: 0, szT: 0, szv: 1, giga: 0, metal: false, bossSz: 1, item: null, hammer: 0, held: null, heldBy: null, holdT: 0, pumT: 0,
     frozen: 0, sleep: 0, burn: 0, elecT: 0, lavaCd: 0, fsReady: false, dead: false, out: false, rt: 0, hang: null, hangT: 0, runT: 0,
-    lastHit: null, lastHitT: -9999, rot: 0, spin: 0, flipT: 0, jumpCut: false, ff: false, crouch: false, combo: 0, comboDmg: 0, comboT: 0, atkP: -1, trail: [],
+    lastHit: null, lastHitT: -9999, hitLanded: false, chainN: 0, chainUsed: new Set(), rot: 0, spin: 0, flipT: 0, jumpCut: false, ff: false, crouch: false, combo: 0, comboDmg: 0, comboT: 0, atkP: -1, trail: [],
     ai: human ? null : { lv, hold: 0, cd: rnd(30, 70), react: 0, rec: 0, tgt: null, retarget: 0, chgT: 0, spT: 0, rapT: 0, gt: 0, itemT: 0, edgeT: 0 }
   };
 }
@@ -969,7 +1162,12 @@ function applyHit(att, o, hb, cx, cy, sd, opt = {}) {
   if (att) att.dmgDone += dmg;
   if (o.state === 'stun' || o.state === 'grabbed' || o.state === 'atk' && o.mv && o.mv.k && o.mv.k.startsWith('throw')) o.combo++; else { o.combo = 1; o.comboDmg = 0; }
   o.comboDmg += dmg; o.comboT = 100;
-  if (G.training && o.combo >= 2) G.comboShow = { n: o.combo, d: o.comboDmg, t: 120 };
+  if (att && o.combo >= 2 && !G.demo) {
+    if (att.human && !att.remote) G.comboShow = { n: o.combo, d: o.comboDmg, t: 110 };
+    const cp = o.comboPop, sz = 15 + Math.min(12, o.combo * 1.5);
+    if (cp && cp.life > 0 && G.parts.includes(cp)) Object.assign(cp, { text: o.combo + ' HIT!', life: 40, max: 40, sz, x: o.x, y: o.y - BH(o) - 26, _n: 0 });
+    else { popText(o.x, o.y - BH(o) - 26, o.combo + ' HIT!', '#ffe14a', sz, 40); o.comboPop = G.parts[G.parts.length - 1]; }
+  }
   if (att) { o.lastHit = att.id; o.lastHitT = G.t; }
   const hl0 = Math.round(clamp(Math.floor(dmg / 3) + 3, 3, 13) * (fxk === 'elec' ? 1.5 : 1));
   const hx = clamp(cx, o.x - BW(o) - 6, o.x + BW(o) + 6), hy = clamp(cy, o.y - BH(o), o.y);
@@ -995,7 +1193,9 @@ function applyHit(att, o, hb, cx, cy, sd, opt = {}) {
   o.vx = lx * v; o.vy = ly * v;
   if (o.ground && o.vy > -1.5) o.vy = -1.5;
   if (o.vy < 0) o.ground = null;
-  o.stun = clamp(Math.round(v * 1.7) + 5, 7, 90);
+  o.stun = clamp(Math.round(v * 1.8) + 10, 12, 90);
+  if (o.combo >= 6) o.stun = Math.round(o.stun * (o.combo >= 9 ? .5 : .72));
+  o.chainN = 0; o.chainUsed = new Set();
   if (o.state === 'hang') o.noGrab = 30;
   o.state = 'stun'; o.mv = null; o.sh = false; o.hang = null; o.helpless = false; o.dodge = 0; o.sbreak = false; o.sleep = 0; o.taunt = 0;
   o.spin = v > 9 ? 1 : 0;
@@ -1044,7 +1244,7 @@ function startMove(f, key, isItem) {
   const gr = !!f.ground;
   if (key === 'usp' && !isItem) { if (!gr && f.upUsed) return false; f.upUsed = true; }
   if (mv.sp && Math.abs(f.inp.x) > .5) f.dir = sgn(f.inp.x);
-  f.state = 'atk'; f.mv = mv; f.mt = 0; f.pmt = -1; f.hitSet.clear(); f.mvAir = !gr; f.chg = 0; f.chgDone = false; f.rapidN = 0; f.sh = false; f.trail = [];
+  f.state = 'atk'; f.mv = mv; f.mt = 0; f.pmt = -1; f.hitSet.clear(); f.mvAir = !gr; f.chg = 0; f.chgDone = false; f.rapidN = 0; f.sh = false; f.trail = []; f.hitLanded = false;
   f.want.tjump = 0;
   if (mv.dive) { f.vy = gr ? -9 : -3; f.ground = null; }
   if (!mv.proj && mv.w && !mv.charge) sfx.swing(mv.dmg > 12);
@@ -1274,6 +1474,7 @@ function actAtk(f, P) {
   if (mv.meteor && act && Math.floor(f.mt / 3) !== Math.floor(f.pmt / 3)) spawnMeteor(f, mv.meteor);
   if (mv.hbs.length) checkMoveHits(f, mv);
   if (f.state !== 'atk' || f.mv !== mv) return;
+  if (comboCancel(f)) return;
   if (mv.rapid && f.mt >= mv.off) {
     const hold = mv.rapid === 'atk' ? (inp.atkHeld || w.atk > 0) : (inp.specHeld || w.spec > 0);
     if (hold && f.rapidN < 24) { f.mt = mv.on; f.rapidN++; w.atk = 0; if (mv.rapid === 'spec') w.spec = 0; }
@@ -1281,6 +1482,44 @@ function actAtk(f, P) {
   }
   if (mv.next && w.atk > 0 && f.mt >= mv.off && Math.abs(inp.x) < .4 && Math.abs(inp.y) < .55) { w.atk = 0; startMove(f, mv.next); return; }
   if (f.mt >= mv.t) endMove(f);
+}
+// ヒットキャンセル：攻撃が当たったら、スキを「ちがう技」かジャンプでキャンセルできる（全キャラ共通のコンボ）
+// 1回のコンボでキャンセルは4回まで・同じ技は使えない
+function comboCancel(f) {
+  const w = f.want, inp = f.inp, gr = !!f.ground, mv = f.mv;
+  if (!f.hitLanded || f.chainN >= 4 || mv.fs || mv.none || mv.item || mv.rise || mv.dive || mv.k === 'taunt') return false;
+  if (f.mt < Math.min(mv.off, mv.t)) return false;
+  let key = null;
+  if (w.spec > 0 && !f.fsReady) key = inp.y < -.55 ? 'usp' : inp.y > .55 ? 'dsp' : Math.abs(inp.x) > .5 ? 'ssp' : 'nsp';
+  else if (w.smash > 0 && gr) key = inp.y < -.55 ? 'usmash' : inp.y > .55 ? 'dsmash' : 'fsmash';
+  else if (w.atk > 0 || w.smash > 0) key = gr ? (inp.y < -.55 ? 'utilt' : inp.y > .55 ? 'dtilt' : Math.abs(inp.x) > .4 ? 'ftilt' : 'jab')
+    : (inp.y < -.55 ? 'uair' : inp.y > .55 ? 'dair' : Math.abs(inp.x) > .4 ? (sgn(inp.x) === f.dir ? 'fair' : 'bair') : 'nair');
+  else if ((w.jump > 0 || w.tjump > 0) && (gr || f.jumps > 0) && f.hammer <= 0) {
+    w.jump = w.tjump = 0; f.chainUsed.add(mv.key); f.chainN++; f.state = 'free'; f.mv = null; doJump(f); comboStep(f, true); comboFlash(f); return true;
+  }
+  if (!key || key === mv.key || f.chainUsed.has(key) || (key === 'jab' && /^jab/.test(mv.key || ''))) return false;
+  if (key === 'usp' && !gr && f.upUsed) return false;
+  if ((key === 'ftilt' || key === 'fsmash') && Math.abs(inp.x) > .3) f.dir = sgn(inp.x);
+  const used = f.chainUsed, n = f.chainN, old = mv.key;
+  if (!startMove(f, key)) return false;
+  w.atk = w.smash = w.spec = 0;
+  f.chainUsed = used; f.chainUsed.add(old); f.chainN = n + 1;
+  if (key !== 'bair' && !/sp$/.test(key)) comboStep(f, false);
+  comboFlash(f);
+  return true;
+}
+// つなぎやすいように、当てた相手のほうへ少しふみこむ
+function comboStep(f, jump) {
+  const o = f.lastVic; if (!o || o.dead || o.out) return;
+  const dx = o.x - f.x, dy = o.y - f.y; if (Math.abs(dx) > 180) return;
+  if (!jump) f.dir = sgn(dx) || f.dir;
+  const gap = Math.abs(dx) - (BW(f) + BW(o)) * .6;
+  if (gap > 0) f.vx = sgn(dx) * Math.min(7, gap * .25 + 1.5);
+  if (jump && dy < -40) f.vy = Math.min(f.vy, -f.c.jump * 1.05);
+}
+function comboFlash(f) {
+  ring(f.x, f.y - BH(f) / 2, '#ffe14a', 34, 10); spark(f.x, f.y - BH(f) / 2, 5, '#fff6a8', 4, 12);
+  sfx.cancel();
 }
 function checkMoveHits(f, mv) {
   for (let i = 0; i < mv.hbs.length; i++) {
@@ -1298,13 +1537,14 @@ function checkMoveHits(f, mv) {
       const mulD = mv.charge === 1 ? 1 + f.chg / 60 * .45 : 1;
       const r = applyHit(f, o, hb, rect.cx, rect.cy, sd, { mulD, homerun: mv.homerun });
       if (r) f.hitSet.add(key);
+      if (r === 1) { f.hitLanded = true; f.lastVic = o; }
       if (r === 3) return;
     }
     hitItems(f, rect, 'm' + i + ':' + rd + ':' + f.rapidN);
   }
 }
 function endMove(f) {
-  const mv = f.mv; f.state = 'free'; f.mv = null;
+  const mv = f.mv; f.state = 'free'; f.mv = null; f.chainN = 0; f.chainUsed = new Set();
   if (mv && (mv.rise || mv.dive) && !f.ground) f.helpless = true;
   if (mv && mv.k === 'taunt') f.taunt = 0;
 }
@@ -1367,6 +1607,7 @@ function doThrow(f, d) {
   f.state = 'atk'; f.mv = f.c.moves['throw' + d.toUpperCase()]; f.mt = 0; f.pmt = -1; f.hitSet.clear();
   o.inv = 0;
   applyHit(f, o, th, o.x, o.y - BH(o) / 2, sd, { thrown: 1 });
+  f.hitLanded = true; f.lastVic = o;
   sfx.throw_();
 }
 
@@ -1972,6 +2213,20 @@ function aiThink(f) {
     }
     return;
   }
+  if (f.state === 'atk' && f.hitLanded && lv >= 2 && f.chainN < 3 && f.mv && f.mt >= f.mv.off && !a.comboTried) {
+    a.comboTried = true;
+    const tg = a.tgt;
+    if (tg && !tg.dead && Math.random() < .3 + lv * .15) {
+      const dx = tg.x - f.x, dy = (tg.y - BH(tg) / 2) - (f.y - BH(f) / 2);
+      if (dy < -55) { if (f.ground && f.jumps >= 0 && Math.random() < .5) w.jump = 3; else { inp.y = -1; w.atk = 3; } }
+      else if (Math.abs(dx) > 100) { inp.x = sgn(dx); w.spec = 3; }
+      else if (Math.random() < .5) { inp.x = sgn(dx) * .9; w.atk = 3; }
+      else { inp.y = 1; w.atk = 3; }
+      a.hold = 3;
+    }
+    return;
+  }
+  if (f.state !== 'atk') a.comboTried = false;
   if (lv <= 0 || f.state === 'atk') return;
   // ---- マグマよけ
   if (G.lava && (G.lava.s === 'warn' || G.lava.s === 'up') && f.y > -60) {
@@ -2150,7 +2405,7 @@ function stepBattle() {
   for (const f of G.fs) {
     if (f.out) continue;
     updateFighter(f);
-    for (const k in f.want) if (f.want[k] > 0) f.want[k]--;
+    if (f.lag <= 0) for (const k in f.want) if (f.want[k] > 0) f.want[k]--;
   }
   updateProjs(); updateItems(); updateHelpers(); updateHazards(); if (G.hr) hrStep(); updateParticles(); updateCamera();
   if (G.comboShow && --G.comboShow.t <= 0) G.comboShow = null;
@@ -3411,6 +3666,7 @@ function drawHow() {
       ['ルール', 'ダメージ%がたまるほど遠くまでふっとぶ。画面の外に出したらKO！ストックがなくなったら脱落、最後まで残った人（チーム）の勝ち。タイム制では撃墜数で勝負'],
       ['こうげき', 'こうげき＝弱・強こうげき（方向で変化）。走りながらでダッシュこうげき。スマッシュ＝強いこうげき（長押しでためる）'],
       ['ひっさつ', 'ひっさつ＋方向でキャラごとに4種類。上ひっさつは空中で1回だけの復帰ワザ'],
+      ['コンボ', '攻撃が当たったら、すぐ次の技（ちがう技）やジャンプでスキをキャンセルできる。弱→上強→ジャンプ→空上 のようにつなげよう（1コンボ4回まで）'],
       ['ガード', 'ガードでふせぐ。ガード＋左右で回避、下でその場回避、空中でエアダッジ。ガード中にこうげきで「つかみ」→方向で投げ'],
       ['アイテム', 'こうげきで拾う・使う、スマッシュかつかみで投げる。スマッシュボールを3回たたくと「最後の切り札」！']
     ]],
@@ -3505,6 +3761,7 @@ function drawSelect() {
       txt(c.name, x + sw / 2, sy + 174, 22, '#fff', 'center', '#000', 5);
       txt(c.sub, x + sw / 2, sy + 192, 11, 'rgba(255,255,255,.8)');
       button(x + sw - 52, sy + sh - 44, 44, 28, '色', () => { s.alt = ((s.alt || 0) + 1) % 4; }, { size: 13 });
+      button(x + 8, sy + sh - 44, 52, 28, 'わざ', () => { cfg.moveList = s.c; }, { size: 13 });
       if (active) ['力', '速', '重'].forEach((l, j) => { const stx = x + 12, sty = sy + 36 + j * 13; txt(l, stx, sty, 10, '#fff', 'left'); for (let q = 0; q < 5; q++) { g.fillStyle = q < c.stat[j] ? ['#ff7a5a', '#7fe08a', '#7fb8ff'][j] : 'rgba(255,255,255,.2)'; rr(stx + 14 + q * 9, sty - 3, 7, 6, 2); g.fill(); } });
     }
     if (k > 0 && cfg.mode === 'vs') {
@@ -3522,6 +3779,29 @@ function drawSelect() {
   if (cfg.mode === 'training') txt('2つめの枠は練習相手のCPU', W / 2, 536, 11, 'rgba(255,255,255,.6)');
   if (cfg.mode === 'vs') txt('同じキャラをもう一度タップ／「色」ボタンでカラー変更　・　CPU枠を「2P」にすると友だちと対戦', W / 2, 534, 11, 'rgba(255,255,255,.6)');
   if (cfg.showRules) drawRules();
+  if (cfg.moveList !== undefined && cfg.moveList !== null) drawMoveList(CHARS[cfg.moveList]);
+}
+function drawMoveList(c) {
+  ui.length = 0;
+  ui.push({ x: 0, y: 0, w: W, h: H, fn: () => { cfg.moveList = null; sfx.back(); } });
+  g.fillStyle = 'rgba(6,8,24,.97)'; g.fillRect(0, 0, W, H);
+  const t = performance.now() / 16;
+  g.save(); g.translate(130, 330); g.scale(2.6, 2.6); drawChar(c, attackPose('taunt', (t * .01) % 1, idlePose(t))); g.restore();
+  txt(c.name, 130, 370, 26, '#fff', 'center', '#000', 5); txt(c.sub, 130, 398, 14, 'rgba(255,255,255,.8)');
+  txt('わざ表', 130, 52, 28, '#ffe14a', 'center', '#000', 5);
+  MOVE_LABELS.forEach(([k, label], i) => {
+    const mv = c.moves[k], col = i < 9 ? 0 : 1, row = i < 9 ? i : i - 9, x = 270 + col * 340, y = 30 + row * 52;
+    const name = mv.n || mv.name || '-', E = ELEM[mv.fx] || ELEM.normal;
+    g.fillStyle = k === 'fs' ? 'rgba(255,225,74,.25)' : 'rgba(255,255,255,.08)'; rr(x, y, 330, 46, 10); g.fill();
+    circ(x + 16, y + 23, 7); fs_(E[0], 1.4);
+    txt(label, x + 30, y + 14, 11, '#9fe8ff', 'left'); txt(name, x + 30, y + 32, 17, '#fff', 'left', '#000', 3);
+    const tags = [];
+    if (mv.proj) tags.push('飛び道具'); if (mv.multi || mv.rapid) tags.push('連続'); if (mv.charge) tags.push('ため'); if (mv.counter) tags.push('カウンター');
+    if (mv.reflect) tags.push('反射'); if (mv.freeze) tags.push('こおる'); if (mv.sleep) tags.push('ねむり'); if (mv.daze) tags.push('ふらふら'); if (mv.armor) tags.push('アーマー');
+    if (mv.heal) tags.push('回復'); if (mv.ang >= 260 && mv.ang <= 300 || mv.proj && mv.proj.ang >= 260) tags.push('メテオ'); if (mv.ghost) tags.push('むてき');
+    txt(tags.slice(0, 3).join('・'), x + 322, y + 32, 11, '#ffd2a0', 'right');
+  });
+  txt('タップでとじる', 130, 500, 14, 'rgba(255,255,255,.6)');
 }
 function drawRules() {
   ui.length = 0;
