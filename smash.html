@@ -28,6 +28,7 @@ const cv = document.getElementById('c');
 let g = cv.getContext('2d');
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const MAXF = 16; // 1試合の最大人数
 const sgn = v => v > 0 ? 1 : v < 0 ? -1 : 0;
 const lerp = (a, b, t) => a + (b - a) * t;
 const pick = a => a[(Math.random() * a.length) | 0];
@@ -972,10 +973,48 @@ function mkStages() {
         { t: 'soft', x1: -320, x2: -180, y: -190, blink: 300, ph: 150 }, { t: 'soft', x1: 180, x2: 320, y: -190, blink: 300, ph: 0 }, { t: 'soft', x1: -70, x2: 70, y: -300 }],
       spawn: [-150, 150, -60, 60] },
     { name: 'ちいさな島', sub: 'せまくて場外が近い', bg: 'night', bgm: 1, blast: { l: -640, r: 640, t: -600, b: 460 },
-      plats: [{ t: 'solid', x1: -180, x2: 180, y: 0, h: 150 }], spawn: [-120, 120, -40, 40] }
+      plats: [{ t: 'solid', x1: -180, x2: 180, y: 0, h: 150 }], spawn: [-120, 120, -40, 40] },
+    { name: '大戦場', sub: '8人以上でもひろびろ', bg: 'grand', bgm: 1, zmin: .34, blast: { l: -1250, r: 1250, t: -960, b: 640 },
+      plats: [{ t: 'solid', x1: -640, x2: 640, y: 0, h: 220 },
+        { t: 'soft', x1: -560, x2: -400, y: -130 }, { t: 'soft', x1: -230, x2: -70, y: -130 }, { t: 'soft', x1: 70, x2: 230, y: -130 }, { t: 'soft', x1: 400, x2: 560, y: -130 },
+        { t: 'soft', x1: -400, x2: -240, y: -260 }, { t: 'soft', x1: 240, x2: 400, y: -260 }, { t: 'soft', x1: -80, x2: 80, y: -390 }],
+      spawn: [-480, 480, -150, 150, -320, 320, -560, 560] },
+    { name: '氷の山', sub: 'つるつるすべる氷の床', bg: 'snow', bgm: 2, blast: { l: -860, r: 860, t: -700, b: 520 },
+      plats: [{ t: 'solid', x1: -370, x2: 370, y: 0, h: 190, ice: 1 }, { t: 'soft', x1: -310, x2: -170, y: -135, ice: 1 }, { t: 'soft', x1: 170, x2: 310, y: -135, ice: 1 },
+        { t: 'soft', x1: -70, x2: 70, y: -170, vmove: 90, vspeed: .014, cy: -200, ph: 0 }],
+      spawn: [-250, 250, -90, 90] },
+    { name: 'ジャングル', sub: '川の上を丸太がながれる', bg: 'jungle', bgm: 0, zmin: .42, blast: { l: -1000, r: 1000, t: -780, b: 560 },
+      plats: [{ t: 'solid', x1: -560, x2: -150, y: 0, h: 200 }, { t: 'solid', x1: 150, x2: 560, y: -30, h: 230 },
+        { t: 'soft', x1: -70, x2: 70, y: 20, move: 190, speed: .009, cx: 0, hw: 70, log: 1 },
+        { t: 'soft', x1: -460, x2: -300, y: -150 }, { t: 'soft', x1: 280, x2: 440, y: -190 }, { t: 'soft', x1: -100, x2: 100, y: -290 }],
+      spawn: [-400, 380, -240, 250, -500, 500] },
+    { name: '月面基地', sub: 'ふわっと跳べる低重力', bg: 'moon', bgm: 1, lowg: .62, blast: { l: -900, r: 900, t: -820, b: 540 },
+      plats: [{ t: 'solid', x1: -440, x2: 440, y: 0, h: 200 }, { t: 'soft', x1: -340, x2: -190, y: -160 }, { t: 'soft', x1: 190, x2: 340, y: -160 }, { t: 'soft', x1: -80, x2: 80, y: -320 }],
+      spawn: [-300, 300, -110, 110, -200, 200] },
+    { name: 'ネオン都市', sub: 'ビルの屋上とゴンドラ', bg: 'city', bgm: 3, zmin: .4, blast: { l: -1020, r: 1020, t: -800, b: 560 },
+      plats: [{ t: 'solid', x1: -580, x2: -270, y: 0, h: 260, roof: 1 }, { t: 'solid', x1: -190, x2: 190, y: -60, h: 320, roof: 1 }, { t: 'solid', x1: 270, x2: 580, y: 0, h: 260, roof: 1 },
+        { t: 'soft', x1: -70, x2: 70, y: -230, move: 420, speed: .006, cx: 0, hw: 70, gondola: 1 }, { t: 'soft', x1: -510, x2: -360, y: -140 }, { t: 'soft', x1: 360, x2: 510, y: -140 }],
+      spawn: [-450, 450, -90, 90, -340, 340, 0, -540, 540] },
+    { name: 'おかしの国', sub: 'ゼリーではねる！', bg: 'candy', bgm: 2, blast: { l: -880, r: 880, t: -760, b: 520 },
+      plats: [{ t: 'solid', x1: -380, x2: 380, y: 0, h: 180 }, { t: 'soft', x1: -540, x2: -430, y: 40, bounce: 1 }, { t: 'soft', x1: 430, x2: 540, y: 40, bounce: 1 },
+        { t: 'soft', x1: -280, x2: -140, y: -140 }, { t: 'soft', x1: 140, x2: 280, y: -140 }, { t: 'soft', x1: -60, x2: 60, y: -150, bounce: 1 }, { t: 'soft', x1: -90, x2: 90, y: -320 }],
+      spawn: [-260, 260, -110, 110, -330, 330] },
+    { name: '巨大要塞', sub: '16人用の超巨大ステージ', bg: 'castle', bgm: 3, zmin: .3, blast: { l: -1400, r: 1400, t: -1060, b: 700 },
+      plats: [{ t: 'solid', x1: -920, x2: -300, y: 0, h: 240, tower: 1 }, { t: 'solid', x1: 300, x2: 920, y: 0, h: 240, tower: 1 }, { t: 'soft', x1: -300, x2: 300, y: 0, bridge: 1 },
+        { t: 'soft', x1: -820, x2: -660, y: -150 }, { t: 'soft', x1: -540, x2: -380, y: -150 }, { t: 'soft', x1: 380, x2: 540, y: -150 }, { t: 'soft', x1: 660, x2: 820, y: -150 },
+        { t: 'soft', x1: -160, x2: 160, y: -190 }, { t: 'soft', x1: -680, x2: -520, y: -300 }, { t: 'soft', x1: 520, x2: 680, y: -300 }, { t: 'soft', x1: -70, x2: 70, y: -380 }],
+      spawn: [-760, 760, -460, 460, -600, 600, -360, 360, -840, 840, -100, 100] }
   ];
 }
 let STAGES = mkStages();
+// 人数が多いときは足場全体にまんべんなく並べる
+function spawnX(st, i, n) {
+  if (n <= st.spawn.length || st.hrs) return st.spawn[i % st.spawn.length];
+  const ps = st.plats.filter(p => p.t === 'solid' && !p.field && !p.wall), tot = ps.reduce((a, p) => a + (p.x2 - p.x1 - 60), 0);
+  let d = (i + .5) / n * tot;
+  for (const p of ps) { const w = p.x2 - p.x1 - 60; if (d <= w) return p.x1 + 30 + d; d -= w; }
+  return 0;
+}
 function mkHRStage() {
   return { name: 'ホームランコンテスト', sub: '', bg: 'day', bgm: 0, hrs: 1, blast: { l: -14000, r: 14000, t: -5000, b: 1400 },
     plats: [{ t: 'solid', x1: -230, x2: 230, y: 0, h: 200 }, { t: 'solid', x1: 236, x2: 14000, y: 240, h: 400, field: 1 }, { t: 'solid', x1: -14000, x2: -236, y: 240, h: 400, field: 1 },
@@ -989,17 +1028,18 @@ function mkHRStage() {
 let scene = 'title', G = null;
 // slots[i].type: 'p1' / 'cpu' / 'p2' / 'off'   team: 0=赤 1=青   alt: カラー番号
 const cfg = {
-  slots: [{ c: 0, type: 'p1', team: 0, alt: 0 }, { c: -1, type: 'cpu', team: 0, alt: 0 }, { c: -1, type: 'cpu', team: 1, alt: 0 }, { c: -1, type: 'cpu', team: 1, alt: 0 }],
-  cur: 0, rule: 'stock', stocks: 3, time: 3, lv: 2, items: 1, stage: 0, tapJump: true, mode: 'vs', trCpu: 0, trMode: 0, team: false, special: 'none'
+  slots: Array.from({ length: MAXF }, (_, i) => ({ c: i ? -1 : 0, type: i ? 'cpu' : 'p1', team: i < 2 ? 0 : i < 4 ? 1 : i % 2, alt: 0 })),
+  n: 4, cur: 0, rule: 'stock', stocks: 3, time: 3, lv: 2, items: 1, stage: 0, tapJump: true, mode: 'vs', trCpu: 0, trMode: 0, team: false, special: 'none'
 };
 try {
   const s = JSON.parse(localStorage.getItem('smashfighters-cfg') || 'null');
   if (s) {
-    for (const k of ['rule', 'stocks', 'time', 'lv', 'items', 'stage', 'tapJump', 'team', 'special']) if (k in s) cfg[k] = s[k];
-    if (s.slots && s.slots.length === 4 && s.slots[0].type) cfg.slots = s.slots;
+    for (const k of ['rule', 'stocks', 'time', 'lv', 'items', 'stage', 'tapJump', 'team', 'special', 'n']) if (k in s) cfg[k] = s[k];
+    if (s.slots && s.slots.length >= 2 && s.slots[0].type) s.slots.slice(0, MAXF).forEach((q, i) => { cfg.slots[i] = Object.assign(cfg.slots[i], q); cfg.slots[i].team = (q.team | 0) % 4; });
+    cfg.n = clamp(cfg.n | 0 || 4, 2, MAXF); if (typeof cfg.team !== 'number') cfg.team = cfg.team ? 2 : 0;
   }
 } catch (e) { }
-function saveCfg() { try { localStorage.setItem('smashfighters-cfg', JSON.stringify({ rule: cfg.rule, stocks: cfg.stocks, time: cfg.time, lv: cfg.lv, items: cfg.items, stage: cfg.stage, tapJump: cfg.tapJump, slots: cfg.slots, team: cfg.team, special: cfg.special })); } catch (e) { } }
+function saveCfg() { try { localStorage.setItem('smashfighters-cfg', JSON.stringify({ rule: cfg.rule, stocks: cfg.stocks, time: cfg.time, lv: cfg.lv, items: cfg.items, stage: cfg.stage, tapJump: cfg.tapJump, slots: cfg.slots, team: cfg.team, special: cfg.special, n: cfg.n })); } catch (e) { } }
 // きろく（解放・戦績）
 const LOCKED = ['reina', 'gou', 'usami', 'piyo', 'taiga', 'gamma', 'pop', 'draco'];
 const rec = { plays: 0, wins: 0, kos: 0, falls: 0, classic: 0, hr: 0, multi: 0, unlocked: [], stats: {}, nextCh: 1, name: '' };
@@ -1008,8 +1048,9 @@ if (!rec.name) rec.name = 'プレイヤー' + (100 + (Math.random() * 900 | 0));
 function saveRec() { try { localStorage.setItem('smashfighters-save', JSON.stringify(rec)); } catch (e) { } }
 const isUnlocked = ci => !LOCKED.includes(CHARS[ci].id) || rec.unlocked.includes(CHARS[ci].id);
 const lockedLeft = () => LOCKED.filter(id => !rec.unlocked.includes(id));
-const TAGS = [{ t: '1P', c: '#ff4a4a' }, { t: 'CPU', c: '#4a9bff' }, { t: 'CPU', c: '#ffc83f' }, { t: 'CPU', c: '#4ae07a' }];
-const TEAMC = ['#ff4a4a', '#4a8aff'], TEAMN = ['赤', '青'];
+const TAGS = ['#ff4a4a', '#4a9bff', '#ffc83f', '#4ae07a', '#ff8ad8', '#a87aff', '#4ae8e0', '#ff9a3a', '#c8f04a', '#ff5a8a', '#7ab0ff', '#e0c08a', '#5affb0', '#d06aff', '#ffe0a0', '#9ad0d0'].map((c, i) => ({ t: i ? 'CPU' : '1P', c }));
+const TEAMC = ['#ff4a4a', '#4a8aff', '#3ad06a', '#ffc83f'], TEAMN = ['赤', '青', '緑', '黄'];
+const tagCol = f => TAGS[f.id % TAGS.length].c;
 const SPECIALS = [['none', 'なし'], ['giant', 'みんな巨大'], ['mini', 'みんなミニ'], ['speed', 'スピード2倍'], ['lowg', 'ふわふわ重力'], ['bomb', 'ボムだらけ'], ['metal', 'メタル大乱闘']];
 const ELEM = {
   fire: ['#ff7a1a', '#ffd23f'], elec: ['#ffe94a', '#bffcff'], ice: ['#9fe8ff', '#ffffff'], dark: ['#9a4aff', '#e0c8ff'], water: ['#3ab0ff', '#d0f4ff'],
@@ -1018,7 +1059,7 @@ const ELEM = {
 const sameTeam = (a, b) => !!(G && G.team && a && b && a !== b && a.team === b.team);
 function tagOf(f) {
   if (f.dummy) return { t: '', c: '#fff' };
-  const c = G && G.team ? TEAMC[f.team] : TAGS[f.id % 4].c;
+  const c = G && G.team ? TEAMC[f.team] : tagCol(f);
   if (f.remote || (f.netName && !f.human)) return { t: f.netName || 'P', c };
   if (f.human) return { t: f.pi ? '2P' : (G && (G.net || G.netClient) ? (f.netName || '1P') : '1P'), c: G && G.team ? c : (f.pi ? '#4aa8ff' : '#ff4a4a') };
   return { t: 'CPU', c };
@@ -1040,17 +1081,18 @@ function newMatch(o) {
     projs: [], items_: [], helpers: [], parts: [], rank: [], cutin: null, uid: 1, slow: 0, slowTick: 0, slowF: null,
     cam: { x: 0, y: -90, z: .9 }, fs: [], winner: null, dark: 0, sudden: !!o.sudden, comboShow: null, result: null,
     lava: st.lava ? { s: 'idle', t: 0, next: rnd(700, 1000), y: 380, base: 380, top: -46 } : null,
-    team: !!o.team, special: o.special || 'none', gravMul: o.special === 'lowg' ? .55 : 1, challenger: o.challenger || null,
+    team: o.team ? (o.team === true ? 2 : o.team) : 0, special: o.special || 'none', gravMul: (o.special === 'lowg' ? .55 : 1) * (st.lowg || 1), challenger: o.challenger || null,
     multi: o.multi ? { count: 0, goal: 100, spawned: 0 } : null, hr: null, net: !!o.net, netClient: !!o.netClient, tip: pick(TIPS)
   };
   G = m;
   o.list.forEach((e, i) => {
-    const f = mkFighter(e.ci, i, !!e.human, st.spawn[i % st.spawn.length], e.lv || 0);
+    const f = mkFighter(e.ci, i, !!e.human, spawnX(st, i, o.list.length), e.lv || 0);
     f.stocks = e.stocks; f.pct = e.pct || 0; f.pi = e.pi || 0; f.team = e.team === undefined ? i : e.team; f.alt = e.alt || 0;
     if (e.remote) f.remote = e.remote; if (e.netName) f.netName = e.netName; if (e.owner) f.owner = e.owner;
     if (e.metal) f.metal = true; if (e.boss) f.bossSz = e.boss; if (e.weak) f.weak = true; if (e.dummy) { f.dummy = true; f.c = SANDBAG; f.ai = null; }
     f.szv = f.bossSz;
     if (e.x !== undefined) f.x = e.x;
+    f.home = f.x;
     const pl = st.plats.find(p => f.x > p.x1 && f.x < p.x2 && p.t === 'solid') || st.plats[0];
     f.y = pl.y; f.ground = pl; f.dir = f.x < 0 ? 1 : -1;
     applySpecial(f);
@@ -1058,7 +1100,7 @@ function newMatch(o) {
   });
   if (m.special === 'bomb') { m.items = 2; }
   // 同じキャラ・同じ色がかぶったら色を変える
-  for (const f of m.fs) while (m.fs.some(o2 => o2 !== f && o2.id < f.id && o2.ci === f.ci && o2.alt === f.alt)) f.alt = (f.alt + 1) % 4;
+  for (const f of m.fs) for (let k = 0; k < 4 && m.fs.some(o2 => o2 !== f && o2.id < f.id && o2.ci === f.ci && o2.alt === f.alt); k++) f.alt = (f.alt + 1) % 4;
   setBgm(o.demo ? -1 : st.bgm);
   return m;
 }
@@ -1416,11 +1458,11 @@ function actFree(f, P) {
   const hl = f.helpless;
   if (gr) {
     if (Math.abs(inp.x) > .15 && !f.crouch) {
-      f.vx += inp.x * run * .28;
+      f.vx += inp.x * run * (f.ground && f.ground.ice ? .09 : .28);
       const lim = run * Math.max(.45, Math.abs(inp.x)); if (Math.abs(f.vx) > lim) f.vx = sgn(f.vx) * lim;
       f.dir = sgn(inp.x);
       if (Math.abs(inp.x) > .5 && sgn(f.vx) === sgn(inp.x)) { f.runT++; if (f.runT === 1) dust(f.x - f.dir * 10, f.y, 3); } else f.runT = 0;
-    } else { f.vx *= .78; f.runT = 0; }
+    } else { f.vx *= f.ground && f.ground.ice ? .965 : .78; f.runT = 0; }
     if (f.ground && f.ground.t === 'soft' && inp.y > .7 && !(w.atk > 0 || w.smash > 0 || w.spec > 0)) { f.drop = 14; f.y += 2; f.ground = null; }
   } else {
     f.runT = 0;
@@ -1660,6 +1702,7 @@ function resolveY(f, py) {
       if (f.vy >= 0 && py <= p.y + .01 && f.y >= p.y) { f.y = p.y; f.vy = 0; f.ground = p; }
       else if (f.vy < 0 && f.y - bh < p.y + p.h && py - bh >= p.y + p.h - .01) { f.y = p.y + p.h + bh; f.vy = f.state === 'stun' ? -f.vy * .4 : 0; }
     } else if (f.vy >= 0 && py <= p.y + .01 && f.y >= p.y && f.drop <= 0 && !(f.state === 'stun' && f.vy > 6) && f.state !== 'respawn') {
+      if (p.bounce && f.vy > 2.5 && f.state !== 'grabbed') { f.y = p.y - 1; f.vy = -Math.min(20, 13 + f.vy * .5); f.jumps = f.c.jumps; f.upUsed = false; f.helpless = false; p.squash = 12; if (f.state === 'stun') f.state = 'free'; sfx.jump(); continue; }
       f.y = p.y; f.vy = 0; f.ground = p;
     }
   }
@@ -1686,6 +1729,7 @@ function updatePlats() {
     if (p.move) { const nx = p.cx + Math.sin(G.t * p.speed) * p.move; p.dx = nx - (p.x1 + p.x2) / 2; p.x1 = nx - p.hw; p.x2 = nx + p.hw; }
     if (p.vmove) { const ny = p.cy + Math.sin(G.t * p.vspeed + p.ph) * p.vmove; p.dy = ny - p.y; p.y = ny; }
     if (p.blink) { const ph = (G.t + p.ph) % p.blink; p.off = ph > p.blink * .72; p.warn = !p.off && ph > p.blink * .58; }
+    if (p.squash > 0) p.squash--;
   }
 }
 
@@ -1735,7 +1779,7 @@ function respawn(f) {
     f.jumps = f.c.jumps; f.upUsed = f.adUsed = f.helpless = false; f.shieldHp = 100; f.lastHit = null; f.szv = 1; f.combo = 0; f.dir = f.x < 0 ? 1 : -1;
     return;
   }
-  f.dead = false; f.pct = 0; f.state = 'respawn'; f.rt = 170; f.inv = 220; f.x = G.st.spawn[f.id % G.st.spawn.length] * .6; f.y = -330; f.vx = f.vy = 0;
+  f.dead = false; f.pct = 0; f.state = 'respawn'; f.rt = 170; f.inv = 220; f.x = (f.home !== undefined ? f.home : G.st.spawn[f.id % G.st.spawn.length]) * .6; f.y = -330; f.vx = f.vy = 0;
   f.jumps = f.c.jumps; f.upUsed = false; f.adUsed = false; f.helpless = false; f.shieldHp = 100; f.dir = f.x < 0 ? 1 : -1; f.lastHit = null; f.szv = f.bossSz; f.combo = 0;
   applySpecial(f);
 }
@@ -1763,9 +1807,10 @@ function endMatch(win) {
 }
 function timeUp() {
   if (G.team) {
-    const sc = [0, 1].map(t => G.fs.filter(f => f.team === t).reduce((a, f) => a + f.score, 0));
-    if (sc[0] === sc[1]) { G.over = true; G.endT = 0; G.toSudden = G.fs.slice(); say('タイムアップ！'); }
-    else { const t = sc[0] > sc[1] ? 0 : 1; endMatch(G.fs.filter(f => f.team === t).sort((a, b) => b.score - a.score)[0]); }
+    const ts = [...new Set(G.fs.map(f => f.team))], sc = t => G.fs.filter(f => f.team === t).reduce((a, f) => a + f.score, 0);
+    const best = Math.max(...ts.map(sc)), top = ts.filter(t => sc(t) === best);
+    if (top.length > 1) { G.over = true; G.endT = 0; G.toSudden = G.fs.filter(f => top.includes(f.team)); say('タイムアップ！'); }
+    else endMatch(G.fs.filter(f => f.team === top[0]).sort((a, b) => b.score - a.score)[0]);
     return;
   }
   const s = G.fs.slice().sort((a, b) => b.score - a.score);
@@ -1951,7 +1996,7 @@ function landItem(it, py, r) {
 function updateItems() {
   if (G.items > 0 && !G.training) {
     if (--G.itemT <= 0) {
-      if (G.items_.length < 4) { const sp = G.st.plats.filter(p => p.t === 'solid'), p = pick(sp); spawnItem(randomItemType(), rnd(p.x1 + 30, p.x2 - 30), -450); }
+      if (G.items_.length < 3 + Math.ceil(G.fs.length / 3)) { const sp = G.st.plats.filter(p => p.t === 'solid'), p = pick(sp); spawnItem(randomItemType(), rnd(p.x1 + 30, p.x2 - 30), -450); }
       G.itemT = G.items === 2 ? rnd(200, 360) : rnd(460, 760);
     }
   }
@@ -2436,12 +2481,15 @@ function updateCamera() {
   let mnx = -260, mxx = 260, mny = -200, mxy = 40;
   if (al.length) {
     mnx = 1e9; mxx = -1e9; mny = 1e9; mxy = -1e9;
-    for (const f of al) { const x = clamp(f.x, -760, 760), y = clamp(f.y, -620, 420); mnx = Math.min(mnx, x); mxx = Math.max(mxx, x); mny = Math.min(mny, y - BH(f) - 20); mxy = Math.max(mxy, y); }
+    const B = G.st.blast;
+    for (const f of al) { const x = clamp(f.x, B.l + 80, B.r - 80), y = clamp(f.y, Math.max(-620, B.t + 80), 420); mnx = Math.min(mnx, x); mxx = Math.max(mxx, x); mny = Math.min(mny, y - BH(f) - 20); mxy = Math.max(mxy, y); }
   }
-  const tx = (mnx + mxx) / 2, ty = (mny + mxy) / 2 - 10;
-  const z = clamp(Math.min(W / (mxx - mnx + 520), H / (mxy - mny + 340)), .48, 1.05);
+  // 人数が多いとHUDが2段になるので、そのぶん画面を上にずらす
+  const pad = G.demo ? 0 : G.fs.length > 8 ? 110 : G.fs.length > 4 ? 60 : 0;
+  const z = clamp(Math.min(W / (mxx - mnx + 520), (H - pad) / (mxy - mny + 340)), G.st.zmin || .48, 1.05);
+  const tx = (mnx + mxx) / 2, ty = (mny + mxy) / 2 - 10 + (touchMode ? -pad : pad) * .5 / z;
   c.x += (tx - c.x) * .08; c.y += (ty - c.y) * .08; c.z += (z - c.z) * .06;
-  c.y = clamp(c.y, -320, 140);
+  c.y = clamp(c.y, -320, 140 + pad);
 }
 function togglePause() {
   if (scene !== 'battle' || !G || G.demo || G.over) return;
@@ -3299,6 +3347,14 @@ function drawBG(st, cam, t = G ? G.t : 0) {
     case 'sea': c1 = '#3a9aff'; c2 = '#ffe2b0'; break;
     case 'sky': c1 = '#7ad0ff'; c2 = '#f4fbff'; break;
     case 'night': c1 = '#0a1030'; c2 = '#2a2a6a'; break;
+    case 'grand': c1 = '#2a5ac8'; c2 = '#ffd0a0'; break;
+    case 'snow': c1 = '#8ab8e8'; c2 = '#eef6ff'; break;
+    case 'jungle': c1 = '#2a8a6a'; c2 = '#c8f0a0'; break;
+    case 'moon': c1 = '#000008'; c2 = '#141838'; break;
+    case 'city': c1 = '#120626'; c2 = '#4a1a5a'; break;
+    case 'candy': c1 = '#ffb8e0'; c2 = '#fff0c8'; break;
+    case 'castle': c1 = '#3a3060'; c2 = '#e89a7a'; break;
+    default: c1 = '#5fb8ff'; c2 = '#dff6ff';
   }
   const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.fillRect(0, 0, W, H);
   if (st.bg === 'sea') {
@@ -3316,6 +3372,47 @@ function drawBG(st, cam, t = G ? G.t : 0) {
   if (st.bg === 'night') {
     g.fillStyle = '#fff6d0'; circ(W * .78 + px, 100 + py, 46); g.fill(); g.fillStyle = '#0a1030'; circ(W * .78 + px + 16, 92 + py, 40); g.fill();
     g.fillStyle = '#1a1a40'; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 30) g.lineTo(x, H - 120 + py * 2 - 40 * Math.sin((x - cam.x * .08) * .01)); g.lineTo(W, H); g.fill();
+  }
+  if (st.bg === 'grand') {
+    g.fillStyle = 'rgba(255,240,200,.8)'; circ(W * .5 + px, H * .78 + py, 120); g.fill();
+    for (let i = 0; i < 5; i++) { const cx = ((i * 260 + t * .12 + px * 2) % (W + 300)) - 150; g.fillStyle = 'rgba(255,230,210,.6)'; ell(cx, 120 + i * 34 + py, 110, 16); g.fill(); }
+    g.fillStyle = 'rgba(40,40,90,.6)'; for (let i = 0; i < 7; i++) { const bx = ((i * 170 + px * 3) % (W + 200) + W + 200) % (W + 200) - 100, hh = 120 + (i * 57) % 90; g.fillRect(bx, H - hh + py * 2, 30, hh); g.beginPath(); g.moveTo(bx - 6, H - hh + py * 2); g.lineTo(bx + 15, H - hh - 40 + py * 2); g.lineTo(bx + 36, H - hh + py * 2); g.fill(); }
+  }
+  if (st.bg === 'snow') {
+    g.fillStyle = '#c8daf0'; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 40) g.lineTo(x, H - 200 + py * 2 - 120 * Math.abs(Math.sin((x - cam.x * .05) * .006))); g.lineTo(W, H); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 40) g.lineTo(x, H - 120 + py * 3 - 50 * Math.abs(Math.sin((x - cam.x * .1) * .01 + 1))); g.lineTo(W, H); g.fill();
+    g.fillStyle = '#3a6a5a'; for (let i = 0; i < 6; i++) { const bx = ((i * 190 - cam.x * .14 + 3000) % (W + 200)) - 100, by = H - 70 + py * 3; g.beginPath(); g.moveTo(bx, by - 70); g.lineTo(bx + 26, by); g.lineTo(bx - 26, by); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(bx, by - 70); g.lineTo(bx + 9, by - 46); g.lineTo(bx - 9, by - 46); g.fill(); g.fillStyle = '#3a6a5a'; }
+    g.fillStyle = 'rgba(255,255,255,.9)'; for (let i = 0; i < 60; i++) { const x = ((i * 83 + Math.sin(t * .02 + i) * 30 + px * (1 + i % 3)) % W + W) % W, y = (i * 47 + t * (.6 + i % 4 * .3)) % H; circ(x, y, 1.2 + i % 3); g.fill(); }
+  }
+  if (st.bg === 'jungle') {
+    g.fillStyle = 'rgba(255,255,200,.35)'; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(W * (.2 + i * .2) + px, 0); g.lineTo(W * (.1 + i * .2) + px, H); g.lineTo(W * (.16 + i * .2) + px, H); g.fill(); }
+    for (let L = 0; L < 2; L++) { g.fillStyle = L ? '#1e6a3a' : '#3a8a4a'; for (let i = 0; i < 8; i++) { const bx = ((i * 150 + px * (2 + L * 2) + L * 70) % (W + 200) + W + 200) % (W + 200) - 100, by = H - 60 - L * 10 + py * (2 + L); g.fillRect(bx - 8, by - 260 + L * 60, 16, 300); for (let k = 0; k < 5; k++) { ell(bx + Math.cos(k * 1.3) * 40, by - 260 + L * 60 + Math.sin(k * 1.3) * 16, 52, 18, k * .6); g.fill(); } } }
+    g.fillStyle = '#2a7ac0'; g.fillRect(0, H - 50 + py * 3, W, 60); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 2; for (let i = 0; i < 3; i++) { g.beginPath(); for (let x = 0; x <= W; x += 20) g.lineTo(x, H - 40 + i * 14 + py * 3 + Math.sin(x * .04 + t * .08 + i) * 3); g.stroke(); }
+  }
+  if (st.bg === 'moon') {
+    for (const s2 of BGSTARS) { g.globalAlpha = .5 + .5 * Math.sin(t * .02 + s2.s * 20); g.fillStyle = '#fff'; circ(((s2.x * W + px * (1 + s2.r)) % W + W) % W, s2.y * H * .8, s2.r); g.fill(); } g.globalAlpha = 1;
+    g.fillStyle = '#3a8aff'; circ(W * .78 + px * 2, H * .24 + py, 54); g.fill(); g.fillStyle = '#4ac85a'; ell(W * .76 + px * 2, H * .2 + py, 20, 14); g.fill(); ell(W * .8 + px * 2, H * .3 + py, 16, 10); g.fill();
+    g.fillStyle = 'rgba(160,220,255,.25)'; circ(W * .78 + px * 2, H * .24 + py, 64); g.fill();
+    g.fillStyle = '#5a5a6a'; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 30) g.lineTo(x, H - 110 + py * 2 - 20 * Math.sin((x - cam.x * .08) * .02)); g.lineTo(W, H); g.fill();
+    g.fillStyle = '#44444f'; for (let i = 0; i < 6; i++) { const bx = ((i * 200 - cam.x * .1 + 3000) % (W + 200)) - 100; ell(bx, H - 70 + py * 2, 40, 9); g.fill(); }
+  }
+  if (st.bg === 'city') {
+    for (let L = 0; L < 3; L++) for (let i = 0; i < 12; i++) {
+      const bw = 50 + (i * 37 + L * 11) % 50, bh = 140 + ((i * 71 + L * 29) % 200) - L * 30, bx = ((i * 96 + px * (2 + L * 2) + L * 40) % (W + 200) + W + 200) % (W + 200) - 100, by = H - bh + py * (2 + L);
+      g.fillStyle = ['#2a1a4a', '#1e1238', '#140a28'][L]; g.fillRect(bx, by, bw, bh + 60);
+      for (let wy = by + 10; wy < H; wy += 18) for (let wx = bx + 6; wx < bx + bw - 6; wx += 12) if ((wx * 7 + wy * 3 + i) % 5 < 2) { g.fillStyle = (wx + wy) % 3 ? 'rgba(255,220,120,.7)' : 'rgba(120,220,255,.7)'; g.fillRect(wx, wy, 5, 8); }
+    }
+    ['#ff4ac8', '#4ae8ff', '#ffe14a'].forEach((c3, i) => { g.globalAlpha = .6 + .4 * Math.sin(t * .1 + i * 2); g.strokeStyle = c3; g.lineWidth = 3; g.beginPath(); g.moveTo(100 + i * 300 + px * 3, 80 + i * 20 + py); g.lineTo(190 + i * 300 + px * 3, 80 + i * 20 + py); g.stroke(); g.globalAlpha = 1; });
+  }
+  if (st.bg === 'candy') {
+    for (let i = 0; i < 6; i++) { const cx = ((i * 220 + t * .2 + px * 2) % (W + 300)) - 150, cy = 80 + (i * 61) % 140 + py; g.fillStyle = 'rgba(255,255,255,.85)'; ell(cx, cy, 60, 20); g.fill(); ell(cx + 30, cy - 12, 34, 18); g.fill(); }
+    for (let i = 0; i < 6; i++) { const bx = ((i * 180 + px * 3) % (W + 200) + W + 200) % (W + 200) - 100, by = H - 60 + py * 2; g.fillStyle = '#fff'; g.fillRect(bx - 4, by - 160, 8, 200); g.fillStyle = ['#ff6ab0', '#6ad0ff', '#ffd23f'][i % 3]; circ(bx, by - 170, 34); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 5; g.beginPath(); g.arc(bx, by - 170, 20, 0, 4.5); g.stroke(); }
+    g.fillStyle = '#ff9ad0'; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 30) g.lineTo(x, H - 70 + py * 3 - 16 * Math.sin((x - cam.x * .15) * .03)); g.lineTo(W, H); g.fill();
+  }
+  if (st.bg === 'castle') {
+    g.fillStyle = 'rgba(255,220,180,.7)'; circ(W * .25 + px, H * .55 + py, 60); g.fill();
+    g.fillStyle = 'rgba(30,20,50,.7)'; for (let i = 0; i < 5; i++) { const bx = ((i * 240 + px * 3) % (W + 300) + W + 300) % (W + 300) - 150, by = H - 40 + py * 2, hh = 200 + (i % 3) * 60; g.fillRect(bx, by - hh, 60, hh + 40); for (let k = 0; k < 4; k++) g.fillRect(bx + k * 16, by - hh - 14, 10, 14); g.fillStyle = 'rgba(255,200,100,.7)'; g.fillRect(bx + 25, by - hh + 40, 10, 16); g.fillStyle = 'rgba(30,20,50,.7)'; }
+    g.fillStyle = 'rgba(40,30,60,.5)'; for (let i = 0; i < 3; i++) { const cx = ((i * 330 + t * .3) % (W + 200)) - 100, cy = 70 + i * 40 + py; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 10, cy - 6); g.lineTo(cx + 20, cy); g.lineTo(cx + 10, cy - 2); g.fill(); }
   }
   if (st.bg === 'space' || st.bg === 'dusk' || st.bg === 'night') {
     for (const s of BGSTARS) {
@@ -3387,10 +3484,14 @@ function drawStage(st) {
         continue;
       }
       const th = { sea: ['#a0703a', '#5a3a1a', '#c98a4a', '#e8b070'], sky: ['#ffffff', '#c8e0f0', '#ffffff', '#ffffff'], night: ['#4a4a7a', '#1a1a3a', '#5a8a5a', '#8ac08a'], day: ['#9a7650', '#4a3222', '#5fd66a', '#8ef08e'], space: ['#5a58a0', '#1e1c48', '#8d8cff', '#c8c8ff'], dusk: ['#b8a090', '#5a4a52', '#e8d8b0', '#fff4d8'],
-        factory: ['#5a6a80', '#262e3e', '#8b97ad', '#cfd8e8'], volcano: ['#4a2a2a', '#1a0a0a', '#6a3a2a', '#ff7a3a'] }[st.bg];
+        factory: ['#5a6a80', '#262e3e', '#8b97ad', '#cfd8e8'], volcano: ['#4a2a2a', '#1a0a0a', '#6a3a2a', '#ff7a3a'],
+        grand: ['#8a7a9a', '#3a2a4a', '#e8d0a0', '#fff4d0'], snow: ['#9ac8e8', '#4a6a98', '#e8f8ff', '#ffffff'], jungle: ['#7a5a3a', '#3a2a1a', '#4ab858', '#8ef08e'],
+        moon: ['#8a8a96', '#3a3a48', '#b8b8c8', '#e0e0ec'], city: ['#3a3a5a', '#141428', '#5a5a7a', '#ff4ac8'], candy: ['#ffd0a0', '#c88a5a', '#ff7ab8', '#ffe0f0'],
+        castle: ['#8a8098', '#3a3448', '#a89ab8', '#d8d0e8'] }[st.bg] || ['#9a7650', '#4a3222', '#5fd66a', '#8ef08e'];
       const gr = g.createLinearGradient(0, p.y, 0, p.y + depth); gr.addColorStop(0, th[0]); gr.addColorStop(1, th[1]);
       g.beginPath(); g.moveTo(p.x1, p.y);
       if (st.bg === 'factory') { g.lineTo(p.x2, p.y); g.lineTo(p.x2 - 20, p.y + depth * .5); g.lineTo(p.x1 + 20, p.y + depth * .5); }
+      else if (p.roof || p.tower) { g.lineTo(p.x2, p.y); g.lineTo(p.x2 - 8, p.y + p.h + 300); g.lineTo(p.x1 + 8, p.y + p.h + 300); }
       else { g.lineTo(p.x2, p.y); g.quadraticCurveTo(p.x2 - w * .1, p.y + depth * .55, mx + w * .08, p.y + depth); g.quadraticCurveTo(p.x1 + w * .1, p.y + depth * .55, p.x1, p.y); }
       g.closePath(); g.fillStyle = gr; g.fill(); g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.35)'; g.stroke();
       if (st.bg === 'factory') {
@@ -3398,6 +3499,11 @@ function drawStage(st) {
         g.fillStyle = '#1a1a1a'; for (let x = p.x1 + 20; x < p.x2 - 10; x += 60) { circ(x, p.y + 40, 3); g.fill(); }
       }
       if (st.bg === 'volcano') { g.strokeStyle = `rgba(255,120,40,${.5 + .3 * Math.sin(G.t * .05)})`; g.lineWidth = 2.5; g.beginPath(); g.moveTo(p.x1 + 60, p.y + 20); g.lineTo(p.x1 + 110, p.y + 60); g.lineTo(p.x1 + 90, p.y + 100); g.moveTo(p.x2 - 80, p.y + 30); g.lineTo(p.x2 - 130, p.y + 80); g.moveTo(mx, p.y + 40); g.lineTo(mx + 30, p.y + 110); g.stroke(); }
+      if (p.roof) { for (let wy = p.y + 30; wy < p.y + p.h + 280; wy += 34) for (let wx = p.x1 + 20; wx < p.x2 - 24; wx += 36) { g.fillStyle = (wx * 3 + wy) % 7 < 3 ? 'rgba(255,220,120,.75)' : 'rgba(60,200,255,.35)'; g.fillRect(wx, wy, 18, 20); } }
+      if (p.tower) { g.strokeStyle = 'rgba(40,30,60,.35)'; g.lineWidth = 2; for (let wy = p.y + 26; wy < p.y + p.h + 280; wy += 26) { g.beginPath(); g.moveTo(p.x1 + 8, wy); g.lineTo(p.x2 - 8, wy); g.stroke(); for (let wx = p.x1 + ((wy / 26) % 2) * 26 + 20; wx < p.x2 - 10; wx += 52) { g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx, wy - 26); g.stroke(); } }}
+      if (p.ice) { g.fillStyle = 'rgba(255,255,255,.35)'; for (let x = p.x1 + 40; x < p.x2 - 40; x += 90) { g.beginPath(); g.moveTo(x, p.y + 14); g.lineTo(x + 30, p.y + 14); g.lineTo(x + 6, p.y + 60); g.fill(); } g.fillStyle = '#e8f8ff'; for (let x = p.x1 + 20; x < p.x2 - 10; x += 46) { g.beginPath(); g.moveTo(x, p.y + 12); g.lineTo(x + 10, p.y + 12); g.lineTo(x + 5, p.y + 30 + (x % 3) * 6); g.fill(); } }
+      if (st.bg === 'candy') { g.fillStyle = '#fff'; for (let x = p.x1 + 10; x < p.x2 - 10; x += 34) { ell(x + 17, p.y + 12, 17, 12 + (x % 5) * 2); g.fill(); } ['#ff4a8a', '#4ad0ff', '#ffe14a', '#6ae06a'].forEach((c3, i) => { for (let x = p.x1 + 30 + i * 23; x < p.x2 - 20; x += 92) { g.fillStyle = c3; g.save(); g.translate(x, p.y + 40 + (x % 4) * 10); g.rotate(x); g.fillRect(-6, -2, 12, 4); g.restore(); } }); }
+      if (st.bg === 'moon') { g.fillStyle = 'rgba(40,40,60,.35)'; for (let x = p.x1 + 60; x < p.x2 - 40; x += 130) { ell(x, p.y + 40 + (x % 3) * 12, 22, 8); g.fill(); } }
       if (st.bg === 'dusk') { g.strokeStyle = 'rgba(90,70,80,.5)'; g.lineWidth = 2; for (let x = p.x1 + 40; x < p.x2; x += 50) { g.beginPath(); g.moveTo(x, p.y + 14); g.lineTo(x, p.y + 50); g.stroke(); } }
       rr(p.x1 - 3, p.y - 3, w + 6, 15, 6); g.fillStyle = th[2]; g.fill();
       g.fillStyle = th[3]; rr(p.x1 + 6, p.y - 2, w - 12, 4, 2); g.fill();
@@ -3408,6 +3514,28 @@ function drawStage(st) {
         if (p.vmove) { g.strokeStyle = 'rgba(150,160,180,.6)'; g.lineWidth = 2; g.beginPath(); g.moveTo(p.x1 + 8, p.y); g.lineTo(p.x1 + 8, p.y - 400); g.moveTo(p.x2 - 8, p.y); g.lineTo(p.x2 - 8, p.y - 400); g.stroke(); }
       } else if (st.bg === 'dusk' || st.bg === 'space') {
         g.fillStyle = st.bg === 'space' ? '#7a78d0' : '#e8c07a'; rr(p.x1, p.y, w, 9, 4); g.fill(); g.fillStyle = 'rgba(255,255,255,.4)'; rr(p.x1 + 4, p.y + 1, w - 8, 2, 1); g.fill(); g.fillStyle = 'rgba(0,0,0,.25)'; rr(p.x1 + 6, p.y + 9, w - 12, 6, 3); g.fill();
+      } else if (p.bounce) {
+        const q = (p.squash || 0) / 12, sh = 16 * (1 - q * .5);
+        ell(p.x1 + w / 2, p.y + sh / 2, w / 2 + q * 8, sh / 2 + 3); g.fillStyle = 'rgba(120,230,140,.85)'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#2a8a4a'; g.stroke();
+        g.fillStyle = 'rgba(255,255,255,.6)'; ell(p.x1 + w * .35, p.y + 4, w * .15, 3); g.fill();
+      } else if (p.log) {
+        g.fillStyle = '#8a5a2a'; rr(p.x1, p.y, w, 16, 8); g.fill(); g.strokeStyle = '#4a2a10'; g.lineWidth = 2; g.stroke(); g.fillStyle = '#c8945a'; ell(p.x1 + 4, p.y + 8, 5, 7); g.fill(); ell(p.x2 - 4, p.y + 8, 5, 7); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.moveTo(p.x1 - 10, p.y + 18); g.lineTo(p.x2 + 10, p.y + 18); g.stroke();
+      } else if (p.gondola) {
+        g.strokeStyle = '#8a8aa8'; g.lineWidth = 2; g.beginPath(); g.moveTo(-1400, p.y - 90); g.lineTo(1400, p.y - 90); g.moveTo(p.x1 + w / 2, p.y - 90); g.lineTo(p.x1 + w / 2, p.y); g.stroke();
+        rr(p.x1, p.y, w, 12, 4); g.fillStyle = '#4ae8ff'; g.fill(); g.fillStyle = '#ff4ac8'; g.fillRect(p.x1 + 6, p.y + 9, w - 12, 3);
+      } else if (p.bridge) {
+        g.fillStyle = '#7a4a22'; for (let x = p.x1; x < p.x2; x += 24) { g.fillRect(x + 1, p.y, 22, 12); } g.strokeStyle = '#3a2a1a'; g.lineWidth = 3; g.beginPath(); g.moveTo(p.x1, p.y - 30); g.quadraticCurveTo(p.x1 + w / 2, p.y + 6, p.x2, p.y - 30); g.stroke();
+        for (let x = p.x1 + 24; x < p.x2; x += 48) { g.beginPath(); g.moveTo(x, p.y); g.lineTo(x, p.y - 30 + 36 * (1 - ((x - p.x1) / w * 2 - 1) ** 2)); g.stroke(); }
+      } else if (st.bg === 'snow' || st.bg === 'moon' || st.bg === 'castle' || st.bg === 'grand') {
+        const col = { snow: '#d8f0ff', moon: '#a8a8b8', castle: '#a89ab8', grand: '#e8d0a0' }[st.bg];
+        rr(p.x1, p.y, w, 10, 4); g.fillStyle = col; g.fill(); g.fillStyle = 'rgba(255,255,255,.55)'; rr(p.x1 + 4, p.y + 1, w - 8, 3, 1); g.fill(); g.fillStyle = 'rgba(0,0,0,.25)'; rr(p.x1 + 6, p.y + 10, w - 12, 5, 3); g.fill();
+      } else if (st.bg === 'jungle') {
+        g.fillStyle = '#6a4a2a'; rr(p.x1, p.y, w, 10, 4); g.fill(); g.fillStyle = '#4ab858'; for (let x = p.x1; x < p.x2; x += 18) { ell(x + 9, p.y + 1, 12, 5); g.fill(); }
+      } else if (st.bg === 'city') {
+        rr(p.x1, p.y, w, 10, 3); g.fillStyle = '#5a5a7a'; g.fill(); g.fillStyle = '#4ae8ff'; g.fillRect(p.x1 + 4, p.y + 3, w - 8, 2);
+      } else if (st.bg === 'candy') {
+        rr(p.x1, p.y, w, 12, 6); g.fillStyle = '#c88a5a'; g.fill(); g.fillStyle = '#ff7ab8'; rr(p.x1 - 2, p.y - 2, w + 4, 7, 4); g.fill();
       } else if (st.bg === 'volcano') {
         rr(p.x1, p.y, w, 12, 4); g.fillStyle = '#3a2222'; g.fill(); g.fillStyle = '#ff7a3a'; g.fillRect(p.x1 + 6, p.y + 9, w - 12, 2);
       } else if (st.bg === 'sky') {
@@ -3432,7 +3560,8 @@ function drawStageThumb(st, x, y, w, h) {
   g.save(); rr(x, y, w, h, 10); g.clip();
   g.translate(x, y); g.scale(w / W, h / H);
   drawBG(st, { x: 0, y: -90 }, performance.now() / 16);
-  g.translate(W / 2, H * .62); g.scale(.62, .62);
+  const ext = st.plats.reduce((a, p) => Math.max(a, Math.abs(p.x1), Math.abs(p.x2)), 300), ks = Math.min(.62, 400 / ext);
+  g.translate(W / 2, H * .62); g.scale(ks, ks);
   const save = G; if (!G) G = { t: 0, cam: { x: 0, y: 0 } };
   drawStage(st);
   G = save;
@@ -3469,15 +3598,17 @@ function drawBubbles() {
     const sx = W / 2 + (f.x - cam.x) * cam.z, sy = H * .58 + (f.y - BH(f) / 2 - cam.y) * cam.z;
     if (sx > -10 && sx < W + 10 && sy > -10 && sy < H + 10) continue;
     const bx = clamp(sx, 36, W - 36), by = clamp(sy, 36, H - 36);
-    g.save(); g.fillStyle = 'rgba(255,255,255,.85)'; circ(bx, by, 30); g.fill(); g.lineWidth = 3; g.strokeStyle = TAGS[f.id % 4].c; g.stroke();
+    g.save(); g.fillStyle = 'rgba(255,255,255,.85)'; circ(bx, by, 30); g.fill(); g.lineWidth = 3; g.strokeStyle = tagCol(f); g.stroke();
     circ(bx, by, 27); g.clip(); g.translate(bx, by + 18); g.scale(f.dir * .5, .5); drawChar(f.c, poseOf(f)); g.restore();
   }
 }
 function pctColor(p) { return p < 35 ? '#ffffff' : p < 80 ? '#ffe9a0' : p < 130 ? '#ffb347' : p < 190 ? '#ff6a3a' : '#d81818'; }
 function drawHUD() {
   const list = G.multi ? G.fs.filter(f => f.human) : G.hr ? [G.fs[1]] : G.fs;
+  const top = touchMode;
+  if (list.length > 4) { drawHUDSmall(list, top); drawHUDTop(top ? (list.length > 8 ? 96 : 54) + 40 : 26, top); return; }
   const n = list.length, pw = Math.min(214, (W - 40) / n - 8), gap = 8, x0 = (W - (n * pw + (n - 1) * gap)) / 2;
-  const top = touchMode, y = top ? 6 : H - 82;
+  const y = top ? 6 : H - 82;
   list.forEach((f, i) => {
     const x = x0 + i * (pw + gap), tg = tagOf(f), col = f.c.cols[f.alt || 0];
     const gr = g.createLinearGradient(0, y, 0, y + 74); gr.addColorStop(0, hexA(col, .55)); gr.addColorStop(1, 'rgba(8,10,30,.85)');
@@ -3496,12 +3627,32 @@ function drawHUD() {
     if (f.fsReady) { g.fillStyle = `rgba(255,225,74,${.6 + .4 * Math.sin(G.t * .3)})`; star(x + pw - 14, y + 58, 11); g.fill(); }
     if (f.item) drawItemIcon(f.item.type, x + pw - 16, y + 36, .55);
   });
-  const ty = top ? 96 : 26;
+  drawHUDTop(top ? 96 : 26, top);
+}
+// 5人以上用：小さいパネルを1〜2段にならべる
+function drawHUDSmall(list, top) {
+  const n = list.length, rows = n > 8 ? 2 : 1, cols = Math.ceil(n / rows), gap = 5, pw = Math.min(150, (W - 16 - (cols - 1) * gap) / cols), ph = 40;
+  const x0 = (W - (cols * pw + (cols - 1) * gap)) / 2;
+  list.forEach((f, i) => {
+    const x = x0 + (i % cols) * (pw + gap), r = (i / cols) | 0, y = top ? 4 + r * (ph + 4) : H - (rows - r) * (ph + 4), tg = tagOf(f), col = f.c.cols[f.alt || 0];
+    g.fillStyle = f.out ? 'rgba(20,20,30,.6)' : hexA(col, .35); rr(x, y, pw, ph, 8); g.fill(); g.fillStyle = 'rgba(8,10,30,.55)'; rr(x, y + ph * .45, pw, ph * .55, 8); g.fill();
+    g.lineWidth = 2; g.strokeStyle = f.out ? '#555' : tg.c; rr(x, y, pw, ph, 8); g.stroke();
+    g.save(); rr(x + 2, y + 2, 34, ph - 4, 6); g.clip(); g.translate(x + 19, y + ph + f.c.bh * .08); if (f.out) g.globalAlpha = .35; g.scale(.55, .55); drawChar(f.c, idlePose(0), { alt: f.alt }); g.restore();
+    txt(tg.t, x + 39, y + 9, 9, tg.c, 'left', '#000', 2);
+    if (f.out) { txt('OUT', x + pw * .62, y + 26, 16, '#888', 'center', '#000', 3); return; }
+    const sh = f.lag > 0 && f.state === 'stun' ? rnd(-2, 2) : 0;
+    txt(Math.floor(f.pct) + '%', x + pw - 6 + sh, y + 25 + sh, 19, pctColor(f.pct), 'right', '#000', 4);
+    if (G.rule === 'stock' && !G.training && !G.multi) { const ns = Math.min(f.stocks, 5); for (let k = 0; k < ns; k++) { circ(x + 42 + k * 8, y + 34, 3); fs_(col, 1); } }
+    if (G.rule === 'time') txt((f.score > 0 ? '+' : '') + f.score, x + 40, y + 34, 10, f.score >= 0 ? '#7dff9a' : '#ff8a8a', 'left', '#000', 2);
+    if (f.fsReady) { g.fillStyle = `rgba(255,225,74,${.6 + .4 * Math.sin(G.t * .3)})`; star(x + pw - 8, y + 8, 6); g.fill(); }
+  });
+}
+function drawHUDTop(ty, top) {
   if (G.rule === 'time' && !G.sudden) {
     const s = Math.max(0, Math.ceil(G.timeLeft / 60)), mm = Math.floor(s / 60), ss = s % 60;
     txt(mm + ':' + (ss < 10 ? '0' : '') + ss, W / 2, ty, 30, s <= 10 ? '#ff5a5a' : '#ffffff', 'center', '#000', 6);
   }
-  if (G.team && G.rule === 'time') [0, 1].forEach(t => txt(TEAMN[t] + ' ' + G.fs.filter(f => f.team === t).reduce((a, f) => a + f.score, 0), W / 2 + (t ? 90 : -90), ty, 18, TEAMC[t], 'center', '#000', 4));
+  if (G.team && G.rule === 'time') { const ts = [...new Set(G.fs.map(f => f.team))].sort(); ts.forEach((t, i) => txt(TEAMN[t] + ' ' + G.fs.filter(f => f.team === t).reduce((a, f) => a + f.score, 0), W / 2 + (i - (ts.length - 1) / 2) * 120 + (ts.length === 2 ? (i ? 30 : -30) : 0), ty + (ts.length > 2 ? 30 : 0), 18, TEAMC[t], 'center', '#000', 4)); }
   if (G.classic) txt('ROUND ' + (CL.round + 1) + ' / ' + CL_PLAN.length, 14, top ? 96 : 22, 15, '#ffe14a', 'left', '#000', 4);
   if (G.multi) { txt('撃破 ' + G.multi.count + ' / ' + G.multi.goal, W / 2, ty + 4, 32, '#ffe14a', 'center', '#000', 6); }
   if (G.hr) {
@@ -3704,7 +3855,22 @@ function goSelect(mode) {
   scene = 'select'; cfg.mode = mode; cfg.cur = 0; cfg.showRules = false; duo = false; setBgm(5);
   for (const s of cfg.slots) if (s.c >= 0 && !isUnlocked(s.c)) s.c = -1;
 }
-function slotCount() { return cfg.mode === 'vs' ? 4 : cfg.mode === 'training' ? 2 : 1; }
+function slotCount() { return cfg.mode === 'vs' ? cfg.n : cfg.mode === 'training' ? 2 : 1; }
+function setCount(n) {
+  n = clamp(n, 2, MAXF); if (n === cfg.n) return;
+  for (let i = cfg.n; i < n; i++) if (cfg.slots[i].type === 'off' || cfg.slots[i].type === 'p2') cfg.slots[i].type = 'cpu';
+  cfg.n = n; if (cfg.cur >= n) cfg.cur = 0;
+  if (!cfg.slots.some((q, j) => j > 0 && j < n && q.type !== 'off')) cfg.slots[1].type = 'cpu';
+  sfx.select(); saveCfg();
+}
+function slotTypeTap(k) {
+  const s = cfg.slots[k], order = ['cpu', 'p2', 'off'];
+  let nt = order[(order.indexOf(s.type) + 1) % 3];
+  if (nt === 'p2' && cfg.slots.some((q, j) => j !== k && j < cfg.n && q.type === 'p2')) nt = 'off';
+  const others = cfg.slots.filter((q, j) => j > 0 && j < cfg.n && j !== k && q.type !== 'off').length;
+  if (nt === 'off' && others === 0) nt = 'cpu';
+  s.type = nt; if (s.type === 'off' && cfg.cur === k) cfg.cur = 0;
+}
 function randChar(used) {
   const ok = CHARS.map((_, i) => i).filter(isUnlocked);
   const pool = ok.filter(i => !used.some(u => u.ci === i));
@@ -3725,6 +3891,13 @@ function drawSelect() {
   button(10, 8, 96, 34, '◀ もどる', () => { if (cfg.mode === 'online') scene = NET.ws ? 'lobby' : 'online'; else if (cfg.mode === 'hr' || cfg.mode === 'multi') scene = 'minigame'; else goTitle(); }, { size: 15, back: 1 });
   const ttl = { vs: '大乱闘', classic: '勝ちぬき', training: 'トレーニング', hr: 'ホームランコンテスト', multi: '100人組み手', online: 'オンライン' }[cfg.mode];
   txt(ttl + '：キャラクターをえらぼう', 116, 25, 19, '#fff', 'left', '#000', 5);
+  if (cfg.mode === 'vs') {
+    g.fillStyle = 'rgba(8,10,30,.7)'; rr(420, 8, 184, 34, 10); g.fill();
+    button(422, 10, 40, 30, '−', () => setCount(cfg.n - 1), { size: 18 });
+    txt(cfg.n + '人', 512, 25, 18, '#ffe14a', 'center', '#000', 4);
+    button(562, 10, 40, 30, '＋', () => setCount(cfg.n + 1), { size: 18 });
+    ui.push({ x: 466, y: 8, w: 92, h: 34, fn: () => setCount(cfg.n >= MAXF ? 2 : cfg.n < 4 ? 4 : cfg.n < 8 ? 8 : MAXF) });
+  }
   if (cfg.mode === 'vs') button(612, 8, 180, 34, 'ルール：' + (cfg.rule === 'stock' ? 'ストック' + cfg.stocks : 'タイム' + cfg.time + '分') + (cfg.team ? '・チーム' : ''), () => { cfg.showRules = true; }, { size: 13 });
   button(800, 6, 150, 38, cfg.mode === 'online' ? 'けってい ▶' : 'つぎへ ▶', selectNext, { primary: 1, size: 18 });
   const cols = 9, cw = 99, ch = 84, x0 = 12, y0 = 50;
@@ -3744,15 +3917,32 @@ function drawSelect() {
       txt(c.name, x + cw / 2, y + 74, 14, '#fff', 'center', '#000', 4);
     }
   }
-  const n = slotCount(), sw = n === 4 ? 228 : 300, sh = 200, sy = 326, sx0 = (W - (n * sw + (n - 1) * 8)) / 2;
+  const n = slotCount(), big = n <= 4, rows = n > 8 ? 2 : 1, scols = Math.ceil(n / rows), gap = big ? 8 : 6;
+  const sw = big ? (n === 4 ? 228 : 300) : Math.min(228, (W - 20 - (scols - 1) * gap) / scols), sh = rows === 2 ? 97 : 200, sx0 = (W - (scols * sw + (scols - 1) * gap)) / 2;
   for (let k = 0; k < n; k++) {
-    const s = cfg.slots[k], x = sx0 + k * (sw + 8), on = k === 0 || s.type !== 'off' || cfg.mode !== 'vs', active = cfg.cur === k;
-    const isP2 = cfg.mode === 'vs' && s.type === 'p2';
-    const tc = cfg.mode === 'vs' && cfg.team ? TEAMC[s.team] : k === 0 ? '#ff4a4a' : isP2 ? '#4aa8ff' : TAGS[k].c;
+    const s = cfg.slots[k], x = sx0 + (k % scols) * (sw + gap), sy = 326 + ((k / scols) | 0) * (sh + 6), on = k === 0 || s.type !== 'off' || cfg.mode !== 'vs', active = cfg.cur === k;
+    const isP2 = cfg.mode === 'vs' && s.type === 'p2', tm = cfg.mode === 'vs' && cfg.team;
+    const tc = tm ? TEAMC[s.team % cfg.team] : k === 0 ? '#ff4a4a' : isP2 ? '#4aa8ff' : TAGS[k].c;
+    const label = k === 0 ? (cfg.mode === 'online' ? rec.name : '1P') : isP2 ? '2P' : 'CPU';
     ui.push({ x, y: sy, w: sw, h: sh, fn: () => { if (on) { cfg.cur = k; sfx.select(); } } });
     const gr = g.createLinearGradient(0, sy, 0, sy + sh); gr.addColorStop(0, on ? hexA(tc, .5) : 'rgba(60,60,80,.4)'); gr.addColorStop(1, 'rgba(8,10,30,.9)');
-    g.fillStyle = gr; rr(x, sy, sw, sh, 14); g.fill(); g.lineWidth = active ? 5 : 2; g.strokeStyle = active ? '#ffe14a' : on ? tc : '#556'; g.stroke();
-    txt(k === 0 ? (cfg.mode === 'online' ? rec.name : '1P') : isP2 ? '2P' : 'CPU', x + 14, sy + 18, 17, on ? tc : '#889', 'left', '#000', 4);
+    g.fillStyle = gr; rr(x, sy, sw, sh, big ? 14 : 10); g.fill(); g.lineWidth = active ? (big ? 5 : 4) : 2; g.strokeStyle = active ? '#ffe14a' : on ? tc : '#556'; g.stroke();
+    if (!big) {
+      // 5人以上はコンパクトな枠
+      txt(k === 0 ? label : label + (k + 1), x + 6, sy + 11, 11, on ? tc : '#889', 'left', '#000', 3);
+      if (!on) txt('なし', x + sw / 2, sy + sh / 2 + 4, 15, '#889');
+      else if (s.c < 0) { txt('?', x + sw / 2, sy + sh * .5, sh * .4, '#fff', 'center', '#000', 6); txt('おまかせ', x + sw / 2, sy + sh - 9, 11, '#fff', 'center', '#000', 3); }
+      else {
+        const c = CHARS[s.c], k2 = 54 / Math.max(54, c.bh) * sh / 118;
+        g.save(); rr(x, sy, sw, sh, 10); g.clip(); g.translate(x + sw / 2, sy + sh * .8); g.scale(k2, k2); drawChar(c, portraitPose(t, k), { alt: s.alt || 0 }); g.restore();
+        txt(c.name, x + sw / 2, sy + sh - 9, sh > 150 ? 14 : 11, '#fff', 'center', '#000', 3);
+        if (sh > 150) button(x + sw - 38, sy + sh - 52, 32, 24, '色', () => { s.alt = ((s.alt || 0) + 1) % 4; }, { size: 11 });
+      }
+      if (k > 0 && cfg.mode === 'vs') button(x + sw - 42, sy + 3, 39, 19, slotTypeLabel(s), () => slotTypeTap(k), { size: 10, red: s.type === 'off', sel: s.type === 'p2' });
+      if (on && tm) button(x + 3, sy + 18, 28, 18, TEAMN[s.team % cfg.team], () => { s.team = (s.team % cfg.team + 1) % cfg.team; }, { size: 10, red: s.team % cfg.team === 0, sel: s.team % cfg.team === 1 });
+      continue;
+    }
+    txt(label, x + 14, sy + 18, 17, on ? tc : '#889', 'left', '#000', 4);
     if (!on) txt('（なし）', x + sw / 2, sy + sh / 2, 20, '#889');
     else if (s.c < 0) { txt('?', x + sw / 2, sy + 100, 84, '#fff', 'center', '#000', 8); txt('おまかせ', x + sw / 2, sy + 172, 20, '#fff', 'center', '#000', 4); }
     else {
@@ -3764,20 +3954,11 @@ function drawSelect() {
       button(x + 8, sy + sh - 44, 52, 28, 'わざ', () => { cfg.moveList = s.c; }, { size: 13 });
       if (active) ['力', '速', '重'].forEach((l, j) => { const stx = x + 12, sty = sy + 36 + j * 13; txt(l, stx, sty, 10, '#fff', 'left'); for (let q = 0; q < 5; q++) { g.fillStyle = q < c.stat[j] ? ['#ff7a5a', '#7fe08a', '#7fb8ff'][j] : 'rgba(255,255,255,.2)'; rr(stx + 14 + q * 9, sty - 3, 7, 6, 2); g.fill(); } });
     }
-    if (k > 0 && cfg.mode === 'vs') {
-      button(x + sw - 70, sy + 6, 62, 26, slotTypeLabel(s) + ' ▼', () => {
-        const order = ['cpu', 'p2', 'off'];
-        let nt = order[(order.indexOf(s.type) + 1) % 3];
-        if (nt === 'p2' && cfg.slots.some((q, j) => j !== k && q.type === 'p2')) nt = 'off';
-        const others = cfg.slots.filter((q, j) => j > 0 && j !== k && q.type !== 'off').length;
-        if (nt === 'off' && others === 0) nt = 'cpu';
-        s.type = nt; if (s.type === 'off' && cfg.cur === k) cfg.cur = 0;
-      }, { size: 12, red: s.type === 'off', sel: s.type === 'p2' });
-    }
-    if (on && cfg.mode === 'vs' && cfg.team) button(x + 60, sy + 6, 70, 26, TEAMN[s.team] + 'チーム', () => { s.team = 1 - s.team; }, { size: 12, red: s.team === 0, sel: s.team === 1 });
+    if (k > 0 && cfg.mode === 'vs') button(x + sw - 70, sy + 6, 62, 26, slotTypeLabel(s) + ' ▼', () => slotTypeTap(k), { size: 12, red: s.type === 'off', sel: s.type === 'p2' });
+    if (on && tm) button(x + 60, sy + 6, 70, 26, TEAMN[s.team % cfg.team] + 'チーム', () => { s.team = (s.team % cfg.team + 1) % cfg.team; }, { size: 12, red: s.team % cfg.team === 0, sel: s.team % cfg.team === 1 });
   }
   if (cfg.mode === 'training') txt('2つめの枠は練習相手のCPU', W / 2, 536, 11, 'rgba(255,255,255,.6)');
-  if (cfg.mode === 'vs') txt('同じキャラをもう一度タップ／「色」ボタンでカラー変更　・　CPU枠を「2P」にすると友だちと対戦', W / 2, 534, 11, 'rgba(255,255,255,.6)');
+  if (cfg.mode === 'vs' && cfg.n <= 8) txt('同じキャラをもう一度タップでカラー変更　・　CPU枠を「2P」にすると友だちと対戦　・　上の「−／＋」で最大' + MAXF + '人', W / 2, 534, 11, 'rgba(255,255,255,.6)');
   if (cfg.showRules) drawRules();
   if (cfg.moveList !== undefined && cfg.moveList !== null) drawMoveList(CHARS[cfg.moveList]);
 }
@@ -3813,7 +3994,7 @@ function drawRules() {
     cfg.rule === 'stock' ? ['ストック', [['1', 1], ['2', 2], ['3', 3], ['5', 5]], 'stocks'] : ['じかん', [['1分', 1], ['2分', 2], ['3分', 3], ['5分', 5]], 'time'],
     ['CPUのつよさ', [['よわい', 1], ['ふつう', 2], ['つよい', 3], ['さいきょう', 4]], 'lv'],
     ['アイテム', [['なし', 0], ['ふつう', 1], ['おおい', 2]], 'items'],
-    ['チーム戦', [['なし', false], ['あり（赤vs青）', true]], 'team'],
+    ['チーム戦', [['なし', 0], ['2チーム', 2], ['4チーム', 4]], 'team'],
     ['スペシャル', null, 'special'],
     ['上でジャンプ', [['する', true], ['しない', false]], 'tapJump']
   ];
@@ -3838,14 +4019,14 @@ function drawStageSelect() {
   menuBG('#1a3a5a', '#0a1428');
   button(10, 8, 96, 34, '◀ もどる', () => { scene = 'select'; }, { size: 15, back: 1 });
   txt('ステージをえらぼう（タップでスタート）', 120, 25, 20, '#fff', 'left', '#000', 5);
-  const cw = 300, ch = 154, gap = 8, x0 = (W - (3 * cw + 2 * gap)) / 2;
+  const cols = 4, cw = 228, ch = 118, gap = 6, x0 = (W - (cols * cw + (cols - 1) * gap)) / 2;
   for (let i = 0; i <= STAGES.length; i++) {
-    const x = x0 + (i % 3) * (cw + gap), y = 50 + ((i / 3) | 0) * (ch + gap), rand = i === STAGES.length;
+    const x = x0 + (i % cols) * (cw + gap), y = 48 + ((i / cols) | 0) * (ch + gap), rand = i === STAGES.length;
     const sel = rand ? cfg.stage < 0 : cfg.stage === i;
     ui.push({ x, y, w: cw, h: ch, fn: () => { cfg.stage = rand ? -1 : i; saveCfg(); sfx.select(); startGame(); } });
     g.fillStyle = 'rgba(8,10,30,.9)'; rr(x, y, cw, ch, 12); g.fill();
-    if (rand) { txt('?', x + cw / 2, y + 62, 70, '#fff', 'center', '#000', 8); txt('ランダム', x + cw / 2, y + 128, 20, '#fff', 'center', '#000', 5); }
-    else { drawStageThumb(STAGES[i], x + 5, y + 5, cw - 10, 104); txt(STAGES[i].name, x + cw / 2, y + 124, 18, '#fff', 'center', '#000', 5); txt(STAGES[i].sub, x + cw / 2, y + 143, 11, 'rgba(255,255,255,.8)'); }
+    if (rand) { txt('?', x + cw / 2, y + 48, 56, '#fff', 'center', '#000', 8); txt('ランダム', x + cw / 2, y + 98, 18, '#fff', 'center', '#000', 5); }
+    else { drawStageThumb(STAGES[i], x + 4, y + 4, cw - 8, 76); txt(STAGES[i].name, x + cw / 2, y + 93, 16, '#fff', 'center', '#000', 4); txt(STAGES[i].sub, x + cw / 2, y + 110, 10, 'rgba(255,255,255,.8)'); }
     g.lineWidth = sel ? 4 : 2; g.strokeStyle = sel ? '#ffe14a' : '#5a68b8'; rr(x, y, cw, ch, 12); g.stroke();
   }
 }
@@ -3859,13 +4040,13 @@ function startGame() {
     newMatch({ list, stage, rule: 'stock', items: 0, training: true });
   } else {
     const list = [];
-    cfg.slots.forEach((s, i) => {
+    cfg.slots.slice(0, cfg.n).forEach((s, i) => {
       if (i > 0 && s.type === 'off') return;
       const p2 = i > 0 && s.type === 'p2';
-      list.push({ ci: s.c < 0 ? randChar(list) : s.c, human: i === 0 || p2, pi: p2 ? 1 : 0, lv: cfg.lv, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? s.team : i, alt: s.alt || 0 });
+      list.push({ ci: s.c < 0 ? randChar(list) : s.c, human: i === 0 || p2, pi: p2 ? 1 : 0, lv: cfg.lv, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? s.team % cfg.team : i, alt: s.alt || 0 });
     });
     duo = list.some(e => e.pi === 1);
-    if (cfg.team && new Set(list.map(e => e.team)).size < 2) list[list.length - 1].team = 1 - list[0].team;
+    if (cfg.team && new Set(list.map(e => e.team)).size < 2) list[list.length - 1].team = (list[0].team + 1) % cfg.team;
     newMatch({ list, stage, rule: cfg.rule, time: cfg.time, items: cfg.items, team: cfg.team, special: cfg.special });
   }
   scene = 'battle'; resetTouch(); saveCfg();
@@ -4074,7 +4255,18 @@ function drawResult() {
     g.save(); g.translate(170, 400); g.scale(3.4, 3.4); drawChar(win.c, attackPose('taunt', (t * .012) % 1, idlePose(t)), { alt: win.alt }); g.restore();
     txt('“' + win.c.quote + '”', 170, 452, 15, '#fff', 'center', '#000', 4);
   }
-  res.forEach((f, i) => {
+  if (res.length > 4) {
+    // 大人数：2列のコンパクト表示
+    const per = Math.ceil(res.length / 2), rh = Math.min(68, Math.floor(370 / per) - 4);
+    res.forEach((f, i) => {
+      const x = 340 + ((i / per) | 0) * 298, y = 78 + (i % per) * (rh + 4), tg = tagOf(f), first = G.team ? f.team === win.team : i === 0;
+      g.fillStyle = first ? 'rgba(255,225,74,.28)' : 'rgba(255,255,255,.1)'; rr(x, y, 292, rh, 8); g.fill(); g.strokeStyle = first ? '#ffe14a' : G.team ? TEAMC[f.team] : '#5a68b8'; g.lineWidth = 2; g.stroke();
+      txt(G.team ? (first ? 'WIN' : '') : (i + 1) + '位', x + 22, y + rh / 2, 14, first ? '#ffe14a' : '#fff', 'center', '#000', 3);
+      g.save(); rr(x + 42, y + 2, rh - 4, rh - 4, 6); g.clip(); g.translate(x + 42 + (rh - 4) / 2, y + rh + 4); g.scale(rh / 70, rh / 70); drawChar(f.c, idlePose(t), { alt: f.alt }); g.restore();
+      txt(tg.t + ' ' + f.c.name, x + 48 + rh, y + rh / 2, 13, '#fff', 'left', '#000', 3);
+      txt('撃墜' + f.kos + ' 落下' + f.falls + (G.rule === 'time' ? ' (' + (f.score > 0 ? '+' : '') + f.score + ')' : ''), x + 286, y + rh / 2, 11, '#ffd2a0', 'right', '#000', 2);
+    });
+  } else res.forEach((f, i) => {
     const y = 90 + i * 78, x = 340, tg = tagOf(f);
     const first = G.team ? f.team === win.team : i === 0;
     g.fillStyle = first ? 'rgba(255,225,74,.28)' : 'rgba(255,255,255,.1)'; rr(x, y, 590, 68, 12); g.fill(); g.strokeStyle = first ? '#ffe14a' : G.team ? TEAMC[f.team] : '#5a68b8'; g.lineWidth = 2; g.stroke();
@@ -4174,7 +4366,7 @@ function netOnMessage(ev, p) {
     if (m) m.t = now;
     if (ev === 'hello' || ev === 'pick') {
       if (!m) {
-        if (NET.members.length >= 4 || NET.started) { netSend('full', { to: p.id }); return; }
+        if (NET.members.length >= NET_MAX || NET.started) { netSend('full', { to: p.id }); return; }
         NET.members.push({ id: p.id, name: String(p.name || 'ゲスト').slice(0, 12), ci: p.ci | 0, alt: p.alt | 0, t: now }); sfx.item();
       } else Object.assign(m, { name: String(p.name || m.name).slice(0, 12), ci: (p.ci | 0) % CHARS.length, alt: (p.alt | 0) % 4 });
       netLobbyBroadcast();
@@ -4199,8 +4391,8 @@ function netOnMessage(ev, p) {
 // ---- ホスト：試合開始 ----
 function netStartHost() {
   const list = [];
-  NET.members.forEach((m, i) => list.push({ ci: m.ci, alt: m.alt, human: m.id === NET.id, remote: m.id === NET.id ? undefined : m.id, netName: m.name, owner: m.id, lv: 2, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? i % 2 : i }));
-  for (let i = 0; i < NET.cpus && list.length < 4; i++) list.push({ ci: randChar(list), lv: cfg.lv, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? list.length % 2 : list.length, alt: 0, netName: 'CPU' });
+  NET.members.forEach((m, i) => list.push({ ci: m.ci, alt: m.alt, human: m.id === NET.id, remote: m.id === NET.id ? undefined : m.id, netName: m.name, owner: m.id, lv: 2, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? i % cfg.team : i }));
+  for (let i = 0; i < NET.cpus && list.length < MAXF; i++) list.push({ ci: randChar(list), lv: cfg.lv, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? list.length % cfg.team : list.length, alt: 0, netName: 'CPU' });
   const stage = cfg.stage < 0 ? (Math.random() * STAGES.length) | 0 : cfg.stage;
   const o = { list, stage, rule: cfg.rule, time: cfg.time, items: cfg.items, team: cfg.team, special: cfg.special };
   NET.started = true;
@@ -4217,11 +4409,13 @@ function netStartClient(o) {
 }
 // ---- ホスト：ようすを配る ----
 const R1 = v => Math.round(v * 10) / 10;
+const NET_MAX = 8; // オンラインの最大プレイヤー数（残りはCPUで16人まで）
 function netHostSend() {
-  if (++NET.frame % (NET.members.length >= 3 ? 4 : 3)) return;
+  if (++NET.frame % (G.fs.length > 8 ? 6 : G.fs.length > 4 || NET.members.length >= 3 ? 4 : 3)) return;
+  const pmax = G.fs.length > 8 ? 70 : 140;
   const newP = [];
   for (const p of G.parts) {
-    if (p._n) continue; p._n = 1; if (newP.length > 140) continue;
+    if (p._n) continue; p._n = 1; if (newP.length > pmax) continue;
     const e = {};
     for (const k in p) { const v = p[k]; if (k === 'c' || k === '_n') continue; e[k] = typeof v === 'number' ? R1(v) : v; }
     if (p.c) e.ci = p.c.idx;
@@ -4347,10 +4541,23 @@ function drawLobby() {
   txt('友だちに教えてね', 120, 112, 13, '#fff', 'center', '#000', 3);
   txt(NET.host ? 'あなたがホストです' : 'ホストのスタートを待っています…', 600, 36, 20, '#fff', 'center', '#000', 5);
   const ms = NET.members, R = NET.host ? { rule: cfg.rule, stocks: cfg.stocks, time: cfg.time, lv: cfg.lv, items: cfg.items, team: cfg.team, special: cfg.special, stage: cfg.stage } : NET.rules || {};
-  for (let i = 0; i < 4; i++) {
-    const m = ms[i], x = 250 + i * 176, y = 70, isCpu = !m && i < ms.length + (NET.cpus || 0);
+  const tot = ms.length + (NET.cpus || 0), shown = Math.max(4, Math.min(MAXF, tot + (ms.length < NET_MAX && tot < MAXF ? 1 : 0)));
+  if (shown > 4) {
+    // 大人数：小さい枠を2段にならべる
+    for (let i = 0; i < shown; i++) {
+      const m = ms[i], x = 236 + (i % 8) * 90, y = 62 + ((i / 8) | 0) * 122, isCpu = !m && i < tot;
+      g.fillStyle = m ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.04)'; rr(x, y, 84, 114, 10); g.fill();
+      g.strokeStyle = m && m.id === NET.id ? '#ffe14a' : R.team ? TEAMC[i % R.team] : '#5a68b8'; g.lineWidth = m && m.id === NET.id ? 3 : 1.5; g.stroke();
+      if (m) {
+        g.save(); rr(x, y, 84, 114, 10); g.clip(); g.translate(x + 42, y + 92); g.scale(.85, .85); drawChar(CHARS[(m.ci | 0) % CHARS.length], portraitPose(t, i), { alt: m.alt }); g.restore();
+        txt(m.name, x + 42, y + 12, 10, '#fff', 'center', '#000', 3); txt(CHARS[(m.ci | 0) % CHARS.length].name, x + 42, y + 104, 11, '#fff', 'center', '#000', 3);
+      } else if (isCpu) txt('CPU', x + 42, y + 57, 18, '#9fb4ff', 'center', '#000', 4);
+      else txt('まち…', x + 42, y + 57, 13, '#667');
+    }
+  } else for (let i = 0; i < 4; i++) {
+    const m = ms[i], x = 250 + i * 176, y = 70, isCpu = !m && i < tot;
     g.fillStyle = m ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.04)'; rr(x, y, 166, 230, 14); g.fill();
-    g.strokeStyle = m && m.id === NET.id ? '#ffe14a' : R.team ? TEAMC[i % 2] : '#5a68b8'; g.lineWidth = m && m.id === NET.id ? 4 : 2; g.stroke();
+    g.strokeStyle = m && m.id === NET.id ? '#ffe14a' : R.team ? TEAMC[i % R.team] : '#5a68b8'; g.lineWidth = m && m.id === NET.id ? 4 : 2; g.stroke();
     if (m) {
       g.save(); g.beginPath(); rr(x, y, 166, 230, 14); g.clip(); g.translate(x + 83, y + 180); g.scale(1.7, 1.7); drawChar(CHARS[(m.ci | 0) % CHARS.length], portraitPose(t, i), { alt: m.alt }); g.restore();
       txt(m.name, x + 83, y + 22, 15, '#fff', 'center', '#000', 4); txt(CHARS[(m.ci | 0) % CHARS.length].name, x + 83, y + 206, 18, '#fff', 'center', '#000', 4);
@@ -4358,7 +4565,7 @@ function drawLobby() {
     } else if (isCpu) txt('CPU', x + 83, y + 115, 30, '#9fb4ff', 'center', '#000', 5);
     else txt('まち…', x + 83, y + 115, 18, '#667');
   }
-  const ruleTxt = (R.rule === 'stock' ? 'ストック' + R.stocks : 'タイム' + R.time + '分') + ' ・ アイテム' + ['なし', 'ふつう', 'おおい'][R.items | 0] + (R.team ? ' ・ チーム戦' : '') +
+  const ruleTxt = (R.rule === 'stock' ? 'ストック' + R.stocks : 'タイム' + R.time + '分') + ' ・ アイテム' + ['なし', 'ふつう', 'おおい'][R.items | 0] + (R.team ? ' ・ ' + (R.team === true ? 2 : R.team) + 'チーム戦' : '') +
     (R.special && R.special !== 'none' ? ' ・ ' + SPECIALS.find(q => q[0] === R.special)[1] : '') + ' ・ ステージ：' + (R.stage < 0 || R.stage === undefined ? 'ランダム' : STAGES[R.stage].name);
   txt(ruleTxt, 600, 322, 15, '#fff', 'center', '#000', 4);
   button(30, 150, 180, 44, 'キャラ変更', () => { cfg.slots[0].c = NET.ci; cfg.slots[0].alt = NET.alt; goSelect('online'); }, { size: 17 });
@@ -4366,7 +4573,11 @@ function drawLobby() {
   if (NET.host) {
     button(250, 350, 170, 44, 'ルール', () => { cfg.showRules = true; }, { size: 18 });
     button(430, 350, 170, 44, 'ステージ ▶', () => { cfg.stage = cfg.stage + 1 >= STAGES.length ? -1 : cfg.stage + 1; saveCfg(); netLobbyBroadcast(); }, { size: 17 });
-    button(610, 350, 170, 44, 'CPU：' + NET.cpus + '人', () => { NET.cpus = (NET.cpus + 1) % Math.max(1, 5 - ms.length); netLobbyBroadcast(); }, { size: 17 });
+    const cmax = Math.max(0, MAXF - ms.length);
+    if (NET.cpus > cmax) NET.cpus = cmax;
+    g.fillStyle = 'rgba(8,10,30,.7)'; rr(610, 350, 170, 44, 10); g.fill(); txt('CPU ' + NET.cpus + '人', 695, 372, 16, '#fff', 'center', '#000', 3);
+    button(612, 352, 36, 40, '−', () => { NET.cpus = Math.max(0, NET.cpus - 1); netLobbyBroadcast(); }, { size: 18 });
+    button(742, 352, 36, 40, '＋', () => { NET.cpus = Math.min(cmax, NET.cpus + 1); netLobbyBroadcast(); }, { size: 18 });
     const ok = ms.length + NET.cpus >= 2;
     button(250, 410, 530, 70, ok ? 'スタート！' : '2人以上（CPU可）でスタートできます', () => { if (ok) netStartHost(); }, { primary: ok, size: ok ? 30 : 18 });
   }
