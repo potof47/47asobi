@@ -109,7 +109,7 @@ cv.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') touchMode = true;
   for (let i = ui.length - 1; i >= 0; i--) {
     const b = ui[i];
-    if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { b.fn(); return; }
+    if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { b.fn(p); return; }
   }
   if (scene === 'battle' && G && !G.demo && !G.paused && e.pointerType === 'touch') {
     if (p.x < 440) { tp.set(e.pointerId, { kind: 'stick' }); stickO = { x: p.x, y: p.y }; stickV = { x: 0, y: 0 }; }
@@ -632,8 +632,57 @@ const CHARS = [
       u: { name: 'つばさでとぶ', k: 'rise', t: 56, on: 6, off: 40, dvy: -11, dvx: 3.6, nog: 1, rise: 1, multi: 8, dmg: 2.5, kb: 2.5, ks: .04, ang: 80, rel: 1, hx: 0, hy: -40, w: 80, h: 70, vis: 'wings' },
       d: { name: 'しっぽたたき', k: 'tail', t: 34, on: 8, off: 16, dmg: 9, kb: 5, ks: .13, ang: 45, rel: 1, hx: 0, hy: -14, w: 124, h: 40 }
     },
-    fs: { name: 'ドラゴンブレス', type: 'beam', fx: 'fire', w: 820, h: 150 } }
+    fs: { name: 'ドラゴンブレス', type: 'beam', fx: 'fire', w: 820, h: 150 } },
+  // ---- 新キャラ：分身・ペット・変身
+  { id: 'mira', name: 'ミラ', sub: '鏡の分身つかい', cat: 'カッコいい', body: 'human', arch: 'brawl', fx: 'magic',
+    look: { skin: '#ffe6d6', hair: '#b8e8ff', hairStyle: 'long', top: '#4ab0e8', bottom: '#2a3a6a', scarf: '#d8f4ff', weapon: 'kunai', band: '#ffffff', boots: '#2a3a6a' },
+    col: '#4ab0e8', weight: 84, run: 4, air: .4, jump: 12.8, jumps: 1, grav: .62, fall: 9.6, as: 1.08, pow: .92, kbm: 1, rng: 1, bw: 13, bh: 52, stat: [2, 4, 2],
+    quote: 'どれが本物か、わかる？',
+    sp: {
+      n: { name: '分身の術', k: 'cast', t: 34, on: 12, clone: 1, vis: 'sparkle' },
+      s: { name: 'ミラーダッシュ', k: 'dash', t: 34, on: 4, off: 16, dvx: 15, ghost: 1, nog: 1, dmg: 7, kb: 4.5, ks: .12, ang: 40, hx: 10, hy: -30, w: 60, h: 40, vis: 'sparkle' },
+      u: { name: 'ミラージュジャンプ', k: 'rise', t: 44, on: 4, off: 22, dvy: -14.5, dvx: 3, nog: 1, rise: 1, dmg: 5, kb: 4, ks: .08, ang: 85, hx: 0, hy: -40, w: 54, h: 70, vis: 'sparkle' },
+      d: { name: '鏡の盾', k: 'cast', t: 38, on: 4, off: 24, reflect: 1, dmg: 4, kb: 4, ks: .08, ang: 50, rel: 1, hx: 0, hy: -32, w: 96, h: 90, vis: 'barrier' }
+    },
+    fs: { name: '万華鏡・百分身', type: 'aura', fx: 'magic', w: 560, h: 320 } },
+  { id: 'mimi', name: 'ミミ', sub: 'ペットつかい＆ポチ', cat: 'かわいい', body: 'human', arch: 'brawl', fx: 'normal', pet: 1,
+    look: { skin: '#ffe8d8', hair: '#c8743a', hairStyle: 'twin', top: '#ffb84a', bottom: '#6a8aff', weapon: 'staff', band: '#ff6a6a', boots: '#6a4a2a' },
+    col: '#ffb84a', weight: 80, run: 3.5, air: .38, jump: 12, jumps: 2, grav: .56, fall: 8, as: 1, pow: .9, kbm: 1, rng: 1, bw: 13, bh: 50, stat: [2, 3, 2],
+    quote: 'ポチ、いいこだね！',
+    sp: {
+      n: { name: 'ポチ、ゴー！', k: 'throwP', t: 30, on: 8, petGo: 1 },
+      s: { name: 'ボールなげ', k: 'throwP', t: 32, on: 10, proj: { ox: 22, oy: -34, vx: 8, vy: -4, gx: .3, r: 11, dmg: 7, kb: 4, ks: .09, ang: 45, life: 90, shape: 'star', fx: 'normal' } },
+      u: { name: 'ふうせんジャンプ', k: 'rise', t: 54, on: 6, off: 36, dvy: -11, dvx: 3.4, nog: 1, rise: 1, dmg: 3, kb: 3, ks: .06, ang: 80, rel: 1, hx: 0, hy: -40, w: 60, h: 60, vis: 'sparkle' },
+      d: { name: 'ポチ、おいで！', k: 'castDown', t: 40, on: 12, petCall: 1, heal: 4, vis: 'flower' }
+    },
+    fs: { name: 'どうぶつ大集合', type: 'stampede', shape: 'chick' } },
+  { id: 'change', name: 'チェンジ', sub: '変身ロボ（下ひっさつで変形）', cat: 'メカ・巨人', body: 'robot', arch: 'heavy', fx: 'metal',
+    look: { metal: '#ffd23f', metal2: '#e8443a', joint: '#3a3a4a', visor: '#1a1a2a', eye: '#4ae8ff', light: '#4ae8ff' },
+    col: '#ffd23f', weight: 118, run: 3, air: .3, jump: 11.4, jumps: 1, grav: .68, fall: 10, as: .92, pow: 1.15, kbm: 1.03, rng: 1.05, bw: 18, bh: 58, stat: [5, 2, 4],
+    quote: 'チェンジ、オン！',
+    sp: {
+      n: { name: 'アームキャノン', k: 'beam', t: 38, on: 14, proj: { ox: 30, oy: -36, vx: 10, r: 13, dmg: 9, kb: 4.5, ks: .1, ang: 35, life: 60, shape: 'orb', fx: 'fire' } },
+      s: { name: 'タックルブースト', k: 'body', t: 44, on: 8, off: 22, dvx: 12, armor: 1, dmg: 12, kb: 6, ks: .14, ang: 40, hx: 24, hy: -30, w: 60, h: 54 },
+      u: { name: 'ロケットアッパー', k: 'uppercut', t: 48, on: 4, off: 24, dvy: -14, dvx: 2, nog: 1, rise: 1, dmg: 11, kb: 6, ks: .14, ang: 85, hx: 14, hy: -50, w: 56, h: 80, vis: 'jet' },
+      d: { name: '変形！', k: 'castUp', t: 34, on: 10, transform: 1, vis: 'spark' }
+    },
+    fs: { name: 'ギガ・チェンジ', type: 'giga' } }
 ];
+// 変身ロボのジェット形態（選択画面には出ない）
+const FORMS = {
+  change: { id: 'change', name: 'チェンジ', sub: 'ジェット形態', cat: 'メカ・巨人', body: 'drone', arch: 'robot', fx: 'elec', form: 1,
+    look: { shell: '#ffd23f', shell2: '#e8443a', accent: '#4ae8ff', eye: '#4ae8ff', prop: '#3a3a4a' },
+    col: '#ffd23f', weight: 78, run: 4.6, air: .5, jump: 12, jumps: 3, grav: .5, fall: 7.5, as: 1.18, pow: .85, kbm: 1, rng: .95, bw: 14, bh: 44, stat: [2, 5, 1],
+    quote: 'ジェットモード、発進！',
+    m: { jab: { n: 'ジェットつつき' }, ftilt: { n: 'ウィングカッター', k: 'slash' }, fsmash: { n: 'ジェットビーム', k: 'beam', vis: 'laser', fx: 'elec', w: 140, hx: 84 } },
+    sp: {
+      n: { name: 'バルカン', k: 'beam', t: 26, on: 6, at: [6, 10, 14], proj: { ox: 24, oy: -24, vx: 14, r: 5, dmg: 2, kb: 1.2, ks: .02, ang: 12, life: 36, shape: 'laser', fx: 'elec' } },
+      s: { name: 'ソニックダイブ', k: 'dash', t: 34, on: 4, off: 18, dvx: 17, nog: 1, dmg: 8, kb: 5, ks: .12, ang: 35, hx: 10, hy: -24, w: 60, h: 34, vis: 'jet' },
+      u: { name: 'ジェット上昇', k: 'rise', t: 50, on: 4, off: 34, dvy: -13, dvx: 4, nog: 1, rise: 1, multi: 8, dmg: 2.5, kb: 2.5, ks: .04, ang: 80, rel: 1, hx: 0, hy: -10, w: 44, h: 50, vis: 'jet' },
+      d: { name: '変形！', k: 'castUp', t: 34, on: 10, transform: 1, vis: 'spark' }
+    },
+    fs: { name: 'ギガ・チェンジ', type: 'giga' } }
+};
 
 // ---------------------------------------------------------------------
 //  キャラごとの通常技（全員ちがう技）
@@ -816,6 +865,26 @@ const MOVESETS = {
     dash: { n: 'ころがりタックル', k: 'roll' }, fsmash: { n: 'がぶり' }, usmash: { n: '火炎噴き上げ', k: 'castUp', vis: 'burst', fx: 'fire' },
     dsmash: { n: 'ぐるぐるしっぽ' }, nair: { n: 'つばさ旋回', vis: 'wings' }, fair: { n: '爪ひっかき', vis: 'claws' }, bair: { n: 'うしろしっぽアタック', k: 'tail' },
     uair: { n: '火のいき', k: 'castUp', fx: 'fire', vis: 'burst' }, dair: { n: 'どすこいふみつけ' }
+  },
+  mira: {
+    jab: { n: '鏡打ち', fx: 'magic' }, ftilt: { n: 'ミラーキック', k: 'kick', fx: 'magic' }, utilt: { n: '光の輪', k: 'castUp', vis: 'sparkle', fx: 'magic' },
+    dtilt: { n: 'すべり蹴り', k: 'slide', hy: -12, h: 24 }, dash: { n: '残像タックル', k: 'dash', vis: 'shadow', fx: 'dark' },
+    fsmash: { n: '鏡割り', k: 'thrust', fx: 'magic', vis: 'burst', dmg: 16 }, usmash: { n: 'プリズム柱', k: 'castUp', fx: 'magic', vis: 'burst', hy: -96, h: 110 },
+    dsmash: { n: '合わせ鏡', k: 'split', fx: 'magic' }, nair: { n: 'くるくる反射', k: 'spin', fx: 'magic', vis: 'sparkle' }, fair: { n: '鏡面キック', k: 'kick' },
+    bair: { n: '後ろ鏡', k: 'backkick' }, uair: { n: 'きらめき蹴り', k: 'flip', fx: 'magic' }, dair: { n: '光の雨', k: 'castDown', fx: 'magic', vis: 'sparkle' }
+  },
+  mimi: {
+    jab: { n: 'ステッキつん', k: 'thrust', hx: 34, w: 50 }, ftilt: { n: 'ステッキふり', k: 'slash' }, utilt: { n: 'くるりステッキ', k: 'slashUp' },
+    dtilt: { n: 'しゃがみつつき', k: 'sweep' }, dash: { n: 'ころころダッシュ', k: 'roll' },
+    fsmash: { n: 'ペットフードぶちまけ', k: 'throwItem', vis: 'burst', dmg: 15 }, usmash: { n: 'わんわんジャンプ', k: 'uppercut', dmg: 14 },
+    dsmash: { n: 'ステッキ回転', k: 'spin' }, nair: { n: 'ぐるぐるリボン', k: 'spin', vis: 'whirl', fx: 'wind' }, fair: { n: 'まえステッキ', k: 'slash' },
+    bair: { n: 'うしろげり', k: 'backkick' }, uair: { n: 'ほしステッキ', k: 'slashUp', vis: 'sparkle' }, dair: { n: 'ふみふみ', k: 'stomp' }
+  },
+  change: {
+    jab: { n: 'ガンガンパンチ', fx: 'metal' }, ftilt: { n: 'ピストンアーム', k: 'thrust', fx: 'metal' }, utilt: { n: 'アッパーアーム', k: 'uppercut' },
+    dtilt: { n: 'キャタピラ払い', k: 'sweep' }, dash: { n: 'ショルダータックル', k: 'body' }, fsmash: { n: 'ドリルアーム', k: 'thrust', multi: 4, dmg: 4, fx: 'metal' },
+    usmash: { n: 'ロケットヘッド', k: 'headUp', vis: 'jet' }, dsmash: { n: '回転アーム', k: 'spin' }, nair: { n: 'ボディプレス', k: 'body' },
+    fair: { n: 'ハンマーアーム', k: 'slashBig' }, bair: { n: 'バックブースト', k: 'backkick', vis: 'jet' }, uair: { n: 'アンテナ突き', k: 'headUp' }, dair: { n: 'ずどんプレス', k: 'stomp' }
   }
 };
 // わざ表に出す順番
@@ -829,7 +898,7 @@ function buildMoves(c) {
   for (const k in B0) m[k] = { ...B0[k], ...(T[k] || {}) };
   for (const k in T) if (!m[k]) m[k] = { ...T[k] };
   for (const k in (c.m || {})) m[k] = { ...(m[k] || {}), ...c.m[k] };
-  const MS = MOVESETS[c.id] || {};
+  const MS = c.form ? {} : MOVESETS[c.id] || {};
   for (const k in MS) m[k] = { ...(m[k] || {}), ...MS[k] };
   m.nsp = { ...c.sp.n, sp: 1 }; m.ssp = { ...c.sp.s, sp: 1 }; m.usp = { ...c.sp.u, sp: 1 }; m.dsp = { ...c.sp.d, sp: 1 };
   m.fs = buildFS(c);
@@ -871,6 +940,7 @@ function buildFS(c) {
   }
 }
 CHARS.forEach((c, i) => { c.idx = i; c.moves = buildMoves(c); c.hasProj = !!(c.sp.n.proj || c.sp.s.proj); });
+for (const id in FORMS) { const b = CHARS.find(c => c.id === id), F = FORMS[id]; F.idx = b.idx; F.moves = buildMoves(F); F.hasProj = true; b.formB = F; F.formA = b; }
 // カラーバリエーション（色相をずらした4色）
 function hueShift(hex, deg, sat = 1, lig = 0) {
   const n = parseInt(hex.slice(1), 16); let r = (n >> 16) / 255, gg = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
@@ -882,9 +952,9 @@ function hueShift(hex, deg, sat = 1, lig = 0) {
   if (sl === 0) R = Gg = B = L2; else { const q = L2 < .5 ? L2 * (1 + sl) : L2 + sl - L2 * sl, p = 2 * L2 - q; R = f(p, q, h + 1 / 3); Gg = f(p, q, h); B = f(p, q, h - 1 / 3); }
   return '#' + [R, Gg, B].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
 }
-CHARS.forEach(c => {
+CHARS.concat(Object.values(FORMS)).forEach(c => {
   c.looks = [c.look]; c.cols = [c.col];
-  for (const [d, sa, li] of [[130, 1, 0], [235, 1, 0], [0, .15, -.12]]) {
+  for (const [d, sa, li] of [[130, 1, 0], [235, 1, 0], [0, .15, -.12], [40, 1.4, .08], [0, .55, -.3], [0, .45, .2], [180, 1.5, .06]]) {
     const L = {};
     for (const k in c.look) { const v = c.look[k]; L[k] = typeof v === 'string' && v[0] === '#' && !/skin|face|eye|nose|visor|tongue|cheek/.test(k) ? hueShift(v, d, sa, li) : v; }
     c.looks.push(L); c.cols.push(hueShift(c.col, d, sa, li));
@@ -929,7 +999,9 @@ const ITEMDEF = {
   capsule: { n: 'おたすけボール', kind: 'throw', w: 2, r: 13, tdmg: 4 },
   mine:    { n: 'センサーばくだん', kind: 'throw', w: 2, r: 12, tdmg: 3 },
   crate:   { n: 'たからばこ', kind: 'box', w: 3, r: 20, hp: 3 },
-  ball:    { n: 'スマッシュボール', kind: 'ball', w: 1, r: 22 }
+  ball:    { n: 'スマッシュボール', kind: 'ball', w: 1, r: 22 },
+  board:   { n: 'スケボー', kind: 'touch', w: 2, r: 15 },
+  rocket:  { n: 'ロケット', kind: 'touch', w: 2, r: 15 }
 };
 const ITEM_MOVES = {
   bat:     { t: 26, on: 8, off: 12, dmg: 10, kb: 5, ks: .12, ang: 40, hx: 46, hy: -32, w: 62, h: 46, k: 'swingItem', fx: 'normal' },
@@ -1118,31 +1190,48 @@ function newMatch(o) {
     cam: { x: 0, y: -90, z: .9 }, fs: [], winner: null, dark: 0, sudden: !!o.sudden, comboShow: null, result: null,
     lava: st.lava ? { s: 'idle', t: 0, next: rnd(700, 1000), y: 380, base: 380, top: -46 } : null,
     team: o.team ? (o.team === true ? 2 : o.team) : 0, special: o.special || 'none', gravMul: (o.special === 'lowg' ? .55 : 1) * (st.lowg || 1), challenger: o.challenger || null,
-    multi: o.multi ? { count: 0, goal: 100, spawned: 0 } : null, hr: null, net: !!o.net, netClient: !!o.netClient, tip: pick(TIPS)
+    rp: o.demo || o.netClient ? null : [], multi: o.multi ? { count: 0, goal: 100, spawned: 0 } : null, hr: null, net: !!o.net, netClient: !!o.netClient, tip: pick(TIPS)
   };
   G = m;
   for (const p of st.plats) stageShape(st, p);
-  o.list.forEach((e, i) => {
-    const f = mkFighter(e.ci, i, !!e.human, spawnX(st, i, o.list.length), e.lv || 0);
-    f.stocks = e.stocks; f.pct = e.pct || 0; f.pi = e.pi || 0; f.team = e.team === undefined ? i : e.team; f.alt = e.alt || 0;
-    if (e.remote) f.remote = e.remote; if (e.netName) f.netName = e.netName; if (e.owner) f.owner = e.owner;
-    if (e.npc) f.npc = true;
-    if (e.metal) f.metal = true; if (e.boss) f.bossSz = e.boss; if (e.weak) f.weak = true; if (e.dummy) { f.dummy = true; f.c = SANDBAG; f.ai = null; }
-    f.szv = f.bossSz;
-    if (e.x !== undefined) f.x = e.x;
-    f.home = f.x;
-    const pl = st.plats.find(p => f.x > p.x1 && f.x < p.x2 && p.t === 'solid') || st.plats[0];
-    f.y = pl.y; f.ground = pl; f.dir = f.x < 0 ? 1 : -1;
-    applySpecial(f);
-    m.fs.push(f);
-  });
+  o.list.forEach((e, i) => m.fs.push(buildEntry(m, e, i, spawnX(st, i, o.list.length))));
   m.npcN = m.fs.filter(f => f.npc).length;
+  m.bossF = m.fs.find(f => f.hpMax) || null;
+  m.ext = o.ext ? o.ext() : null;
+  for (const f of m.fs) if (f.c.pet && !m.netClient) spawnPet(f);
   initGimmicks(m);
   if (m.special === 'bomb') { m.items = 2; }
   // 同じキャラ・同じ色がかぶったら色を変える
   for (const f of m.fs) for (let k = 0; k < 4 && m.fs.some(o2 => o2 !== f && o2.id < f.id && o2.ci === f.ci && o2.alt === f.alt); k++) f.alt = (f.alt + 1) % 4;
   setBgm(o.demo ? -1 : st.bgm);
   return m;
+}
+// 1人ぶんのファイターを作る（試合のとちゅうで敵を足すときも使う）
+function buildEntry(m, e, i, x0) {
+  const st = m.st;
+  {
+    const f = mkFighter(e.ci, i, !!e.human, x0, e.lv || 0);
+    f.stocks = e.stocks; f.pct = e.pct || 0; f.pi = e.pi || 0; f.team = e.team === undefined ? i : e.team; f.alt = e.alt || 0;
+    if (e.remote) f.remote = e.remote; if (e.netName) f.netName = e.netName; if (e.owner) f.owner = e.owner;
+    if (e.npc) f.npc = true;
+    if (e.bossHp) { f.hpMax = f.hp = e.bossHp; f.bossName = e.bossName || f.c.name; }
+    if (e.enemy) f.enemy = true;
+    if (e.metal) f.metal = true; if (e.boss) f.bossSz = e.boss; if (e.weak) f.weak = true; if (e.dummy) { f.dummy = true; f.c = SANDBAG; f.ai = null; }
+    f.szv = f.bossSz;
+    if (e.x !== undefined) f.x = e.x;
+    f.home = f.x;
+    const pl = st.plats.find(p => f.x > p.x1 && f.x < p.x2 && p.t === 'solid') || st.plats[0];
+    f.y = pl.y; f.ground = pl; f.dir = f.x < 0 ? 1 : -1;
+    if (e.y !== undefined) { f.y = e.y; f.ground = null; }
+    applySpecial(f);
+    return f;
+  }
+}
+// 試合中に敵を追加（ストーリー用）
+function addFighter(e, x, y) {
+  const f = buildEntry(G, { ...e, y }, G.fs.length, x);
+  G.fs.push(f); if (f.c.pet) spawnPet(f);
+  return f;
 }
 function mkFighter(ci, slot, human, x, lv) {
   const c = CHARS[ci];
@@ -1242,6 +1331,7 @@ function applyHit(att, o, hb, cx, cy, sd, opt = {}) {
   if (o.state === 'grabbed' && o.heldBy && att !== o.heldBy) releaseGrab(o.heldBy);
   o.pct = Math.min(999, o.pct + dmg);
   if (att) att.dmgDone += dmg;
+  if (o.hpMax && !G.netClient) { o.hp = Math.max(0, o.hp - dmg); if (o.hp <= 0 && G.ext && G.ext.bossDown) G.ext.bossDown(o); }
   if (o.state === 'stun' || o.state === 'grabbed' || o.state === 'atk' && o.mv && o.mv.k && o.mv.k.startsWith('throw')) o.combo++; else { o.combo = 1; o.comboDmg = 0; }
   o.comboDmg += dmg; o.comboT = 100;
   if (att && o.combo >= 2 && !G.demo) {
@@ -1432,6 +1522,7 @@ function updateFighter(f) {
     case 'grabbing': actGrabbing(f, P); break;
     case 'grabbed': actGrabbed(f); return;
   }
+  if (f.ride) rideStep(f, P);
   // 重力・速度
   f.vy += P.grav;
   if (f.vy > P.cap) f.vy = P.cap;
@@ -1452,7 +1543,7 @@ function updateFighter(f) {
 }
 
 function actFree(f, P) {
-  const c = f.c, inp = f.inp, w = f.want, gr = !!f.ground, run = c.run * (f.spd > 0 ? 1.45 : 1);
+  const c = f.c, inp = f.inp, w = f.want, gr = !!f.ground, run = c.run * (f.spd > 0 ? 1.45 : 1) * (f.ride && f.ride.type === 'board' ? 1.75 : 1);
   if (f.taunt > 0) { f.taunt--; f.vx *= .8; return; }
   if (w.shield > 0 && !f.helpless && f.hammer <= 0) {
     if (gr && f.shieldHp > 5) {
@@ -1552,7 +1643,17 @@ function actAtk(f, P) {
     for (let i = 0; i < 8; i++) G.parts.push({ k: 'heal', x: f.x + rnd(-20, 20), y: f.y - rnd(0, BH(f)), vx: 0, vy: -1.2, life: 36, max: 36, col: '#7dff9a', sz: 6 });
   }
   if (mv.giga && f.pmt < mv.on && f.mt >= mv.on) { f.giga = mv.giga; G.shake = 14; }
-  if (mv.proj) for (const a of (mv.at || [mv.on])) if (f.pmt < a && f.mt >= a) spawnProj(f, mv.proj, mv.charge && mv.charge.max ? f.chg / mv.charge.max : 0);
+  if (f.pmt < mv.on && f.mt >= mv.on) {
+    if (mv.clone) spawnClone(f);
+    if (mv.petGo) petCommand(f, 'go');
+    if (mv.petCall) petCommand(f, 'call');
+    if (mv.transform) toggleForm(f);
+  }
+  if (mv.proj) for (const a of (mv.at || [mv.on])) if (f.pmt < a && f.mt >= a) {
+    const k = mv.charge && mv.charge.max ? f.chg / mv.charge.max : 0;
+    spawnProj(f, mv.proj, k);
+    for (const h of G.helpers) if (h.type === 'clone' && h.own === f) { const px = Object.create(f); px.x = h.x; px.y = h.y; spawnProj(px, { ...mv.proj, dmg: mv.proj.dmg * .5 }, k); }
+  }
   if (mv.meteor && act && Math.floor(f.mt / 3) !== Math.floor(f.pmt / 3)) spawnMeteor(f, mv.meteor);
   if (mv.hbs.length) checkMoveHits(f, mv);
   if (f.state !== 'atk' || f.mv !== mv) return;
@@ -1823,6 +1924,7 @@ function updatePlats() {
 // ---------------------------------------------------------------------
 function koFighter(f) {
   if (G.hr) { hrBagOut(f); return; }
+  if (G.ext && G.ext.onKO && G.ext.onKO(f)) return;
   const b = G.st.blast;
   const ex = clamp(f.x, b.l, b.r), ey = clamp(f.y - BH(f) / 2, b.t, b.b);
   const top = f.y < b.t, r = Math.random(), col = f.c.cols[f.alt || 0];
@@ -1839,7 +1941,7 @@ function koFighter(f) {
   f.falls++;
   if (f.held) releaseGrab(f); if (f.heldBy) releaseGrab(f.heldBy);
   f.dead = true; f.rt = G.training ? 40 : 70; f.state = 'free'; f.mv = null; f.sh = false; f.hang = null; f.fsReady = false; f.pw = 0; f.spd = 0; f.star = 0; f.szMode = 0; f.szT = 0;
-  f.giga = 0; f.item = null; f.hammer = 0; f.vx = f.vy = 0; f.inv = 0; f.frozen = 0; f.sleep = 0; f.burn = 0;
+  f.giga = 0; f.item = null; f.hammer = 0; f.vx = f.vy = 0; f.inv = 0; f.frozen = 0; f.sleep = 0; f.burn = 0; f.ride = null;
   if (G.multi) {
     if (f.human) { f.out = true; endMatch(null); }
     else {
@@ -1859,7 +1961,7 @@ function respawn(f) {
   if (f.out) { f.rt = 99999; return; }
   if (G.multi && !f.human) {
     // 組み手：やられた敵は別のキャラになってすぐ出てくる
-    const ci = pick(CHARS.map((_, i) => i)); f.ci = ci; f.c = CHARS[ci]; f.alt = (Math.random() * 4) | 0;
+    const ci = pick(CHARS.map((_, i) => i)); f.ci = ci; f.c = CHARS[ci]; f.form = false; f.alt = (Math.random() * 4) | 0;
     f.dead = false; f.pct = 0; f.state = 'free'; f.x = pick([-300, -150, 150, 300]); f.y = -260; f.vx = f.vy = 0; f.inv = 30;
     f.jumps = f.c.jumps; f.upUsed = f.adUsed = f.helpless = false; f.shieldHp = 100; f.lastHit = null; f.szv = 1; f.combo = 0; f.dir = f.x < 0 ? 1 : -1;
     return;
@@ -1870,6 +1972,7 @@ function respawn(f) {
 }
 function checkEnd() {
   if (G.over || G.training || G.multi) return;
+  if (G.ext && G.ext.checkEnd) { G.ext.checkEnd(); return; }
   if (G.classic || G.challenger) {
     const me = G.fs.find(f => f.human), foes = G.fs.filter(f => !f.human && !f.out);
     if (me.out) endMatch(foes[0] || null); else if (!foes.length) endMatch(me);
@@ -1950,6 +2053,7 @@ function startMulti(ci) {
 // ---------------------------------------------------------------------
 function randomItemType() {
   const hasBall = G.items_.some(i => i.type === 'ball') || G.fs.some(f => f.fsReady) || G.fs.some(f => f.state === 'atk' && f.mv && f.mv.fs);
+  if (G.itemPool) return pick(G.itemPool);
   if (G.special === 'bomb') return !hasBall && Math.random() < .1 ? 'ball' : 'bomb';
   const list = Object.keys(ITEMDEF).filter(k => !(k === 'ball' && hasBall));
   let tot = 0; for (const k of list) tot += ITEMDEF[k].w;
@@ -2057,6 +2161,36 @@ function explodeAt(x, y, R, att, dmg, kb, ks, opt = {}) {
     if (it.type === 'crate') breakCrate(it);
   }
 }
+// ---- 乗り物（スケボー：速く走れて体当たり／ロケット：自由に空をとべる）
+function rideStep(f, P) {
+  const R = f.ride, inp = f.inp;
+  if (!R || f.dead) return;
+  if (f.state === 'stun' || f.state === 'grabbed' || f.state === 'hang' || --R.t <= 0 || f.want.grab > 0) {
+    const jump = f.want.grab > 0; f.want.grab = 0; dismount(f); if (jump) { f.vy = -9; f.ground = null; } return;
+  }
+  if (R.type === 'rocket' && (f.state === 'free' || f.state === 'atk')) {
+    P.grav = 0; const sp = 8;
+    f.vx += ((inp.x || (Math.abs(f.vx) < 1 ? f.dir * .4 : 0)) * sp - f.vx) * .1; f.vy += (inp.y * sp - f.vy) * .12;
+    if (Math.abs(inp.x) > .2) f.dir = sgn(inp.x);
+    if (G.t % 2 === 0) G.parts.push({ k: 'fl', x: f.x - f.dir * 30, y: f.y - 8, vx: -f.dir * 2, vy: rnd(-.5, .5), life: 16, max: 16, col: pick(['#ff8a2a', '#ffd23f']), sz: rnd(5, 9) });
+    if (R.t < 60 && R.t % 12 === 0) popText(f.x, f.y - BH(f) - 20, 'ねんりょう切れ！', '#ff6a3a', 14, 20);
+  }
+  if (R.type === 'board' && f.ground && Math.abs(f.vx) > 4 && G.t % 4 === 0) dust(f.x - f.dir * 20, f.y, 1);
+  // 体当たり
+  const v = Math.hypot(f.vx, R.type === 'rocket' ? f.vy : 0);
+  if (v > (R.type === 'rocket' ? 4 : 5.5)) for (const o of G.fs) {
+    if (o === f || o.dead || o.out || sameTeam(f, o) || (R.hit[o.id] || 0) > G.t) continue;
+    if (!rectHit(boxOf(f), boxOf(o))) continue;
+    R.hit[o.id] = G.t + 40;
+    applyHit(f, o, { dmg: R.type === 'rocket' ? 11 : 7, kb: R.type === 'rocket' ? 6.5 : 5, ks: .12, ang: 40, fx: R.type === 'rocket' ? 'fire' : 'normal' }, f.x, f.y - BH(f) / 2, sgn(f.vx) || f.dir);
+  }
+}
+function dismount(f) {
+  if (!f.ride) return;
+  spark(f.x, f.y - 10, 10, f.ride.type === 'rocket' ? '#ff8a2a' : '#c8c8d8', 5, 18);
+  if (f.ride.type === 'rocket') { G.parts.push({ k: 'boom', x: f.x, y: f.y, vx: 0, vy: 0, life: 24, max: 24, sz: 50 }); sfx.boom(); }
+  f.ride = null;
+}
 function touchItem(o, it) {
   const c = ITEMDEF[it.type]; it.dead = true;
   switch (it.type) {
@@ -2066,6 +2200,9 @@ function touchItem(o, it) {
     case 'power': o.pw = 720; popText(o.x, o.y - BH(o) - 30, 'パワーアップ！', '#ff8a4a', 20); sfx.item(); break;
     case 'speed': o.spd = 720; popText(o.x, o.y - BH(o) - 30, 'スピードアップ！', '#7fe0ff', 20); sfx.item(); break;
     case 'giant': o.szMode = 1; o.szT = 600; popText(o.x, o.y - BH(o) - 50, '巨大化！', '#ffb347', 24); tone(200, 600, .5, 'square', .06); break;
+    case 'board': case 'rocket':
+      o.ride = { type: it.type, t: it.type === 'rocket' ? 420 : 900, hit: {} };
+      popText(o.x, o.y - BH(o) - 30, it.type === 'rocket' ? 'ロケットで空をとべ！' : 'スケボーで加速！', '#7fe0ff', 20); sfx.item(); break;
     case 'mini': o.szMode = -1; o.szT = 600; popText(o.x, o.y - BH(o) - 30, 'ちっちゃくなった！', '#9fe8ff', 18); tone(800, 200, .5, 'square', .05); break;
   }
   if (it.type === 'tomato' || it.type === 'heart') for (let i = 0; i < 10; i++) G.parts.push({ k: 'heal', x: o.x + rnd(-20, 20), y: o.y - rnd(0, BH(o)), vx: 0, vy: -1.2, life: 36, max: 36, col: '#7dff9a', sz: 6 });
@@ -2151,20 +2288,161 @@ function updateItems() {
 // ---------------------------------------------------------------------
 //  おたすけキャラ
 // ---------------------------------------------------------------------
-const HELPERS = { dragon: 'ファイアドラゴ', thunder: 'カミナリぐも', boulder: 'ゴロゴロいわ', fairy: 'ヒールエンジェル' };
+const HELPERS = { dragon: 'ファイアドラゴ', thunder: 'カミナリぐも', boulder: 'ゴロゴロいわ', fairy: 'ヒールエンジェル', ufo: 'ふしぎUFO', golem: 'ゴーレム兵', bee: 'ハチの大群', hole: 'ブラックホール' };
+const HELPER_LIFE = { ufo: 480, golem: 600, bee: 420, hole: 300 };
+// 追加のおたすけキャラ
+const HELPER_STEP = {
+  ufo(h) {
+    const tg = nearestFoe(h.own, h.x, h.y), tx = tg ? tg.x : h.x;
+    h.x += (tx - h.x) * .03; h.y += ((tg ? tg.y - 220 : -300) - h.y) * .04;
+    h.beam = h.t % 120 > 60;
+    if (h.beam) for (const o of G.fs) {
+      if (o === h.own || o.dead || o.out || sameTeam(h.own, o) || o.state === 'respawn') continue;
+      if (Math.abs(o.x - h.x) < 40 && o.y > h.y && o.y < h.y + 320) {
+        o.vy = Math.min(o.vy, -3.5); o.ground = null; o.vx *= .9;
+        if (h.t % 12 === 0) applyHit(h.own, o, { dmg: 2.5, kb: .5, ks: 0, ang: 90, fx: 'elec' }, o.x, o.y - 30, 1);
+        if (h.t % 120 === 119) applyHit(h.own, o, { dmg: 8, kb: 7, ks: .14, ang: 270, fx: 'elec' }, o.x, o.y - 30, 1);
+      }
+    }
+  },
+  golem(h) {
+    const tg = nearestFoe(h.own, h.x, h.y);
+    if (tg) h.dir = sgn(tg.x - h.x) || h.dir;
+    h.vy = Math.min(h.vy + .7, 12); const py = h.y; h.y += h.vy; if (h.cd < 30) h.x += h.dir * 2.2;
+    for (const p of G.st.plats) if (!p.off && h.x > p.x1 && h.x < p.x2 && h.vy >= 0 && py <= p.y + 1 && h.y >= p.y) { h.y = p.y; h.vy = 0; }
+    if (--h.cd <= 0 && tg && Math.abs(tg.x - h.x) < 90 && Math.abs(tg.y - h.y) < 80) {
+      h.cd = 70; h.punch = 14; G.shake = Math.max(G.shake, 6); sfx.hit(16, 'normal');
+      for (const o of G.fs) if (o !== h.own && !o.dead && !o.out && !sameTeam(h.own, o) && Math.abs(o.x - (h.x + h.dir * 50)) < 60 && Math.abs(o.y - h.y) < 70) applyHit(h.own, o, { dmg: 16, kb: 8, ks: .18, ang: 40, fx: 'normal' }, h.x + h.dir * 50, h.y - 40, h.dir);
+    }
+    if (h.punch > 0) h.punch--;
+    if (h.y > G.st.blast.b) h.dead = true;
+  },
+  bee(h) {
+    const tg = nearestFoe(h.own, h.x, h.y);
+    if (tg) { h.x += (tg.x - h.x) * .05; h.y += (tg.y - 30 - h.y) * .05; }
+    if (h.t % 9 === 0) for (const o of G.fs) if (o !== h.own && !o.dead && !o.out && !sameTeam(h.own, o) && Math.hypot(o.x - h.x, o.y - 30 - h.y) < 46) applyHit(h.own, o, { dmg: 1.4, kb: 1.5, ks: .02, ang: 60, fx: 'normal' }, h.x, h.y, sgn(o.x - h.x) || 1);
+  },
+  hole(h) {
+    for (const o of G.fs) {
+      if (o === h.own || o.dead || o.out || sameTeam(h.own, o) || o.state === 'respawn') continue;
+      const dx = h.x - o.x, dy = h.y - (o.y - BH(o) / 2), d = Math.hypot(dx, dy) || 1;
+      if (d < 420) { o.vx += dx / d * .55; o.vy += dy / d * .45; o.ground = null; if (d < 60 && h.t % 15 === 0) applyHit(h.own, o, { dmg: 2, kb: .5, ks: 0, ang: 90, fx: 'dark' }, h.x, h.y, 1); }
+    }
+    if (h.t === h.life - 1) explodeAt(h.x, h.y, 140, h.own, 16, 8, .16, { safe: 1 });
+  }
+};
+const HELPER_DRAW = {
+  ufo(h) {
+    if (h.t % 120 > 60) { const gr = g.createLinearGradient(0, 0, 0, 320); gr.addColorStop(0, 'rgba(150,255,200,.6)'); gr.addColorStop(1, 'rgba(150,255,200,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(-20, 8); g.lineTo(20, 8); g.lineTo(48, 320); g.lineTo(-48, 320); g.fill(); }
+    ell(0, 0, 46, 12); fs_('#a8b8c8', 2); g.beginPath(); g.ellipse(0, -6, 20, 16, 0, Math.PI, 0); fs_('rgba(160,240,255,.85)', 2);
+    for (let i = -2; i <= 2; i++) { g.fillStyle = (G.t / 6 + i) % 2 < 1 ? '#ffe14a' : '#ff4a8a'; circ(i * 16, 4, 3.5); g.fill(); }
+  },
+  golem(h) {
+    g.scale(h.dir, 1); const p = h.cd > 56 ? 1 : 0;
+    rr(-26, -78, 52, 60, 12); fs_('#8d7a62', 2.5); rr(-20, -18, 16, 18, 4); fs_('#6a5a44', 2); rr(4, -18, 16, 18, 4); fs_('#6a5a44', 2);
+    rr(10 + p * 30, -66, 34, 22, 8); fs_('#7a6a52', 2.2); g.fillStyle = '#7dff9a'; circ(6, -60, 5); circ(-8, -60, 5); g.fill();
+  },
+  bee(h) {
+    for (let i = 0; i < 7; i++) {
+      const a = G.t * .25 + i * 2.1, x = Math.cos(a) * 26 + Math.sin(a * 1.7) * 8, y = Math.sin(a * 1.3) * 18;
+      ell(x, y, 7, 5); fs_('#ffd23f', 1.4); g.fillStyle = '#2a2a2a'; g.fillRect(x - 1, y - 5, 2.5, 10); g.fillStyle = 'rgba(220,240,255,.8)'; ell(x - 1, y - 6, 4, 3); g.fill();
+    }
+  },
+  hole(h) {
+    const k = Math.min(1, h.t / 30), r = 46 * k;
+    const gr = g.createRadialGradient(0, 0, 4, 0, 0, r * 2.2); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.45, 'rgba(60,20,120,.85)'); gr.addColorStop(1, 'rgba(120,60,220,0)');
+    g.fillStyle = gr; circ(0, 0, r * 2.2); g.fill();
+    g.strokeStyle = 'rgba(200,160,255,.7)'; g.lineWidth = 3; for (let i = 0; i < 3; i++) { g.beginPath(); g.ellipse(0, 0, r * (1.2 + i * .35), r * (.4 + i * .15), G.t * .05 + i, 0, TAU); g.stroke(); }
+  }
+};
 function openCapsule(it) {
   it.dead = true;
   const type = pick(Object.keys(HELPERS)), own = it.owner;
-  const h = { type, own, x: it.x, y: it.y - 20, t: 0, life: { dragon: 440, thunder: 500, boulder: 999, fairy: 500 }[type], dir: own ? own.dir : 1, hit: new Set(), cd: 40, vy: 0, rot: 0 };
+  const h = { type, own, x: it.x, y: it.y - 20, t: 0, life: { dragon: 440, thunder: 500, boulder: 999, fairy: 500, ...HELPER_LIFE }[type], dir: own ? own.dir : 1, hit: new Set(), cd: 40, vy: 0, rot: 0 };
+  if (type === 'hole') h.y = it.y - 120;
   if (type === 'boulder') { const bl = G.st.blast; h.x = h.dir > 0 ? bl.l + 140 : bl.r - 140; h.y = -260; }
   G.helpers.push(h);
   popText(it.x, it.y - 60, HELPERS[type] + '！', '#ffffff', 22, 90);
   spark(it.x, it.y, 24, '#ffe14a', 8, 30); ring(it.x, it.y, '#ffffff', 90, 20); sfx.item();
 }
+// ---- 分身（ミラ）：本体のうしろについてきて、同じ技を半分の威力で出す
+function spawnClone(f) {
+  const mine = G.helpers.filter(h => h.type === 'clone' && h.own === f);
+  if (mine.length >= 2) mine[0].dead = true;
+  const slot = mine.length >= 2 ? mine[0].slot : mine.length;
+  G.helpers.push({ type: 'clone', own: f, x: f.x, y: f.y, t: 0, life: 720, dir: f.dir, hit: new Set(), cd: 0, vy: 0, rot: 0, slot });
+  spark(f.x, f.y - 30, 16, '#bfe8ff', 6, 20); ring(f.x, f.y - 30, '#e0f8ff', 60, 16); popText(f.x, f.y - BH(f) - 20, '分身！', '#bfe8ff', 20);
+}
+function cloneStep(h) {
+  const o = h.own;
+  if (!o || o.dead || o.out || o.state === 'stun' || o.state === 'grabbed') { h.dead = true; spark(h.x, h.y - 30, 12, '#bfe8ff', 5, 18); return; }
+  const tx = o.x - o.dir * (56 + h.slot * 44);
+  h.x += (tx - h.x) * .22; h.y += (o.y - h.y) * .3; h.dir = o.dir;
+  const mv = o.state === 'atk' ? o.mv : null;
+  if (!mv || mv.fs || mv.none || mv.item || mv.clone) { h.lastMv = null; return; }
+  if (h.lastMv !== mv || o.mt < h.lastMt) { h.hit.clear(); h.lastMv = mv; }
+  h.lastMt = o.mt;
+  const px = Object.create(o); px.x = h.x; px.y = h.y;
+  for (let i = 0; i < mv.hbs.length; i++) {
+    const hb = mv.hbs[i]; if (!(o.mt >= hb.on && o.mt < hb.off) || hb.grab) continue;
+    const rect = hbRect(px, hb, mv), rd = hb.multi ? Math.floor((o.mt - hb.on) / hb.multi) : 0;
+    for (const v of G.fs) {
+      if (v === o || v.dead || v.out || sameTeam(o, v)) continue;
+      const key = i + ':' + rd + ':' + v.id; if (h.hit.has(key) || !rectHit(rect, boxOf(v))) continue;
+      const sd = hb.rel ? (sgn(v.x - h.x) || o.dir) : (hb.back ? -o.dir : o.dir);
+      if (applyHit(o, v, { ...hb, dmg: hb.dmg * .5, kb: hb.kb * .85 }, rect.cx, rect.cy, sd)) h.hit.add(key);
+    }
+  }
+}
+// ---- ペット（ミミのポチ）：試合中ずっといっしょ。近くの相手にかみつく
+function spawnPet(f) { G.helpers.push({ type: 'pet', own: f, x: f.x - f.dir * 40, y: f.y, t: 0, life: 1e9, dir: f.dir, hit: new Set(), cd: 60, vy: 0, vx: 0, rot: 0, mode: 'follow', mt: 0 }); }
+function petCommand(f, cmd) {
+  const h = G.helpers.find(q => q.type === 'pet' && q.own === f); if (!h) return;
+  if (cmd === 'go') { h.mode = 'go'; h.mt = 50; h.hit.clear(); h.dir = f.dir; h.vy = -5; popText(h.x, h.y - 50, 'ワン！', '#ffb84a', 20); sfx.swing(true); }
+  else { h.x = f.x - f.dir * 30; h.y = f.y - 10; h.vy = -4; h.mode = 'follow'; spark(h.x, h.y - 10, 10, '#ffe14a', 4, 16); }
+}
+function petStep(h) {
+  const o = h.own, bl = G.st.blast;
+  if (!o || o.out) { h.dead = true; return; }
+  if (o.dead) { h.hide = true; return; }
+  if (h.hide || h.y > bl.b || Math.abs(h.x - o.x) > 1400) { h.hide = false; h.x = o.x - o.dir * 30; h.y = o.y - 40; h.vy = 0; h.mode = 'follow'; }
+  const tg = nearestFoe(o, h.x, h.y);
+  if (h.cd > 0) h.cd--;
+  if (h.mode === 'go') {
+    h.vx = h.dir * 11; if (--h.mt <= 0) h.mode = 'follow';
+    if (tg && Math.abs(tg.x - h.x) < 300) h.dir = sgn(tg.x - h.x) || h.dir;
+  } else {
+    let tx = o.x - o.dir * 44;
+    if (tg && Math.hypot(tg.x - h.x, tg.y - h.y) < 170 && Math.abs(tg.x - o.x) < 400) tx = tg.x;
+    const d = tx - h.x; h.vx = Math.abs(d) > 12 ? sgn(d) * Math.min(Math.abs(d) * .12, 6.5) : h.vx * .7; if (Math.abs(d) > 4) h.dir = sgn(d);
+    if (h.ground && o.y < h.y - 80 && Math.abs(o.x - h.x) < 200) { h.vy = -12; h.ground = null; }
+  }
+  h.vy = Math.min(h.vy + .6, 12); const py = h.y; h.x += h.vx; h.y += h.vy; h.ground = null;
+  for (const p of G.st.plats) if (!p.off && h.x > p.x1 && h.x < p.x2 && h.vy >= 0 && py <= p.y + 1 && h.y >= p.y) { h.y = p.y; h.vy = 0; h.ground = p; if (p.dx) h.x += p.dx; }
+  if (!h.ground && h.y > o.y + 200 && o.ground) { h.x = o.x; h.y = o.y - 60; h.vy = 0; }
+  // かみつき
+  for (const v of G.fs) {
+    if (v === o || v.dead || v.out || sameTeam(o, v) || v.state === 'respawn') continue;
+    if (!circleRect(h.x + h.dir * 14, h.y - 14, 16, boxOf(v))) continue;
+    if (h.mode === 'go') { if (!h.hit.has(v.id)) { h.hit.add(v.id); applyHit(o, v, { dmg: 9, kb: 6, ks: .14, ang: 40, fx: 'normal' }, h.x, h.y - 14, h.dir); } }
+    else if (h.cd <= 0) { h.cd = 70; applyHit(o, v, { dmg: 5, kb: 3.5, ks: .08, ang: 45, fx: 'normal' }, h.x, h.y - 14, h.dir); h.vy = -4; }
+  }
+}
+// ---- 変身（チェンジ）：ロボ形態 ⇔ ジェット形態
+function toggleForm(f) {
+  const base = CHARS[f.ci]; if (!base.formB) return;
+  f.form = !f.form; f.c = f.form ? base.formB : base;
+  if (f.ground) f.jumps = f.c.jumps; else f.jumps = Math.min(f.jumps + 1, f.c.jumps);
+  spark(f.x, f.y - 30, 22, '#ffd23f', 8, 24); ring(f.x, f.y - 30, '#4ae8ff', 70, 18); sfx.charge();
+  popText(f.x, f.y - BH(f) - 24, f.form ? 'ジェット形態！' : 'ロボ形態！', '#ffd23f', 20);
+}
 function updateHelpers() {
   const bl = G.st.blast;
   for (const h of G.helpers) {
     h.t++; if (h.t > h.life) { h.dead = true; spark(h.x, h.y, 16, '#ffffff', 5, 20); continue; }
+    if (h.type === 'clone') { cloneStep(h); continue; }
+    if (h.type === 'pet') { petStep(h); continue; }
+    if (HELPER_STEP[h.type]) { HELPER_STEP[h.type](h); continue; }
     const tg = nearestFoe(h.own, h.x, h.y);
     if (h.type === 'dragon') {
       const tx = tg ? tg.x - sgn(tg.x - h.x || 1) * 130 : 0, ty = tg ? tg.y - 120 : -200;
@@ -2427,6 +2705,7 @@ function drawMinimap() {
   const X = x => mx + (x - B.l) / (B.r - B.l) * mw, Y = y => my + clamp((y + 700) / 1000, 0, 1) * mh;
   g.fillStyle = 'rgba(8,10,30,.6)'; rr(mx, my, mw, mh, 8); g.fill(); g.strokeStyle = 'rgba(255,255,255,.4)'; g.lineWidth = 1.5; g.stroke();
   for (const p of G.st.plats) { if (p.off) continue; g.fillStyle = p.t === 'solid' ? 'rgba(200,220,255,.7)' : 'rgba(200,220,255,.35)'; g.fillRect(X(p.x1), Y(p.y), Math.max(1, X(p.x2) - X(p.x1)), p.t === 'solid' ? 3 : 1.5); }
+  if (G.zone) { g.fillStyle = 'rgba(255,60,100,.35)'; g.fillRect(mx, my, X(G.zone.l) - mx, mh); g.fillRect(X(G.zone.r), my, mx + mw - X(G.zone.r), mh); }
   const c = G.cam; g.strokeStyle = 'rgba(255,255,255,.7)'; g.strokeRect(X(c.x - W / 2 / c.z), my + 1, X(c.x + W / 2 / c.z) - X(c.x - W / 2 / c.z), mh - 2);
   for (const f of G.fs) {
     if (f.dead || f.out) continue;
@@ -2597,6 +2876,13 @@ function aiThink(f) {
       const cx = (best.x1 + best.x2) / 2; inp.x = Math.abs(cx - f.x) > 20 ? sgn(cx - f.x) : 0;
       if (f.ground && Math.abs(cx - f.x) < 90) w.jump = 3; else if (!f.ground && f.vy > 0 && f.y > best.y && f.jumps > 0) w.jump = 3;
     }
+    return;
+  }
+  // ---- バトルロイヤルの安全エリアへもどる
+  const Z = G.zone;
+  if (Z && (f.x < Z.l + 60 || f.x > Z.r - 60)) {
+    const d = sgn((Z.l + Z.r) / 2 - f.x); inp.x = d;
+    if (f.ground && f.ground.t === 'solid' && (f.x + d * 60 < f.ground.x1 || f.x + d * 60 > f.ground.x2) || f.ground && Math.random() < .02) w.jump = 3;
     return;
   }
   // ---- ステージギミックよけ
@@ -2778,7 +3064,8 @@ function stepBattle() {
     updateFighter(f);
     if (f.lag <= 0) for (const k in f.want) if (f.want[k] > 0) f.want[k]--;
   }
-  updateProjs(); updateItems(); updateHelpers(); updateHazards(); updateGimmicks(); if (G.hr) hrStep(); updateParticles(); updateCamera();
+  updateProjs(); updateItems(); updateHelpers(); updateHazards(); updateGimmicks(); if (G.ext && G.ext.step && !G.over) G.ext.step(); if (G.hr) hrStep(); updateParticles(); updateCamera();
+  recFrame();
   if (G.comboShow && --G.comboShow.t <= 0) G.comboShow = null;
   if (G.over) {
     G.endT++;
@@ -2832,7 +3119,7 @@ function updateCamera() {
 // この端末で操作しているキャラか
 function isLocal(f) { return G.netClient ? f.remote === NET.id : f.human && !f.remote; }
 // HUDに出すキャラ（NPCは数だけ表示）
-function hudList() { return G.multi ? G.fs.filter(f => f.human) : G.hr ? [G.fs[1]] : G.fs.filter(f => !f.npc); }
+function hudList() { return G.multi ? G.fs.filter(f => f.human) : G.hr ? [G.fs[1]] : G.fs.filter(f => !f.npc && !f.hpMax); }
 function togglePause() {
   if (scene !== 'battle' || !G || G.demo || G.over) return;
   if (G.net || G.netClient) { G.leaveAsk = !G.leaveAsk; sfx.select(); return; }
@@ -3391,6 +3678,18 @@ function drawSprite(f, P) {
   g.save(); if (P.rot) { g.translate(0, -BH(f) / 2 / f.szv); g.rotate(P.rot); g.translate(0, BH(f) / 2 / f.szv); }
   g.drawImage(cv, -110, -200 + (P.bob || 0), 220, 230); g.restore();
 }
+function drawRide(type, f) {
+  if (type === 'board') {
+    rr(-28, -5, 56, 7, 4); fs_('#ff4a8a', 2); g.fillStyle = '#ffe14a'; g.fillRect(-18, -4, 36, 2);
+    g.fillStyle = '#2a2a34'; circ(-18, 4, 4); g.fill(); circ(18, 4, 4); g.fill();
+  } else {
+    g.save(); g.translate(0, -10);
+    const fl = 10 + Math.sin((G ? G.t : 0) * .8) * 4; g.fillStyle = '#ffd23f'; g.beginPath(); g.moveTo(-34, -6); g.lineTo(-34 - fl * 2, 0); g.lineTo(-34, 6); g.fill();
+    g.beginPath(); g.moveTo(-34, -9); g.lineTo(26, -9); g.quadraticCurveTo(46, 0, 26, 9); g.lineTo(-34, 9); g.closePath(); fs_('#e8e8f0', 2);
+    g.fillStyle = '#e8443a'; g.beginPath(); g.moveTo(-34, -9); g.lineTo(-44, -18); g.lineTo(-24, -9); g.fill(); g.beginPath(); g.moveTo(-34, 9); g.lineTo(-44, 18); g.lineTo(-24, 9); g.fill();
+    g.fillStyle = '#4ab0ff'; circ(14, 0, 4); g.fill(); g.restore();
+  }
+}
 function drawFighter(f) {
   if (f.dead || f.out) return;
   const c = f.c, P = poseOf(f), sz = f.szv;
@@ -3414,6 +3713,7 @@ function drawFighter(f) {
   if (f.metal) g.filter = 'grayscale(1) brightness(1.25) contrast(1.2)';
   const hamA = f.hammer > 0 ? Math.sin(f.t / 16 * TAU) * 1.6 - .2 : 0;
   const Pp = f.hammer > 0 ? { ...P, aF: { a: Math.PI - hamA * .3 + .2, e: 1.1 } } : P;
+  if (f.ride) drawRide(f.ride.type, f);
   if (G.lod && f.npc && !f.item && f.hammer <= 0) drawSprite(f, P);
   else drawChar(c, Pp, { item: f.item ? f.item.type : null, hammer: f.hammer > 0, hammerA: hamA, look: c.looks[f.alt || 0] });
   g.filter = 'none'; g.shadowBlur = 0;
@@ -3594,6 +3894,8 @@ function drawProj(p) {
 function drawItemIcon(type, x, y, s = 1, it = null) {
   g.save(); g.translate(x, y); g.scale(s, s);
   switch (type) {
+    case 'board': g.save(); g.translate(0, 4); g.scale(.6, .6); drawRide('board'); g.restore(); break;
+    case 'rocket': g.save(); g.rotate(-.5); g.scale(.45, .45); drawRide('rocket'); g.restore(); break;
     case 'tomato': circ(0, 2, 13); fs_('#ff4a5a', 2); g.fillStyle = '#ffffff'; txt('M', 0, 3, 11, '#fff'); g.fillStyle = '#4ac04a'; star(0, -10, 6, .4); g.fill(); g.fillStyle = 'rgba(255,255,255,.5)'; circ(-5, -3, 3); g.fill(); break;
     case 'heart': g.beginPath(); g.moveTo(0, 12); g.bezierCurveTo(-18, 0, -12, -16, 0, -6); g.bezierCurveTo(12, -16, 18, 0, 0, 12); fs_('#ff6aa0', 2); g.fillStyle = 'rgba(255,255,255,.6)'; circ(-6, -5, 3); g.fill(); break;
     case 'star': g.fillStyle = `hsl(${((G ? G.t : 0) * 8) % 360},100%,60%)`; star(0, 0, 15); g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke(); g.fillStyle = '#222'; circ(-3, -2, 1.6); circ(3, -2, 1.6); g.fill(); break;
@@ -3624,7 +3926,24 @@ function drawItems() {
 }
 function drawHelpers() {
   for (const h of G.helpers) {
+    if (h.hide) continue;
+    if (h.type === 'clone') {
+      const o = h.own; if (!o || o.dead) continue;
+      g.save(); g.translate(h.x, h.y); g.globalAlpha = .45 + .1 * Math.sin(G.t * .2 + h.slot); g.scale(h.dir * o.szv, o.szv);
+      drawChar(o.c, poseOf(o), { look: o.c.looks[o.alt || 0] }); g.globalAlpha = 1; g.restore(); continue;
+    }
     g.save(); g.translate(h.x, h.y);
+    if (h.type === 'pet') {
+      // 子犬のポチ
+      g.scale(h.dir, 1); const run = Math.abs(h.vx || 0) > .5, lg = run ? Math.sin(G.t * .5) * 5 : 0, col = h.own ? h.own.c.cols[h.own.alt || 0] : '#ffb84a';
+      g.fillStyle = '#a8743a'; g.fillRect(-12 + lg, -8, 5, 8); g.fillRect(6 - lg, -8, 5, 8);
+      ell(0, -16, 18, 11); fs_('#e8b070', 2); g.save(); g.translate(-17, -20); g.rotate(-.6 + Math.sin(G.t * .6) * .5); ell(-6, 0, 8, 3); fs_('#e8b070', 1.5); g.restore();
+      circ(16, -26, 11); fs_('#e8b070', 2); ell(12, -36, 4, 8, -.4); fs_('#a8743a', 1.5); ell(21, -35, 4, 8, .4); fs_('#a8743a', 1.5);
+      g.fillStyle = '#222'; circ(19, -28, 2); g.fill(); circ(27, -24, 2.5); g.fill(); g.fillStyle = col; g.fillRect(5, -20, 12, 4);
+      if (h.mode === 'go') { g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 2; for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(-24 - i * 8, -24 + i * 6); g.lineTo(-40 - i * 8, -24 + i * 6); g.stroke(); } }
+      g.restore(); continue;
+    }
+    if (HELPER_DRAW[h.type]) { HELPER_DRAW[h.type](h); g.restore(); continue; }
     if (h.type === 'dragon') {
       g.scale(h.dir, 1); const wf = Math.sin(G.t * .3) * .4;
       g.save(); g.rotate(-wf); g.beginPath(); g.moveTo(-6, -6); g.lineTo(-40, -36); g.lineTo(-30, -6); g.closePath(); fs_('#ff8a4a', 2); g.restore();
@@ -3963,6 +4282,7 @@ function drawWorld() {
   for (const f of G.fs) if (vis(f)) drawFighter(f);
   for (const f of G.fs) if (vis(f)) drawHitboxes(f);
   drawHazards();
+  if (G.ext && G.ext.drawWorld) G.ext.drawWorld();
   if (G.lava) drawLava();
   drawParticles();
   g.restore();
@@ -4062,6 +4382,7 @@ function drawBattle() {
   drawWorld();
   if (G.demo) return;
   drawHUD();
+  if (G.ext && G.ext.drawHUD) G.ext.drawHUD();
   if (G.training) drawTrainingUI();
   else if (!G.over) button(W - 52, touchMode ? 100 : 8, 44, 38, G.net || G.netClient ? '✕' : 'Ⅱ', togglePause, { size: 18 });
   if (G.cutin) {
@@ -4178,17 +4499,18 @@ function drawTitle() {
   g.save(); g.translate(W / 2 + 226, 182); g.rotate(-.08); g.scale(1 + Math.sin(t * 4) * .04, 1 + Math.sin(t * 4) * .04);
   txt('SPECIAL', 0, 0, 38, '#ff4a6a', 'center', '#fff', 8); g.restore();
   const x0 = W / 2 - 180;
-  button(x0, 222, 360, 58, '大乱闘', () => goSelect('vs'), { primary: 1, size: 30 });
-  button(x0, 290, 176, 46, 'オンライン対戦', goOnline, { size: 18, sel: 1 });
-  button(x0 + 184, 290, 176, 46, '勝ちぬき', () => goSelect('classic'), { size: 19 });
-  button(x0, 344, 176, 44, 'ミニゲーム', () => { scene = 'minigame'; }, { size: 18 });
-  button(x0 + 184, 344, 176, 44, 'トレーニング', () => goSelect('training'), { size: 18 });
-  button(x0, 396, 114, 40, 'きろく', () => { scene = 'records'; }, { size: 16 });
-  button(x0 + 123, 396, 114, 40, 'あそびかた', () => { showHow = true; howPage = 0; }, { size: 15 });
-  button(x0 + 246, 396, 114, 40, muted ? '♪ OFF' : '♪ ON', () => { muted = !muted; if (!muted) unlockAudio(); }, { size: 16 });
+  button(x0, 214, 360, 52, '大乱闘', () => goSelect('vs'), { primary: 1, size: 28 });
+  button(x0, 272, 176, 42, 'オンライン対戦', goOnline, { size: 17, sel: 1 });
+  button(x0 + 184, 272, 176, 42, 'モードいろいろ', () => { scene = 'modes'; }, { size: 17, sel: 1 });
+  button(x0, 320, 176, 40, '勝ちぬき', () => goSelect('classic'), { size: 17 });
+  button(x0 + 184, 320, 176, 40, 'ミニゲーム', () => { scene = 'minigame'; }, { size: 17 });
+  button(x0, 366, 176, 38, 'トレーニング', () => goSelect('training'), { size: 16 });
+  button(x0 + 184, 366, 176, 38, 'きろく', () => { scene = 'records'; }, { size: 16 });
+  button(x0, 410, 176, 36, 'あそびかた', () => { showHow = true; howPage = 0; }, { size: 15 });
+  button(x0 + 184, 410, 176, 36, muted ? '♪ OFF' : '♪ ON', () => { muted = !muted; if (!muted) unlockAudio(); }, { size: 15 });
   const nOpen = CHARS.filter((_, i) => isUnlocked(i)).length;
-  txt(`ファイター ${nOpen} / ${CHARS.length}人 ・ ステージ${STAGES.length}つ ・ アイテム16種`, W / 2, 462, 15, '#fff', 'center', '#000', 4);
-  if (lockedLeft().length) txt('対戦すると、ひみつのファイターが挑戦してくるかも…？', W / 2, 486, 13, '#ffe14a', 'center', '#000', 3);
+  txt(`ファイター ${nOpen} / ${CHARS.length}人 ・ ステージ${STAGES.length}つ ・ アイテム${Object.keys(ITEMDEF).length}種 ・ 🪙${rec.coins || 0}`, W / 2, 468, 15, '#fff', 'center', '#000', 4);
+  if (lockedLeft().length) txt('対戦すると、ひみつのファイターが挑戦してくるかも…？', W / 2, 490, 13, '#ffe14a', 'center', '#000', 3);
   txt('キャラ・絵・音はすべてオリジナル（ファンメイドの対戦ゲーム）', W / 2, 522, 12, 'rgba(255,255,255,.6)');
   if (showHow) drawHow();
 }
@@ -4212,8 +4534,9 @@ function drawHow() {
       ['ゲームパッド', '左スティック移動、A こうげき、B ひっさつ、X/Y ジャンプ、LB/LT/RT ガード、RB つかみ、右スティックでスマッシュ']
     ]],
     ['モード', [
-      ['大乱闘', '最大4人。CPUの枠を「2P」にすると友だちと同じ画面で対戦。ルールでチーム戦・スペシャル乱闘も選べる'],
-      ['オンライン', '「部屋をつくる」で4けたの部屋コードが出るので、友だちは別の端末で「部屋に入る」からコードを入れる。最大4人'],
+      ['大乱闘', 'プレイヤー枠16人＋NPC100人まで。CPUの枠を「2P」にすると友だちと同じ画面で対戦。ルールでチーム戦・スペシャル乱闘も選べる'],
+      ['オンライン', '「部屋をつくる」で4けたの部屋コードが出るので、友だちは別の端末で「部屋に入る」からコードを入れる。最大16人＋観戦。ボス戦で協力もできる'],
+      ['いろいろ', 'ストーリー・ボス戦・バトルロイヤル・イベント戦・トーナメント・ステージ作り・フィギュア・キャラのレベル・ランキング／リプレイ'],
       ['勝ちぬき', '6連戦。メタルファイターや巨大なラスボスが待っている。クリアするとひみつのファイターが仲間に'],
       ['ミニゲーム', 'ホームランコンテスト（10秒でサンドバッグをためてバットでかっとばせ）・100人組み手'],
       ['ひみつ', '大乱闘を遊ぶと、ときどき挑戦者がやってくる。勝てば仲間になる！']
@@ -4259,8 +4582,15 @@ function randChar(used) {
   const pool = ok.filter(i => !used.some(u => u.ci === i));
   return pick(pool.length ? pool : ok);
 }
+const MODE_SEL = ['story', 'boss', 'royale', 'event', 'tourney', 'build'];
 function selectNext() {
-  const ci = cfg.slots[0].c < 0 ? randChar([]) : cfg.slots[0].c;
+  const ci = cfg.slots[0].c < 0 ? randChar([]) : cfg.slots[0].c, alt = cfg.slots[0].alt || 0;
+  if (cfg.mode === 'story') { SC = { ci, alt }; scene = 'storyMap'; return; }
+  if (cfg.mode === 'boss') { BOSS_CI = { ci, alt }; scene = 'bossSel'; return; }
+  if (cfg.mode === 'royale') { startRoyale(ci, alt); return; }
+  if (cfg.mode === 'event') { startEvent(EV_PICK, ci, alt); return; }
+  if (cfg.mode === 'tourney') { startTourney(ci, alt); return; }
+  if (cfg.mode === 'build') { BLD.ci = ci; BLD.alt = alt; playBuilt(); return; }
   if (cfg.mode === 'classic') { startClassic(); return; }
   if (cfg.mode === 'hr') { startHR(ci); return; }
   if (cfg.mode === 'multi') { startMulti(ci); return; }
@@ -4271,8 +4601,8 @@ function slotTypeLabel(s) { return { cpu: 'CPU', p2: '2P', off: 'なし' }[s.typ
 function drawSelect() {
   menuBG();
   const t = G ? G.t : performance.now() / 16;
-  button(10, 8, 96, 34, '◀ もどる', () => { if (cfg.mode === 'online') scene = NET.ws ? 'lobby' : 'online'; else if (cfg.mode === 'hr' || cfg.mode === 'multi') scene = 'minigame'; else goTitle(); }, { size: 15, back: 1 });
-  const ttl = { vs: '大乱闘', classic: '勝ちぬき', training: 'トレーニング', hr: 'ホームランコンテスト', multi: '100人組み手', online: 'オンライン' }[cfg.mode];
+  button(10, 8, 96, 34, '◀ もどる', () => { if (cfg.mode === 'online') scene = NET.ws ? 'lobby' : 'online'; else if (cfg.mode === 'hr' || cfg.mode === 'multi') scene = 'minigame'; else if (MODE_SEL.includes(cfg.mode)) scene = cfg.mode === 'event' ? 'events' : 'modes'; else goTitle(); }, { size: 15, back: 1 });
+  const ttl = { vs: '大乱闘', classic: '勝ちぬき', training: 'トレーニング', hr: 'ホームランコンテスト', multi: '100人組み手', online: 'オンライン', story: 'ストーリー', boss: 'ボス戦', royale: 'バトルロイヤル', event: 'イベント戦', tourney: 'トーナメント', build: 'ステージ作り' }[cfg.mode];
   txt(ttl + '：キャラクターをえらぼう', 116, 25, 19, '#fff', 'left', '#000', 5);
   if (cfg.mode === 'vs') {
     g.fillStyle = 'rgba(8,10,30,.7)'; rr(420, 8, 184, 34, 10); g.fill();
@@ -4283,13 +4613,13 @@ function drawSelect() {
   }
   if (cfg.mode === 'vs') button(612, 8, 180, 34, 'ルール：' + (cfg.rule === 'stock' ? 'ストック' + cfg.stocks : 'タイム' + cfg.time + '分') + (cfg.team ? '・チーム' : '') + (cfg.npc ? '・NPC' + cfg.npc : ''), () => { cfg.showRules = true; }, { size: 13 });
   button(800, 6, 150, 38, cfg.mode === 'online' ? 'けってい ▶' : 'つぎへ ▶', selectNext, { primary: 1, size: 18 });
-  const cols = 9, cw = 99, ch = 84, x0 = 12, y0 = 50;
+  const cols = 10, cw = 89, ch = 84, x0 = 12, y0 = 50;
   const cur = cfg.slots[cfg.cur];
   for (let i = 0; i <= CHARS.length; i++) {
     const x = x0 + (i % cols) * (cw + 5), y = y0 + ((i / cols) | 0) * (ch + 4);
     const rand = i === CHARS.length, c = CHARS[i], open = rand || isUnlocked(i);
     const sel = rand ? cur.c < 0 : cur.c === i;
-    if (open) ui.push({ x, y, w: cw, h: ch, fn: () => { if (!rand && cur.c === i) cur.alt = ((cur.alt || 0) + 1) % 4; cur.c = rand ? -1 : i; sfx.select(); if (!rand && cfg.cur === 0) say(CHARS[i].name); } });
+    if (open) ui.push({ x, y, w: cw, h: ch, fn: () => { if (!rand && cur.c === i) cur.alt = nextAlt(i, cur.alt); cur.c = rand ? -1 : i; sfx.select(); if (!rand && cfg.cur === 0) say(CHARS[i].name); } });
     const gg = g.createLinearGradient(0, y, 0, y + ch); gg.addColorStop(0, !open ? 'rgba(40,40,60,.8)' : rand ? 'rgba(120,120,160,.6)' : hexA(c.col, sel ? .85 : .45)); gg.addColorStop(1, 'rgba(10,14,40,.92)');
     g.fillStyle = gg; rr(x, y, cw, ch, 10); g.fill(); g.lineWidth = sel ? 4 : 1.5; g.strokeStyle = sel ? '#ffe14a' : 'rgba(120,140,220,.6)'; g.stroke();
     if (rand) { txt('?', x + cw / 2, y + 34, 44, '#fff', 'center', '#000', 6); txt('おまかせ', x + cw / 2, y + 72, 13, '#fff', 'center', '#000', 3); }
@@ -4319,7 +4649,7 @@ function drawSelect() {
         const c = CHARS[s.c], k2 = 54 / Math.max(54, c.bh) * sh / 118;
         g.save(); rr(x, sy, sw, sh, 10); g.clip(); g.translate(x + sw / 2, sy + sh * .8); g.scale(k2, k2); drawChar(c, portraitPose(t, k), { alt: s.alt || 0 }); g.restore();
         txt(c.name, x + sw / 2, sy + sh - 9, sh > 150 ? 14 : 11, '#fff', 'center', '#000', 3);
-        if (sh > 150) button(x + sw - 38, sy + sh - 52, 32, 24, '色', () => { s.alt = ((s.alt || 0) + 1) % 4; }, { size: 11 });
+        if (sh > 150) button(x + sw - 38, sy + sh - 52, 32, 24, '色', () => { s.alt = nextAlt(s.c, s.alt); }, { size: 11 });
       }
       if (k > 0 && cfg.mode === 'vs') button(x + sw - 42, sy + 3, 39, 19, slotTypeLabel(s), () => slotTypeTap(k), { size: 10, red: s.type === 'off', sel: s.type === 'p2' });
       if (on && tm) button(x + 3, sy + 18, 28, 18, TEAMN[s.team % cfg.team], () => { s.team = (s.team % cfg.team + 1) % cfg.team; }, { size: 10, red: s.team % cfg.team === 0, sel: s.team % cfg.team === 1 });
@@ -4333,7 +4663,7 @@ function drawSelect() {
       g.save(); g.beginPath(); rr(x, sy, sw, sh, 14); g.clip(); g.translate(x + sw / 2, sy + 156); const k2 = 54 / Math.max(54, c.bh); g.scale(2 * k2, 2 * k2); drawChar(c, portraitPose(t, k), { alt: s.alt || 0 }); g.restore();
       txt(c.name, x + sw / 2, sy + 174, 22, '#fff', 'center', '#000', 5);
       txt(c.sub, x + sw / 2, sy + 192, 11, 'rgba(255,255,255,.8)');
-      button(x + sw - 52, sy + sh - 44, 44, 28, '色', () => { s.alt = ((s.alt || 0) + 1) % 4; }, { size: 13 });
+      button(x + sw - 52, sy + sh - 44, 44, 28, '色', () => { s.alt = nextAlt(s.c, s.alt); }, { size: 13 });
       button(x + 8, sy + sh - 44, 52, 28, 'わざ', () => { cfg.moveList = s.c; }, { size: 13 });
       if (active) ['力', '速', '重'].forEach((l, j) => { const stx = x + 12, sty = sy + 36 + j * 13; txt(l, stx, sty, 10, '#fff', 'left'); for (let q = 0; q < 5; q++) { g.fillStyle = q < c.stat[j] ? ['#ff7a5a', '#7fe08a', '#7fb8ff'][j] : 'rgba(255,255,255,.2)'; rr(stx + 14 + q * 9, sty - 3, 7, 6, 2); g.fill(); } });
     }
@@ -4453,11 +4783,13 @@ function addNpcs(list, n) {
 }
 function resetTouch() { clearEdges(); tp.clear(); stickO = null; stickV = { x: 0, y: 0 }; }
 function afterMatch() {
+  saveReplay();
   if (G.toSudden) {
     const o = G.o, list = G.toSudden.map(f => ({ ci: f.ci, human: f.human, pi: f.pi, lv: f.lv, stocks: 1, pct: 300, team: f.team, alt: f.alt, remote: f.remote, netName: f.netName }));
     newMatch({ ...o, list, rule: 'stock', items: 0, sudden: true }); say('サドンデス！'); return;
   }
   if (G.net) { netSend('end', { res: G.result.map(f => f.id), wt: G.winTeam }); scene = 'result'; return; }
+  if (G.ext && G.ext.after && !G.netClient) { rec.plays++; G.ext.after(); return; }
   if (G.mg) {
     if (G.mg === 'multi') { G.newRec = G.multi.count > rec.multi; if (G.newRec) rec.multi = G.multi.count; saveRec(); }
     scene = 'mgResult'; return;
@@ -4488,7 +4820,8 @@ function recordMatch() {
   if (me) {
     const win = G.team ? G.winTeam === me.team : G.result[0] === me;
     rec.kos += me.kos; rec.falls += me.falls; if (win) rec.wins++;
-    const st = rec.stats[me.c.id] || (rec.stats[me.c.id] = { p: 0, w: 0 }); st.p++; if (win) st.w++;
+    const st = rec.stats[CHARS[me.ci].id] || (rec.stats[CHARS[me.ci].id] = { p: 0, w: 0 }); st.p++; if (win) st.w++;
+    G.coinsGot = earn(10 + me.kos * 5 + (win ? 20 : 0)); G.lvUp = gainXp(me, (win ? 50 : 20) + me.kos * 5); G.winPoseK = rec.plays;
   }
   if (lockedLeft().length && rec.plays >= rec.nextCh) { CH.next = lockedLeft()[0]; CH.ci = me ? me.ci : 0; rec.nextCh = rec.plays + 2; }
   saveRec();
@@ -4544,7 +4877,7 @@ function prepRound() {
   const pl = CL_PLAN[CL.round], used = [{ ci: CL.ci }];
   CL.foes = [];
   for (let i = 0; i < pl.foes; i++) { const ci = randChar(used); used.push({ ci }); CL.foes.push(ci); }
-  CL.stage = pl.stage !== undefined ? pl.stage : (Math.random() * STAGES.length) | 0;
+  CL.stage = pl.stage !== undefined ? pl.stage : pick(normalStages());
 }
 function startRound() {
   const pl = CL_PLAN[CL.round];
@@ -4586,6 +4919,697 @@ function drawClassicEnd(clear) {
 // =====================================================================
 //  ミニゲーム・きろく
 // =====================================================================
+// =====================================================================
+//  いろいろなモード（バトルロイヤル・ボス戦・ストーリー・イベント戦）
+// =====================================================================
+const hugeStages = () => STAGES.map((_, i) => i).filter(i => STAGES[i].huge);
+const normalStages = () => STAGES.map((_, i) => i).filter(i => !STAGES[i].huge);
+function earn(n) { rec.coins = (rec.coins || 0) + Math.round(n); saveRec(); return Math.round(n); }
+function meF() { return G.fs.find(f => f.human && !f.pi && !f.remote) || G.fs.find(f => f.human) || G.fs[0]; }
+// 結果画面（モード共通）
+let MR = null;
+function showModeResult(o) { MR = o; scene = 'modeResult'; if (o.say) say(o.say); }
+function drawModeResult() {
+  const t = performance.now() / 16, r = MR;
+  menuBG(r.win ? '#5a4a10' : '#2a1a3a', '#0a0a20');
+  if (r.win) for (let i = 0; i < 30; i++) { g.fillStyle = `hsl(${i * 47 % 360},90%,60%)`; const x = (i * 97 + t * (1 + i % 3)) % W, y = (i * 53 + t * (1.5 + i % 4)) % H; g.fillRect(x, y, 8, 4); }
+  txt(r.title, W / 2, 56, 26, '#9fe8ff', 'center', '#000', 5);
+  txt(r.head, W / 2, 128, r.head.length > 10 ? 44 : 60, r.win ? '#ffe14a' : '#ffffff', 'center', '#000', 9);
+  (r.lines || []).forEach((l, i) => txt(l, W / 2 - 60, 200 + i * 34, 20, '#fff', 'center', '#000', 4));
+  if (r.coins) txt('🪙 +' + r.coins + ' コイン（もっている数 ' + (rec.coins || 0) + '）', W / 2 - 60, 200 + (r.lines || []).length * 34 + 10, 20, '#ffe14a', 'center', '#000', 4);
+  if (r.lvUp) txt(r.lvUp, W / 2 - 60, 200 + (r.lines || []).length * 34 + 46, 18, '#7dff9a', 'center', '#000', 4);
+  if (r.c) { g.save(); g.translate(W - 170, 420); g.scale(2.4, 2.4); drawChar(r.c, r.win ? attackPose('taunt', (t * .01) % 1, idlePose(t)) : { ...idlePose(t), eyes: 'c' }, { alt: r.alt }); g.restore(); }
+  if (r.retry) button(W / 2 - 330, 448, 200, 56, r.retryLabel || 'もう一度', r.retry, { primary: 1 });
+  button(W / 2 - 120, 448, 200, 56, r.backLabel || 'モードえらび', r.back || (() => { scene = 'modes'; setBgm(5); }), {});
+  button(W / 2 + 90, 448, 140, 56, 'タイトル', goTitle, { back: 1 });
+  if (REPLAY) button(W - 130, 8, 120, 34, '▶ リプレイ', () => { startReplay(); RP.back = 'title'; }, { size: 14 });
+}
+// ---------------------------------------------------------------------
+//  バトルロイヤル：100人で戦う・だんだん安全エリアがせまくなる
+// ---------------------------------------------------------------------
+function startRoyale(ci, alt = 0) {
+  const list = [{ ci, human: true, stocks: 1, team: 0, alt }];
+  for (let i = 0; i < 99; i++) list.push({ ci: randChar(list), lv: 1 + (i % 3), npc: true, stocks: 1, team: list.length, alt: (Math.random() * 4) | 0, netName: 'NPC' });
+  newMatch({ list, stage: pick(hugeStages()), rule: 'stock', items: 2, ext: royaleExt });
+  duo = false; scene = 'battle'; resetTouch();
+}
+function royaleExt() {
+  const B = G.st.blast, Z = G.zone = { l: B.l + 200, r: B.r - 200, fl: 0, fr: 0, t: 0, next: 1500, sh: 0, k: 0 };
+  return {
+    royale: 1,
+    step() {
+      Z.t++;
+      if (Z.t >= Z.next) {
+        const w = Math.max(320, (Z.r - Z.l) * .62), c = rnd(Z.l + w / 2, Z.r - w / 2);
+        Object.assign(Z, { fl: Z.l, fr: Z.r, tl: c - w / 2, tr: c + w / 2, sh: 360, next: Z.t + 1500 });
+        Z.k++; sfx.alarm(); popText(G.cam.x, G.cam.y - 170, '⚠ 安全エリアがせまくなる！', '#ff6a8a', 24, 100);
+      }
+      if (Z.sh > 0) { Z.sh--; const k = 1 - Z.sh / 360; Z.l = lerp(Z.fl, Z.tl, k); Z.r = lerp(Z.fr, Z.tr, k); }
+      if (G.t % 30 === 0) for (const f of G.fs) if (!f.dead && !f.out && f.state !== 'respawn' && (f.x < Z.l || f.x > Z.r)) {
+        f.pct = Math.min(999, f.pct + 2 + Z.k); if (isLocal(f)) popText(f.x, f.y - BH(f) - 20, 'エリアの外！', '#ff6a8a', 16, 30);
+      }
+    },
+    drawWorld() {
+      const c = G.cam, top = c.y - 2000, h = 4000;
+      g.fillStyle = 'rgba(255,40,90,.2)'; g.fillRect(Z.l - 6000, top, 6000, h); g.fillRect(Z.r, top, 6000, h);
+      g.strokeStyle = `rgba(255,90,140,${.6 + .3 * Math.sin(G.t * .2)})`; g.lineWidth = 6; g.beginPath(); g.moveTo(Z.l, top); g.lineTo(Z.l, top + h); g.moveTo(Z.r, top); g.lineTo(Z.r, top + h); g.stroke();
+    },
+    drawHUD() {
+      const left = G.fs.filter(f => !f.out).length, s = Math.max(0, Math.ceil((Z.next - Z.t) / 60));
+      txt('のこり ' + left + ' 人', W / 2, 30, 30, '#ffe14a', 'center', '#000', 6);
+      txt(Z.sh > 0 ? 'エリア縮小中！' : 'エリア縮小まで ' + s + '秒', W / 2, 60, 15, Z.sh > 0 ? '#ff6a8a' : '#fff', 'center', '#000', 4);
+    },
+    checkEnd() {
+      const me = meF(), alive = G.fs.filter(f => !f.out);
+      if (me.out) { G.place = alive.length + 1; endMatch(alive[0] || null); }
+      else if (alive.length <= 1) { G.place = 1; endMatch(me); }
+    },
+    after() {
+      const me = meF(), place = G.place || 1, c = earn(place === 1 ? 300 : Math.max(10, (100 - place) * 2) + me.kos * 5);
+      rec.royale = Math.min(rec.royale || 999, place); saveRec(); const lv = gainXp(me, place === 1 ? 120 : 30 + me.kos * 6);
+      showModeResult({ title: 'バトルロイヤル', head: place === 1 ? '🏆 1位！ ビクトリー！' : place + '位', win: place === 1, c: me.c, alt: me.alt,
+        lines: ['撃破 ' + me.kos + '人', 'ベスト ' + rec.royale + '位'], coins: c, lvUp: lv, retry: () => startRoyale(me.ci, me.alt), say: place === 1 ? 'ビクトリー！' : '' });
+    }
+  };
+}
+// ---------------------------------------------------------------------
+//  ボス戦：巨大ボスにみんなで挑む（オンラインでも協力できる）
+// ---------------------------------------------------------------------
+const BOSSES = [
+  { id: 'mecha', name: 'メカドラゴン魔王', hp: 520, alt: 3, stage: 1 },
+  { id: 'doshin', name: 'ゴーレムキング', hp: 600, alt: 1, stage: 8 },
+  { id: 'noir', name: 'ダークナイト', hp: 460, alt: 3, stage: 2 },
+  { id: 'gamma', name: 'ギガガンマ', hp: 560, alt: 2, stage: 3 }
+];
+function bossEntry(bi, players) {
+  const B = BOSSES[bi], ci = CHARS.findIndex(c => c.id === B.id);
+  return { ci, lv: 4, stocks: 1, team: 1, boss: 2.6, bossHp: Math.round(B.hp * (.7 + players * .3)), bossName: B.name, alt: B.alt, netName: 'BOSS' };
+}
+function startBoss(bi, ci, alt = 0) {
+  const list = [{ ci, human: true, stocks: 3, team: 0, alt }];
+  for (let i = 0; i < 2; i++) list.push({ ci: randChar(list), lv: 3, stocks: 3, team: 0 });
+  list.push(bossEntry(bi, 3));
+  newMatch({ list, stage: BOSSES[bi].stage, rule: 'stock', items: 1, team: 2, bossMode: bi, ext: bossExt });
+  G.bossI = bi; duo = false; scene = 'battle'; resetTouch();
+}
+function bossExt() {
+  const E = { boss: 1, skT: 260, beam: 0 };
+  E.step = () => {
+    const b = G.bossF; if (!b || b.dead || b.out) return;
+    if (E.beam > 0) {
+      if (--E.beam === 0) for (let i = 0; i < 6; i++) G.projs.push(mkProj(b, { x: b.x + b.dir * (60 + i * 30), y: b.y - 70 * b.szv, vx: b.dir * 18, vy: 0, r: 28, dmg: 13, kb: 7, ks: .14, ang: 30, life: 70, shape: 'laser', pierce: 1, fx: 'elec' }));
+      return;
+    }
+    if (--E.skT > 0) return;
+    E.skT = rnd(200, 280) * (b.hp < b.hpMax / 3 ? .7 : 1);
+    const sk = pick(['quake', 'rain', 'beam', 'helper']);
+    popText(b.x, b.y - BH(b) - 30, { quake: 'じしんアタック！', rain: 'いん石の雨！', beam: '破壊ビーム！', helper: 'しもべを呼んだ！' }[sk], '#ff6a6a', 22, 70);
+    if (sk === 'quake') { G.shake = 16; sfx.boom(); for (const d of [-1, 1]) for (let k = 0; k < 2; k++) G.projs.push(mkProj(b, { x: b.x + d * (40 + k * 60), y: b.y - 22, vx: d * (8 + k * 2), r: 26, dmg: 12, kb: 6, ks: .12, ang: 70, life: 100, shape: 'wave', ground: 1, fx: 'normal' })); }
+    else if (sk === 'rain') for (let i = 0; i < 9; i++) G.projs.push(mkProj(b, { x: G.cam.x + rnd(-450, 450) / G.cam.z, y: G.cam.y - 420 / G.cam.z - rnd(0, 200), vx: rnd(-1, 1), vy: 8, r: 18, dmg: 9, kb: 5, ks: .1, ang: 70, life: 160, shape: 'meteor', fx: 'fire', explode: 50, fall: 1 }));
+    else if (sk === 'beam') { const tg = nearestFoe(b, b.x, b.y); if (tg) b.dir = sgn(tg.x - b.x) || b.dir; E.beam = 60; sfx.charge(); }
+    else G.helpers.push({ type: pick(['dragon', 'bee']), own: b, x: b.x, y: b.y - 120, t: 0, life: 360, dir: b.dir, hit: new Set(), cd: 60, vy: 0, rot: 0 });
+  };
+  E.onKO = f => {
+    if (!f.hpMax) return false;
+    f.hp = Math.max(1, f.hp - 40); f.x = 0; f.y = -320; f.vx = f.vy = 0; f.state = 'free'; f.ground = null; f.inv = 60;
+    popText(0, -380, 'ボスが場外！ -40', '#ffe14a', 24); sfx.ko(); G.shake = 12; return true;
+  };
+  E.bossDown = b => {
+    if (G.over) return;
+    b.out = true; G.bossWin = true; explodeAt(b.x, b.y - 80, 220, null, 0, 0, 0); G.flash = 12; G.slow = 90; G.slowF = b;
+    endMatch(G.fs.find(f => !f.out && f.team === 0) || null);
+  };
+  E.checkEnd = () => { if (!G.fs.some(f => f.team === 0 && !f.out)) endMatch(G.bossF); };
+  E.drawHUD = () => {
+    const b = G.bossF; if (!b) return;
+    bossBar(b);
+    if (E.beam > 0 && G.t % 8 < 4) txt('⚠ 破壊ビーム！', W / 2, (touchMode ? 100 : 30) + 36, 18, '#ff6a6a', 'center', '#000', 4);
+  };
+  E.drawWorld = () => {
+    const b = G.bossF; if (!b || !E.beam) return;
+    g.fillStyle = `rgba(255,80,80,${.15 + .15 * Math.sin(G.t * .5)})`; const y = b.y - 70 * b.szv;
+    g.fillRect(b.dir > 0 ? b.x : b.x - 2000, y - 30, 2000, 60);
+  };
+  E.after = () => {
+    const me = meF(), win = !!G.bossWin, c = earn(win ? 200 : 20 + me.dmgDone * .2);
+    if (win) { rec.boss = rec.boss || {}; rec.boss[G.bossI] = (rec.boss[G.bossI] || 0) + 1; saveRec(); }
+    const lv = gainXp(me, win ? 100 : 25);
+    showModeResult({ title: 'ボス戦：' + BOSSES[G.bossI].name, head: win ? 'ボスをたおした！' : 'ボスにやられた…', win, c: me.c, alt: me.alt,
+      lines: ['あたえたダメージ ' + Math.round(me.dmgDone), '撃墜されたかず ' + me.falls], coins: c, lvUp: lv, retry: () => startBoss(G.bossI, me.ci, me.alt), say: win ? 'ボス撃破！' : '' });
+  };
+  return E;
+}
+function drawBossSel() {
+  menuBG('#4a1a1a', '#100808');
+  button(10, 8, 96, 34, '◀ もどる', () => { scene = 'modes'; }, { size: 15, back: 1 });
+  txt('ボス戦：挑戦するボスをえらぼう', W / 2, 30, 24, '#ffe14a', 'center', '#000', 5);
+  txt('仲間のCPU2人といっしょに、巨大ボスのHPを0にしよう！ オンラインの部屋でも「ボス戦」で協力できる', W / 2, 62, 13, '#fff', 'center', '#000', 3);
+  const t = performance.now() / 16;
+  BOSSES.forEach((B, i) => {
+    const x = 30 + i * 228, y = 84, c = CHARS.find(q => q.id === B.id);
+    ui.push({ x, y, w: 216, h: 380, fn: () => { sfx.select(); startBoss(i, BOSS_CI.ci, BOSS_CI.alt); } });
+    g.fillStyle = 'rgba(255,80,80,.18)'; rr(x, y, 216, 380, 16); g.fill(); g.strokeStyle = '#ff6a6a'; g.lineWidth = 3; g.stroke();
+    g.save(); rr(x, y, 216, 380, 16); g.clip(); g.translate(x + 108, y + 270); g.scale(2.6, 2.6); drawChar(c, attackPose('roar', (t * .01) % 1, idlePose(t)), { alt: B.alt }); g.restore();
+    txt(B.name, x + 108, y + 300, 20, '#fff', 'center', '#000', 5);
+    txt('HP ' + B.hp, x + 108, y + 330, 16, '#ffd2a0', 'center', '#000', 3);
+    txt('撃破 ' + ((rec.boss || {})[i] || 0) + '回', x + 108, y + 358, 15, '#ffe14a', 'center', '#000', 3);
+  });
+}
+let BOSS_CI = { ci: 0, alt: 0 };
+// ---------------------------------------------------------------------
+//  ストーリー：横スクロールの冒険（ザコ敵 → ボス）
+// ---------------------------------------------------------------------
+const STORY = [
+  { name: '第1章 はじまりの草原', bg: 'day', bgm: 0, foes: ['mike', 'usami', 'piyo'], boss: 'gao', bossName: 'キングガオ', text: 'ふしぎな光が草原をおおった。正体をつきとめに出発だ！' },
+  { name: '第2章 ジャングルの奥地', bg: 'jungle', bgm: 0, foes: ['merry', 'hana', 'draco'], boss: 'octo', bossName: '大ダコ・オクトキング', text: 'ジャングルの川に巨大な影が…！' },
+  { name: '第3章 こおりの山脈', bg: 'snow', bgm: 2, foes: ['penta', 'reina', 'kage'], boss: 'taiga', bossName: '雪のタイガ', text: 'ふぶきの山の上で、なにかが待ちかまえている。' },
+  { name: '第4章 ネオンシティ', bg: 'city', bgm: 3, foes: ['robo', 'nano', 'gamma'], boss: 'mecha', bossName: 'メカドラゴン', text: '機械の軍団が街をのっとった！' },
+  { name: '第5章 魔王の城', bg: 'castle', bgm: 3, foes: ['noir', 'yurei', 'gou'], boss: 'noir', bossName: '魔王ダークノワール', text: 'すべての黒幕が城の奥にいる。最後の戦いだ！' }
+];
+function mkStoryStage(ch) {
+  let seed = 1234 + ch * 777; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const S = STORY[ch], plats = [], springs = [], waves = [], coins = [];
+  let x = -500;
+  plats.push({ t: 'solid', x1: -500, x2: 500, y: 0, h: 240 }); x = 500;
+  for (let seg = 0; seg < 6; seg++) {
+    const gap = 140 + R() * 120, y = [0, -50, -100, 0][(R() * 4) | 0];
+    if (R() < .5) plats.push({ t: 'soft', x1: x + 10, x2: x + gap - 10, y: Math.max(y, -40) - 20, crumble: 1 });
+    else springs.push({ x: x - 50, y: plats[plats.length - 1].y, pow: 20 });
+    const x1 = x + gap, len = 700 + R() * 400, x2 = x1 + len;
+    plats.push({ t: 'solid', x1, x2, y, h: 260, roof: S.bg === 'city' ? 1 : 0, tower: S.bg === 'castle' ? 1 : 0 });
+    for (let k = 0; k < 2; k++) { const px = x1 + 120 + R() * (len - 360); plats.push({ t: 'soft', x1: px, x2: px + 150, y: y - 130 - k * 110 }); for (let c = 0; c < 3; c++) coins.push({ x: px + 30 + c * 45, y: y - 170 - k * 110 }); }
+    waves.push({ x: x1 + 200, n: 2 + Math.min(3, ((seg + ch) / 2) | 0), done: false });
+    for (let c = 0; c < 4; c++) coins.push({ x: x1 + 60 + c * 50, y: y - 40 });
+    x = x2;
+  }
+  const ax = x + 180;
+  plats.push({ t: 'soft', x1: x + 10, x2: ax - 10, y: -20 });
+  plats.push({ t: 'solid', x1: ax, x2: ax + 1200, y: 0, h: 260, tower: S.bg === 'castle' ? 1 : 0 });
+  plats.push({ t: 'soft', x1: ax + 200, x2: ax + 380, y: -140 }, { t: 'soft', x1: ax + 820, x2: ax + 1000, y: -140 }, { t: 'soft', x1: ax + 510, x2: ax + 690, y: -260 });
+  return { name: S.name, sub: '', bg: S.bg, bgm: S.bgm, huge: 1, zmin: .55, story: 1, blast: { l: -1100, r: ax + 1700, t: -1000, b: 620 },
+    plats, springs, waves, coins, arena: ax, spawn: [-200], thunder: ch === 4 ? [500, 800] : null, wind: ch === 2 ? 1 : 0 };
+}
+let SC = { ci: 0, alt: 0 };
+function startStory(ch) {
+  newMatch({ stageObj: mkStoryStage(ch), list: [{ ci: SC.ci, human: true, stocks: 3, team: 0, alt: SC.alt, x: -200 }], rule: 'stock', items: 1, team: 2, ext: storyExt, storyCh: ch });
+  G.storyCh = ch; duo = false; scene = 'battle'; resetTouch(); say(STORY[ch].name);
+}
+function storyExt() {
+  G.storyCh = G.o.storyCh; const E = { story: 1, got: 0 }, st = G.st, S = STORY[G.storyCh];
+  E.step = () => {
+    const me = meF(), ch = G.storyCh; if (!me) return;
+    const ids = S.foes.map(id => CHARS.findIndex(c => c.id === id));
+    for (const w of st.waves) if (!w.done && me.x > w.x - 520) {
+      w.done = true; me.home = w.x - 200;
+      for (let i = 0; i < w.n; i++) { const x = w.x + 100 + i * 90; const p = groundAt(x); addFighter({ ci: pick(ids), lv: 1 + Math.min(3, ch), stocks: 1, team: 1, weak: 1, boss: .85, npc: true, enemy: true, alt: 3 }, x, p ? p.y - 220 : -300); }
+      popText(w.x + 200, -260, '敵があらわれた！', '#ff6a6a', 22);
+    }
+    if (!E.bossOn && me.x > st.arena + 80) {
+      E.bossOn = true; me.home = st.arena + 200;
+      const ci = CHARS.findIndex(c => c.id === S.boss);
+      const b = addFighter({ ci, lv: Math.min(4, 2 + ch), stocks: 1, team: 1, boss: 1.9, bossHp: 180 + ch * 70, bossName: S.bossName, alt: 3 }, st.arena + 900, -300);
+      G.bossF = b; sfx.alarm(); say('ボス、' + S.bossName + '！'); G.shake = 10;
+    }
+    for (const c of st.coins) if (!c.got && Math.abs(me.x - c.x) < 22 && me.y - BH(me) < c.y + 14 && me.y > c.y - 14) { c.got = true; E.got++; sfx.select(); spark(c.x, c.y, 6, '#ffe14a', 3, 14); }
+  };
+  E.onKO = f => {
+    if (f.enemy && !f.hpMax) { const k = G.fs[f.lastHit]; if (k && k !== f) k.kos++; spark(f.x, f.y - 30, 16, '#ffffff', 6, 20); f.out = true; f.dead = true; return true; }
+    if (f.hpMax) { f.hp = Math.max(1, f.hp - 40); f.x = st.arena + 600; f.y = -320; f.vx = f.vy = 0; f.state = 'free'; f.ground = null; f.inv = 60; popText(f.x, -380, 'ボスが場外！ -40', '#ffe14a', 24); sfx.ko(); return true; }
+    return false;
+  };
+  E.bossDown = b => { if (G.over) return; b.out = true; G.bossWin = true; explodeAt(b.x, b.y - 60, 180, null, 0, 0, 0); G.flash = 12; G.slow = 90; G.slowF = b; endMatch(meF()); };
+  E.checkEnd = () => { if (meF().out) endMatch(null); };
+  E.drawWorld = () => {
+    const V = G.view;
+    for (const c of st.coins) { if (c.got || V && (c.x < V.l || c.x > V.r)) continue; const s = Math.abs(Math.cos(G.t * .08 + c.x)); g.fillStyle = '#ffd23f'; ell(c.x, c.y, 10 * s + 1, 11); g.fill(); g.strokeStyle = '#b8860b'; g.lineWidth = 2; g.stroke(); }
+    const fx = st.arena + 1120; g.fillStyle = '#ddd'; g.fillRect(fx, -200, 6, 200); g.fillStyle = E.bossOn && !G.bossF.out ? '#888' : '#ff4a6a'; g.beginPath(); g.moveTo(fx + 6, -200); g.lineTo(fx + 70, -176); g.lineTo(fx + 6, -152); g.fill();
+  };
+  E.drawHUD = () => {
+    txt(S.name, 16, touchMode ? 100 : 70, 15, '#ffe14a', 'left', '#000', 4); txt('🪙 ' + E.got, 16, touchMode ? 122 : 92, 15, '#fff', 'left', '#000', 4);
+    const b = G.bossF; if (b && E.bossOn && !b.out) bossBar(b);
+    const me = meF(); if (me && st.arena) { const k = clamp((me.x + 500) / (st.arena + 1200 + 500), 0, 1); g.fillStyle = 'rgba(0,0,0,.5)'; rr(W / 2 - 150, H - 100, 300, 8, 4); g.fill(); g.fillStyle = '#7dff9a'; rr(W / 2 - 150, H - 100, 300 * k, 8, 4); g.fill(); txt('🏁', W / 2 + 160, H - 96, 14); }
+  };
+  E.after = () => {
+    const me = meF(), win = !!G.bossWin, ch = G.storyCh;
+    let c = earn(E.got * 2 + (win ? 150 + ch * 30 : 0));
+    if (win) { rec.story = Math.max(rec.story || 0, ch + 1); saveRec(); }
+    const lv = gainXp(me, win ? 120 : 30);
+    showModeResult({ title: 'ストーリー：' + S.name, head: win ? 'ステージクリア！' : 'ゲームオーバー', win, c: me.c, alt: me.alt,
+      lines: ['ひろったコイン ' + E.got + 'まい', '撃破 ' + me.kos + '人'], coins: c, lvUp: lv,
+      retry: win && ch + 1 < STORY.length ? () => startStory(ch + 1) : () => startStory(ch), retryLabel: win && ch + 1 < STORY.length ? 'つぎの章へ' : 'もう一度',
+      back: () => { scene = 'storyMap'; setBgm(5); }, backLabel: '章えらび', say: win ? 'ステージクリア！' : '' });
+  };
+  return E;
+}
+function bossBar(b) {
+  const k = clamp(b.hp / b.hpMax, 0, 1), x = W / 2 - 300, y = touchMode ? 100 : 30;
+  txt(b.bossName, W / 2, y - 12, 16, '#ffd2a0', 'center', '#000', 4);
+  g.fillStyle = 'rgba(0,0,0,.6)'; rr(x - 4, y - 2, 608, 20, 8); g.fill();
+  g.fillStyle = k > .5 ? '#ff4a4a' : k > .25 ? '#ff8a2a' : '#ffd23f'; rr(x, y, 600 * k, 16, 6); g.fill();
+  txt(Math.ceil(b.hp) + ' / ' + b.hpMax, W / 2, y + 8, 12, '#fff', 'center', '#000', 3);
+}
+function drawStoryMap() {
+  menuBG('#1a3a2a', '#081410');
+  button(10, 8, 96, 34, '◀ もどる', () => { scene = 'modes'; }, { size: 15, back: 1 });
+  txt('ストーリー：章をえらぼう', W / 2, 30, 26, '#ffe14a', 'center', '#000', 5);
+  const t = performance.now() / 16, done = rec.story || 0;
+  STORY.forEach((S, i) => {
+    const x = 40 + i * 180, y = 70, open = i <= done, c = CHARS.find(q => q.id === S.boss);
+    g.fillStyle = open ? 'rgba(120,255,180,.16)' : 'rgba(80,80,80,.3)'; rr(x, y, 168, 400, 14); g.fill(); g.strokeStyle = i < done ? '#ffe14a' : open ? '#7dff9a' : '#555'; g.lineWidth = 3; g.stroke();
+    txt(S.name.split(' ')[0], x + 84, y + 26, 18, '#fff', 'center', '#000', 4);
+    wrapText(S.name.split(' ')[1], x + 14, y + 52, 140, 15, 20, '#ffe14a');
+    if (open) {
+      ui.push({ x, y, w: 168, h: 400, fn: () => { sfx.select(); startStory(i); } });
+      g.save(); rr(x, y, 168, 400, 14); g.clip(); g.translate(x + 84, y + 250); g.scale(1.7, 1.7); drawChar(c, portraitPose(t, i), { alt: 3 }); g.restore();
+      txt('ボス：' + S.bossName, x + 84, y + 280, 11, '#ffd2a0', 'center', '#000', 3);
+      wrapText(S.text, x + 12, y + 304, 146, 12, 17, '#fff');
+      if (i < done) txt('★ クリア', x + 84, y + 380, 16, '#ffe14a', 'center', '#000', 4);
+    } else txt('🔒', x + 84, y + 220, 50);
+  });
+  if (done >= STORY.length) txt('全章クリア！ おめでとう！', W / 2, 500, 20, '#ffe14a', 'center', '#000', 5);
+}
+// ---------------------------------------------------------------------
+//  イベント戦：日がわりのお題
+// ---------------------------------------------------------------------
+const EVENTS = [
+  { name: 'ボムだらけ大乱闘', desc: 'アイテムがぜんぶボム！', foes: 3, lv: 2, special: 'bomb' },
+  { name: 'メタル軍団をたおせ', desc: '1人 vs メタルファイター3人', foes: 3, lv: 2, metal: 1, team: 1 },
+  { name: 'ちびっこ60人乱闘', desc: 'みんなミニ＆NPC60人', foes: 3, lv: 2, special: 'mini', npc: 60, stage: 8 },
+  { name: 'ハンマー祭り', desc: 'アイテムはハンマーだけ', foes: 3, lv: 2, pool: ['hammer'], items: 2 },
+  { name: '倍速バトル', desc: 'みんなスピード2倍', foes: 2, lv: 3, special: 'speed' },
+  { name: '月面ふわふわ乱闘', desc: '月面基地でふわふわ重力', foes: 3, lv: 2, special: 'lowg', stage: 11 },
+  { name: '巨人をたおせ', desc: '巨大ファイターとタイマン', foes: 1, lv: 4, boss: 2.2, stocks: 3 },
+  { name: 'スマッシュボール祭り', desc: '切り札を使いまくれ！', foes: 3, lv: 2, pool: ['ball'], items: 2 },
+  { name: '超ワイド40人乱闘', desc: '広いステージでNPC40人', foes: 3, lv: 2, npc: 40, huge: 1, rule: 'time' },
+  { name: '1ストック一発勝負', desc: 'つよいCPU3人・ストック1', foes: 3, lv: 4, stocks: 1 },
+  { name: 'ロケット空中戦', desc: 'アイテムは乗り物だけ', foes: 3, lv: 2, pool: ['rocket', 'board'], items: 2, stage: 6 },
+  { name: 'チーム4対4', desc: '赤チームで青チームに勝て', foes: 7, lv: 2, team: 2 }
+];
+function dayKey() { const d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
+function todayEvents() { const k = Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 864e5); return [0, 1, 2].map(i => (k * 3 + i * 5) % EVENTS.length); }
+let EV_PICK = 0;
+function startEvent(ei, ci, alt = 0) {
+  const E = EVENTS[ei], st = E.huge ? pick(hugeStages()) : E.stage !== undefined ? E.stage : pick(normalStages());
+  const list = [{ ci, human: true, stocks: E.stocks || 3, team: 0, alt }];
+  for (let i = 0; i < E.foes; i++) list.push({ ci: randChar(list), lv: E.lv, stocks: E.stocks || 3, team: E.team === 2 ? (i < 3 ? 0 : 1) : E.team ? 1 : i + 1, metal: E.metal, boss: E.boss });
+  for (let i = 0; i < (E.npc || 0); i++) list.push({ ci: randChar(list), lv: 1, npc: true, stocks: 1, team: list.length, alt: (Math.random() * 4) | 0 });
+  newMatch({ list, stage: st, rule: E.rule || 'stock', time: 2, items: E.items !== undefined ? E.items : 1, special: E.special, team: E.team ? 2 : 0, ext: () => ({ after: eventAfter }) });
+  G.itemPool = E.pool || null; G.evI = ei; duo = false; scene = 'battle'; resetTouch();
+}
+function eventAfter() {
+  const me = meF(), win = G.team ? G.winTeam === me.team : G.result[0] === me, ei = G.evI, key = dayKey() + ':' + ei;
+  rec.ev = rec.ev || {}; const first = win && !rec.ev[key]; if (win) rec.ev[key] = 1;
+  const c = earn((win ? 60 : 10) + (first ? 100 : 0)); const lv = gainXp(me, win ? 80 : 20);
+  showModeResult({ title: 'イベント戦：' + EVENTS[ei].name, head: win ? 'イベントクリア！' : 'ざんねん…', win, c: me.c, alt: me.alt,
+    lines: [first ? '★ 今日はじめてのクリア！ ボーナス +100' : win ? 'クリア済み' : 'もう一度挑戦しよう', '撃墜 ' + me.kos], coins: c, lvUp: lv,
+    retry: () => startEvent(ei, me.ci, me.alt), back: () => { scene = 'events'; setBgm(5); }, backLabel: 'イベント一覧' });
+}
+function drawEvents() {
+  menuBG('#3a2a5a', '#0a0820');
+  button(10, 8, 96, 34, '◀ もどる', () => { scene = 'modes'; }, { size: 15, back: 1 });
+  txt('イベント戦（毎日かわる）', W / 2, 30, 26, '#ffe14a', 'center', '#000', 5);
+  const d = dayKey(); txt((d / 10000 | 0) + '年' + ((d / 100 | 0) % 100) + '月' + (d % 100) + '日のイベント', W / 2, 62, 15, '#fff', 'center', '#000', 3);
+  todayEvents().forEach((ei, i) => {
+    const E = EVENTS[ei], x = 60 + i * 290, y = 90, done = rec.ev && rec.ev[d + ':' + ei];
+    ui.push({ x, y, w: 270, h: 340, fn: () => { sfx.select(); EV_PICK = ei; goSelect('event'); } });
+    g.fillStyle = 'rgba(200,150,255,.18)'; rr(x, y, 270, 340, 16); g.fill(); g.strokeStyle = done ? '#ffe14a' : '#c88aff'; g.lineWidth = 3; g.stroke();
+    txt('EVENT ' + (i + 1), x + 135, y + 30, 16, '#c88aff', 'center', '#000', 3);
+    txt(E.name, x + 135, y + 70, 22, '#fff', 'center', '#000', 5);
+    wrapText(E.desc, x + 20, y + 110, 230, 16, 22, '#fff');
+    const tags = []; if (E.npc) tags.push('NPC ' + E.npc + '人'); if (E.team) tags.push('チーム戦'); if (E.special) tags.push(SPECIALS.find(q => q[0] === E.special)[1]); tags.push('CPUレベル' + E.lv);
+    tags.forEach((tg, k) => txt('・' + tg, x + 24, y + 190 + k * 24, 14, '#ffd2a0', 'left'));
+    txt(done ? '★ クリア済み' : '初クリアで +100コイン', x + 135, y + 312, 15, done ? '#ffe14a' : '#7dff9a', 'center', '#000', 3);
+  });
+  txt('日づけがかわると、ちがうイベントになるよ', W / 2, 470, 14, 'rgba(255,255,255,.7)');
+}
+// =====================================================================
+//  コレクション：キャラのレベル・称号・勝利ポーズ・カラー／フィギュアガチャ
+// =====================================================================
+const TITLES = [[1, 'ルーキー'], [3, 'ファイター'], [5, 'エース'], [8, 'ベテラン'], [12, 'エキスパート'], [16, 'マスター'], [20, 'レジェンド']];
+const ALT_LV = [0, 0, 0, 0, 3, 6, 9, 14];   // 色ごとに必要なレベル（5色め以降はレベルで解放）
+const POSE_LV = [[1, 'アピール'], [4, 'くるくるジャンプ'], [10, 'パワーポーズ'], [15, 'ひっさつかまえ']];
+const MAXLV = 20;
+function charLv(id) { const x = (rec.xp || {})[id] || 0; let L = 1; while (L < MAXLV && x >= 30 * L * (L + 1)) L++; return L; }
+function lvNeed(L) { return 30 * L * (L + 1); }
+function titleOf(id) { const L = charLv(id); let t = TITLES[0][1]; for (const [l, n] of TITLES) if (L >= l) t = n; return t; }
+function altCount(ci) { const L = charLv(CHARS[ci].id); return ALT_LV.filter(l => L >= l).length; }
+function nextAlt(ci, a) { return ((a || 0) + 1) % altCount(ci); }
+function gainXp(f, n) {
+  if (!f || !f.human || f.remote) return '';
+  const id = CHARS[f.ci].id; rec.xp = rec.xp || {};
+  const L0 = charLv(id); rec.xp[id] = (rec.xp[id] || 0) + Math.round(n); const L1 = charLv(id); saveRec();
+  if (L1 <= L0) return '';
+  let msg = CHARS[f.ci].name + ' が Lv.' + L1 + ' になった！';
+  if (ALT_LV.includes(L1)) msg += ' 新しい色！'; if (TITLES.some(t => t[0] === L1)) msg += ' 称号「' + titleOf(id) + '」'; if (POSE_LV.some(p => p[0] === L1)) msg += ' 勝利ポーズ追加！';
+  return msg;
+}
+// 勝利ポーズ（レベルで増える。勝つたびに順番に出る）
+function winPose(c, t, k) {
+  const L = charLv(c.id), n = POSE_LV.filter(p => L >= p[0]).length, i = (k || 0) % n, s = (t * .012) % 1;
+  if (i === 1) return { ...attackPose('flip', s, idlePose(t)), bob: -Math.abs(Math.sin(t * .1)) * 30 };
+  if (i === 2) return { ...attackPose('castUp', .6, idlePose(t)), glow: .6 + .4 * Math.sin(t * .1), eyes: 'h' };
+  if (i === 3) return attackPose(c.arch === 'sword' ? 'slashBig' : 'roar', .5 + .1 * Math.sin(t * .05), idlePose(t));
+  return attackPose('taunt', s, idlePose(t));
+}
+// ---- フィギュア
+const FIGS = [];
+CHARS.forEach(c => FIGS.push({ id: 'c:' + c.id, kind: 'char', ref: c, name: c.name, rare: 0, desc: c.sub + '。「' + c.quote + '」' }));
+BOSSES.forEach((B, i) => FIGS.push({ id: 'b:' + i, kind: 'boss', ref: CHARS.find(c => c.id === B.id), alt: B.alt, name: B.name, rare: 1, desc: 'ボス戦に出てくる巨大ボス。HP ' + B.hp }));
+for (const k in ITEMDEF) FIGS.push({ id: 'i:' + k, kind: 'item', ref: k, name: ITEMDEF[k].n, rare: 0, desc: 'アイテム。' + { touch: 'さわると効果がある', melee: 'ふりまわして使う', shoot: '弾をうてる', throw: '投げて使う', box: 'こわすと中からアイテム', ball: '3回たたくと最後の切り札', hammer: 'ふりまわして大ダメージ' }[ITEMDEF[k].kind] });
+for (const k in HELPERS) FIGS.push({ id: 'h:' + k, kind: 'helper', ref: k, name: HELPERS[k], rare: 1, desc: 'おたすけボールから出てくる助っ人' });
+FIGS.push({ id: 'p:pochi', kind: 'pet', name: 'ポチ', rare: 1, desc: 'ミミの相棒の子犬。かみつき攻撃がとくい' });
+const GACHA_COST = 30;
+let FG = { sel: null, anim: 0, got: null, page: 0 };
+function figCount() { return FIGS.filter(f => (rec.figs || {})[f.id]).length; }
+function pullGacha() {
+  if ((rec.coins || 0) < GACHA_COST) { sfx.back(); return; }
+  rec.coins -= GACHA_COST; rec.figs = rec.figs || {};
+  const pool = FIGS.flatMap(f => Array(f.rare ? 1 : 4).fill(f)), f = pick(pool);
+  FG.got = f; FG.isNew = !rec.figs[f.id]; rec.figs[f.id] = (rec.figs[f.id] || 0) + 1; FG.anim = 90; saveRec(); sfx.item();
+}
+function drawFigure(F, x, y, s) {
+  const t = performance.now() / 16;
+  g.save(); g.translate(x, y);
+  g.fillStyle = F.rare ? '#c89a2a' : '#8a8aa8'; ell(0, 6, 46 * s, 12 * s); g.fill(); g.fillStyle = F.rare ? '#ffe14a' : '#c8c8e0'; ell(0, 0, 46 * s, 12 * s); g.fill();
+  if (F.kind === 'char' || F.kind === 'boss') { g.scale(s * (F.kind === 'boss' ? 1.2 : 1), s * (F.kind === 'boss' ? 1.2 : 1)); drawChar(F.ref, portraitPose(t, 3), { alt: F.alt || 0 }); }
+  else if (F.kind === 'item') drawItemIcon(F.ref, 0, -24 * s, 2.2 * s);
+  else if (F.kind === 'helper') {
+    g.translate(0, -40 * s); g.scale(s, s);
+    if (HELPER_DRAW[F.ref]) HELPER_DRAW[F.ref]({ t: 70, cd: 60, dir: 1, life: 300 });
+    else { circ(0, 0, 26); fs_({ dragon: '#ff5a3a', thunder: '#5a5a7a', boulder: '#8d7a62', fairy: '#fff0f8' }[F.ref], 2.5); g.fillStyle = '#fff'; circ(-8, -4, 6); circ(8, -4, 6); g.fill(); g.fillStyle = '#000'; circ(-7, -4, 3); circ(9, -4, 3); g.fill(); }
+  } else if (F.kind === 'pet') { g.scale(s * 1.4, s * 1.4); g.fillStyle = '#e8b070'; ell(0, -16, 18, 11); g.fill(); circ(16, -26, 11); g.fill(); g.fillStyle = '#a8743a'; ell(12, -36, 4, 8, -.4); g.fill(); ell(21, -35, 4, 8, .4); g.fill(); g.fillStyle = '#222'; circ(19, -28, 2); circ(27, -24, 2.5); g.fill(); }
+  g.restore();
+}
+function drawFigures() {
+  menuBG('#2a3a5a', '#0a1020');
+  button(10, 8, 96, 34, '◀ もどる', () => { scene = 'modes'; FG.sel = null; }, { size: 15, back: 1 });
+  txt('フィギュアコレクション', W / 2, 26, 24, '#ffe14a', 'center', '#000', 5);
+  txt('🪙 ' + (rec.coins || 0) + '　あつめた ' + figCount() + ' / ' + FIGS.length, W / 2, 54, 15, '#fff', 'center', '#000', 3);
+  button(W - 200, 8, 190, 40, 'ガチャ（' + GACHA_COST + 'コイン）', pullGacha, { primary: (rec.coins || 0) >= GACHA_COST, size: 15 });
+  const per = 24, pages = Math.ceil(FIGS.length / per);
+  FIGS.slice(FG.page * per, FG.page * per + per).forEach((F, i) => {
+    const x = 20 + (i % 8) * 116, y = 72 + ((i / 8) | 0) * 128, have = (rec.figs || {})[F.id];
+    g.fillStyle = have ? (F.rare ? 'rgba(255,225,74,.18)' : 'rgba(255,255,255,.1)') : 'rgba(0,0,0,.3)'; rr(x, y, 108, 120, 10); g.fill();
+    if (have) { ui.push({ x, y, w: 108, h: 120, fn: () => { FG.sel = F; sfx.select(); } }); g.save(); rr(x, y, 108, 120, 10); g.clip(); drawFigure(F, x + 54, y + 92, .7); g.restore(); txt(F.name, x + 54, y + 110, 11, '#fff', 'center', '#000', 3); if (have > 1) txt('×' + have, x + 100, y + 14, 11, '#ffe14a', 'right', '#000', 2); }
+    else txt('？', x + 54, y + 60, 34, '#556');
+  });
+  if (pages > 1) { button(20, 462, 90, 34, '◀', () => { FG.page = (FG.page + pages - 1) % pages; }, { size: 16 }); txt((FG.page + 1) + ' / ' + pages, 160, 479, 15); button(210, 462, 90, 34, '▶', () => { FG.page = (FG.page + 1) % pages; }, { size: 16 }); }
+  txt('コインは対戦・ストーリー・イベントなどでもらえる', W - 20, 480, 13, 'rgba(255,255,255,.7)', 'right');
+  const F = FG.got;
+  if (F) {
+    if (FG.anim > 0) FG.anim--; ui.length = 0; ui.push({ x: 0, y: 0, w: W, h: H, fn: () => { if (FG.anim < 40) FG.got = null; } });
+    g.fillStyle = 'rgba(0,0,10,.85)'; g.fillRect(0, 0, W, H);
+    if (FG.anim > 40) { const k = (90 - FG.anim) / 50; g.save(); g.translate(W / 2, 140 + k * 140); g.rotate(Math.sin(k * 20) * .3); circ(0, 0, 50); fs_('#ff6a8a', 3); g.fillStyle = '#fff'; g.fillRect(-50, -3, 100, 6); circ(0, 0, 12); fs_('#fff', 2); g.restore(); }
+    else {
+      g.fillStyle = 'rgba(255,255,255,.08)'; for (let i = 0; i < 12; i++) { g.beginPath(); g.moveTo(W / 2, 300); const a = i * .5236 + performance.now() * .0005; g.lineTo(W / 2 + Math.cos(a) * 600, 300 + Math.sin(a) * 600); g.lineTo(W / 2 + Math.cos(a + .14) * 600, 300 + Math.sin(a + .14) * 600); g.fill(); }
+      drawFigure(F, W / 2, 360, 1.6);
+      txt(F.name, W / 2, 410, 30, F.rare ? '#ffe14a' : '#fff', 'center', '#000', 6);
+      txt(FG.isNew ? '★ NEW! ★' : 'もっていた（×' + rec.figs[F.id] + '）', W / 2, 60, 26, FG.isNew ? '#ff6a8a' : '#aab', 'center', '#000', 5);
+      if (F.rare) txt('レア！', W / 2, 96, 22, '#ffe14a', 'center', '#000', 5);
+      wrapText(F.desc, W / 2 - 300, 446, 600, 15, 20, '#fff');
+      txt('タップでとじる', W / 2, 520, 13, 'rgba(255,255,255,.6)');
+    }
+    return;
+  }
+  if (FG.sel) {
+    ui.length = 0; ui.push({ x: 0, y: 0, w: W, h: H, fn: () => { FG.sel = null; } });
+    g.fillStyle = 'rgba(0,0,10,.88)'; g.fillRect(0, 0, W, H); drawFigure(FG.sel, W / 2 - 200, 380, 2);
+    txt(FG.sel.name, W / 2 + 120, 180, 30, '#ffe14a', 'center', '#000', 6); wrapText(FG.sel.desc, W / 2 + 10, 230, 330, 16, 24, '#fff');
+    txt('もっている数 ×' + rec.figs[FG.sel.id], W / 2 + 120, 360, 16, '#fff', 'center', '#000', 3); txt('タップでとじる', W / 2, 520, 13, 'rgba(255,255,255,.6)');
+  }
+}
+// ---- キャラのレベル・称号の一覧
+function drawLevels() {
+  menuBG('#3a2a1a', '#100a04');
+  button(10, 8, 96, 34, '◀ もどる', () => { scene = 'modes'; }, { size: 15, back: 1 });
+  txt('キャラのレベル・称号', W / 2, 26, 24, '#ffe14a', 'center', '#000', 5);
+  txt('使うと経験値がたまる → 新しい色（Lv3・6・9・14）・称号・勝利ポーズ（Lv4・10・15）が手に入る', W / 2, 54, 13, '#fff', 'center', '#000', 3);
+  const t = performance.now() / 16;
+  CHARS.forEach((c, i) => {
+    const x = 20 + (i % 9) * 103, y = 72 + ((i / 9) | 0) * 146, L = charLv(c.id), x0 = (rec.xp || {})[c.id] || 0, open = isUnlocked(i);
+    g.fillStyle = 'rgba(255,255,255,.08)'; rr(x, y, 97, 138, 10); g.fill();
+    if (!open) { txt('？', x + 48, y + 64, 30, '#556'); return; }
+    g.save(); rr(x, y, 97, 138, 10); g.clip(); g.translate(x + 48, y + 74); g.scale(.75, .75); drawChar(c, L >= 4 && i % 3 === 0 ? winPose(c, t, 1) : portraitPose(t, i), { alt: altCount(i) > 4 ? altCount(i) - 1 : 0 }); g.restore();
+    txt(c.name, x + 48, y + 86, 12, '#fff', 'center', '#000', 3);
+    txt('Lv.' + L, x + 8, y + 14, 14, '#ffe14a', 'left', '#000', 3); txt(titleOf(c.id), x + 48, y + 104, 11, '#9fe8ff', 'center', '#000', 2);
+    const prev = L > 1 ? lvNeed(L - 1) : 0, k = L >= MAXLV ? 1 : clamp((x0 - prev) / (lvNeed(L) - prev), 0, 1);
+    g.fillStyle = 'rgba(0,0,0,.5)'; rr(x + 8, y + 118, 81, 7, 3); g.fill(); g.fillStyle = '#7dff9a'; rr(x + 8, y + 118, 81 * k, 7, 3); g.fill();
+    txt(altCount(i) + '色', x + 89, y + 14, 11, '#fff', 'right', '#000', 2);
+  });
+}
+// ---- モードいろいろ（ハブ画面）
+function drawModes() {
+  menuBG('#1a2a5a', '#080c20');
+  button(10, 8, 96, 34, '◀ もどる', goTitle, { size: 15, back: 1 });
+  txt('モードいろいろ', W / 2, 30, 28, '#ffe14a', 'center', '#000', 6);
+  txt('🪙 ' + (rec.coins || 0), W - 20, 28, 18, '#ffe14a', 'right', '#000', 4);
+  const t = performance.now() / 16;
+  const M = [
+    ['ストーリー', '横スクロールの冒険。ザコをたおしてボスへ', '#3ad06a', () => goSelect('story'), (rec.story || 0) + ' / ' + STORY.length + '章'],
+    ['ボス戦', '巨大ボスに仲間と挑む（オンライン協力も）', '#ff5a5a', () => goSelect('boss'), '撃破 ' + Object.values(rec.boss || {}).reduce((a, b) => a + b, 0) + '回'],
+    ['バトルロイヤル', '100人で最後の1人を目指せ！', '#ff8ad8', () => goSelect('royale'), rec.royale ? 'ベスト ' + rec.royale + '位' : ''],
+    ['イベント戦', '毎日かわるお題バトル', '#c88aff', () => { scene = 'events'; }, ''],
+    ['トーナメント', '8人・16人の勝ちぬき大会', '#ffc83f', () => { scene = 'tourneySetup'; }, rec.tourney ? '優勝 ' + rec.tourney + '回' : ''],
+    ['ステージ作り', '足場やギミックをおいて自分のステージ', '#4ae8e0', () => openBuilder(), (BLD.saved.length) + 'こ保存'],
+    ['フィギュア', 'コインでガチャ！ コレクション', '#ffe14a', () => { scene = 'figures'; FG.got = null; }, figCount() + ' / ' + FIGS.length],
+    ['キャラのレベル', '使うほどレベルアップ・称号・色・ポーズ', '#ff9a3a', () => { scene = 'levels'; }, ''],
+    ['ランキング・リプレイ', '全国ランキングと試合のリプレイ', '#7ab0ff', () => { scene = 'ranking'; rankLoad(); }, '']
+  ];
+  M.forEach(([name, desc, col, fn, sub], i) => {
+    const x = 30 + (i % 3) * 304, y = 62 + ((i / 3) | 0) * 156;
+    ui.push({ x, y, w: 292, h: 146, fn: () => { sfx.select(); fn(); } });
+    const gr = g.createLinearGradient(0, y, 0, y + 146); gr.addColorStop(0, hexA(col, .45)); gr.addColorStop(1, 'rgba(8,10,30,.92)'); g.fillStyle = gr; rr(x, y, 292, 146, 14); g.fill(); g.strokeStyle = col; g.lineWidth = 2.5; g.stroke();
+    g.save(); rr(x, y, 292, 146, 14); g.clip(); g.translate(x + 240, y + 130); g.scale(1.1, 1.1); drawChar(CHARS[(i * 7 + 2) % CHARS.length], portraitPose(t, i)); g.restore();
+    txt(name, x + 16, y + 30, 24, '#fff', 'left', '#000', 5);
+    wrapText(desc, x + 16, y + 62, 200, 13, 18, '#fff');
+    if (sub) txt(sub, x + 16, y + 126, 14, '#ffe14a', 'left', '#000', 3);
+  });
+}
+// =====================================================================
+//  トーナメント（8人・16人）
+// =====================================================================
+let TN = null, TN_SET = { size: 8, lv: 2 };
+function drawTourneySetup() {
+  menuBG('#5a4a10', '#140f04');
+  button(10, 8, 96, 34, '◀ もどる', () => { scene = 'modes'; }, { size: 15, back: 1 });
+  txt('トーナメント', W / 2, 40, 32, '#ffe14a', 'center', '#000', 6);
+  txt('勝ちぬき表で優勝を目指そう！ あなたの試合は自分で戦い、ほかの試合は結果だけ出るよ', W / 2, 80, 15, '#fff', 'center', '#000', 3);
+  txt('人数', 250, 150, 20, '#9fe8ff', 'left'); [8, 16].forEach((n, i) => button(400 + i * 150, 128, 140, 44, n + '人', () => { TN_SET.size = n; }, { sel: TN_SET.size === n, size: 18 }));
+  txt('CPUのつよさ', 250, 220, 20, '#9fe8ff', 'left'); ['よわい', 'ふつう', 'つよい', 'さいきょう'].forEach((l, i) => button(400 + i * 110, 198, 100, 44, l, () => { TN_SET.lv = i + 1; }, { sel: TN_SET.lv === i + 1, size: 15 }));
+  button(W / 2 - 150, 300, 300, 70, 'キャラをえらんで出場', () => goSelect('tourney'), { primary: 1, size: 22 });
+  txt('優勝 ' + (rec.tourney || 0) + '回', W / 2, 410, 18, '#ffe14a', 'center', '#000', 4);
+}
+function startTourney(ci, alt) {
+  const ent = [{ ci, alt, me: 1, name: rec.name || 'あなた' }], used = [{ ci }];
+  while (ent.length < TN_SET.size) { const c = randChar(used); used.push({ ci: c }); ent.push({ ci: c, alt: (Math.random() * 4) | 0, name: CHARS[c].name }); }
+  ent.sort(() => Math.random() - .5);
+  TN = { ent, rounds: [ent.map((_, i) => i)], r: 0, lv: TN_SET.lv, out: false, champ: -1 };
+  scene = 'tourney'; say('トーナメント、開幕！');
+}
+function tnMyMatch() { const R = TN.rounds[TN.r]; for (let i = 0; i < R.length; i += 2) if (TN.ent[R[i]].me || TN.ent[R[i + 1]].me) return i; return -1; }
+function tnAdvance(myWin) {
+  const R = TN.rounds[TN.r], nx = [];
+  for (let i = 0; i < R.length; i += 2) {
+    const a = R[i], b = R[i + 1];
+    if (TN.ent[a].me) nx.push(myWin ? a : b); else if (TN.ent[b].me) nx.push(myWin ? b : a);
+    else nx.push(Math.random() < .5 ? a : b);
+  }
+  TN.rounds.push(nx); TN.r++;
+  if (nx.length === 1) TN.champ = nx[0];
+}
+function tnPlay() {
+  const R = TN.rounds[TN.r], i = tnMyMatch(); if (i < 0) return;
+  const me = TN.ent[R[i]].me ? TN.ent[R[i]] : TN.ent[R[i + 1]], op = TN.ent[R[i]].me ? TN.ent[R[i + 1]] : TN.ent[R[i]];
+  const final = R.length === 2;
+  newMatch({ list: [{ ci: me.ci, alt: me.alt, human: true, stocks: final ? 3 : 2 }, { ci: op.ci, alt: op.alt, lv: Math.min(4, TN.lv + (final ? 1 : 0)), stocks: final ? 3 : 2 }], stage: pick(normalStages()), rule: 'stock', items: 1, ext: () => ({ after: tourneyAfter }) });
+  duo = false; scene = 'battle'; resetTouch(); say(final ? '決勝戦！' : 'ラウンド' + (TN.r + 1));
+}
+function tourneyAfter() {
+  const me = meF(), win = G.winner === me; tnAdvance(win); gainXp(me, win ? 50 : 15);
+  if (!win) { TN.out = true; while (TN.rounds[TN.r].length > 1) tnAdvance(false); TN.coins = earn(20 + TN.r * 15); }
+  else if (TN.champ >= 0) { rec.tourney = (rec.tourney || 0) + 1; TN.coins = earn(TN_SET.size === 16 ? 400 : 250); say('優勝！おめでとう！'); }
+  scene = 'tourney';
+}
+function drawTourney() {
+  menuBG('#4a3a10', '#100c04');
+  const t = performance.now() / 16, nR = Math.log2(TN.ent.length) + 1, colW = (W - 80) / nR;
+  txt('トーナメント（' + TN.ent.length + '人）', W / 2, 24, 22, '#ffe14a', 'center', '#000', 5);
+  TN.rounds.forEach((R, r) => {
+    const n = R.length, h = 430 / n;
+    R.forEach((ei, k) => {
+      const E = TN.ent[ei], x = 30 + r * colW, y = 50 + k * h + h / 2, alive = r === TN.rounds.length - 1 || TN.rounds[r + 1] && TN.rounds[r + 1].includes(ei);
+      g.fillStyle = E.me ? 'rgba(255,225,74,.35)' : alive ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.3)'; rr(x, y - Math.min(14, h / 2 - 1), colW - 26, Math.min(28, h - 2), 6); g.fill();
+      g.save(); g.translate(x + 14, y + 10); g.scale(.3, .3); drawChar(CHARS[E.ci], idlePose(t), { alt: E.alt }); g.restore();
+      txt(E.me ? '★' + E.name : E.name, x + 30, y, h < 30 ? 10 : 12, alive ? '#fff' : '#888', 'left', '#000', 2);
+      if (r + 1 < TN.rounds.length && k % 2 === 0) { g.strokeStyle = 'rgba(255,225,74,.5)'; g.lineWidth = 2; g.beginPath(); g.moveTo(x + colW - 26, y); g.lineTo(x + colW - 14, y); g.lineTo(x + colW - 14, y + h); g.lineTo(x + colW - 26, y + h); g.moveTo(x + colW - 14, y + h / 2); g.lineTo(x + colW + 4, y + h / 2); g.stroke(); }
+    });
+  });
+  if (TN.champ >= 0) {
+    const C = TN.ent[TN.champ]; g.save(); g.translate(W - 120, 330); g.scale(2, 2); drawChar(CHARS[C.ci], attackPose('taunt', (t * .01) % 1, idlePose(t)), { alt: C.alt }); g.restore();
+    txt(C.me ? '🏆 優勝！' : '優勝：' + C.name, W - 120, 380, 22, '#ffe14a', 'center', '#000', 5);
+    if (TN.coins) txt('🪙 +' + TN.coins, W - 120, 410, 16, '#ffe14a', 'center', '#000', 3);
+    button(W / 2 - 220, 488, 200, 44, 'もう一度', () => { startTourney(TN.ent.find(e => e.me).ci, TN.ent.find(e => e.me).alt); }, { primary: 1 });
+    button(W / 2 + 20, 488, 200, 44, 'モードえらび', () => { scene = 'modes'; }, {});
+  } else {
+    const R = TN.rounds[TN.r], i = tnMyMatch();
+    txt(R.length === 2 ? '決勝戦' : 'ラウンド ' + (TN.r + 1), W / 2, 494, 18, '#fff', 'center', '#000', 4);
+    if (i >= 0) button(W / 2 + 80, 482, 220, 48, '試合スタート！', tnPlay, { primary: 1, size: 20 });
+    button(20, 488, 120, 40, 'やめる', () => { scene = 'modes'; }, { back: 1, size: 15 });
+  }
+}
+// =====================================================================
+//  ステージ作り
+// =====================================================================
+const BLD = { tool: 'solid', plats: [], springs: [], warps: [], cannons: [], bg: 'day', cx: 0, p0: null, saved: [], ci: 0, alt: 0, slot: 0, msg: '' };
+try { BLD.saved = JSON.parse(localStorage.getItem('smashfighters-stages') || '[]'); } catch (e) { }
+const BTOOLS = [['solid', '地面'], ['soft', 'すり抜け床'], ['move', '動く床'], ['crumble', 'くずれる床'], ['conv', 'コンベア'], ['bounce', 'ゼリー'], ['spring', 'ジャンプ台'], ['warp', 'ワープ'], ['cannon', '大砲'], ['erase', 'けす']];
+const BGS = ['day', 'space', 'dusk', 'factory', 'sea', 'sky', 'night', 'grand', 'snow', 'jungle', 'moon', 'city', 'candy', 'castle'];
+function openBuilder() {
+  if (!BLD.plats.length) Object.assign(BLD, { plats: [{ t: 'solid', x1: -400, x2: 400, y: 0, h: 200 }], springs: [], warps: [], cannons: [] });
+  scene = 'builder'; BLD.p0 = null; BLD.msg = '';
+}
+const BZ = .38, bwx = sx => BLD.cx + (sx - W / 2) / BZ, bwy = sy => (sy - 300) / BZ;
+const snap = v => Math.round(v / 20) * 20;
+function builtStage() {
+  const xs = BLD.plats.flatMap(p => [p.x1, p.x2]).concat(BLD.springs.map(s => s.x)), mn = Math.min(...xs), mx = Math.max(...xs), wide = mx - mn > 2600;
+  const plats = BLD.plats.map(p => ({ ...p }));
+  for (const p of plats) if (p.move) { p.cx = (p.x1 + p.x2) / 2; p.hw = (p.x2 - p.x1) / 2; p.speed = .01; p.move = 160; }
+  return { name: '自作ステージ', sub: '', bg: BLD.bg, bgm: 0, huge: wide ? 1 : 0, zmin: wide ? .5 : .4, plats, springs: BLD.springs.map(s => ({ ...s })), warps: BLD.warps.filter(w => w.length === 4).map(w => w.slice()), cannons: BLD.cannons.map(c => ({ ...c })),
+    blast: { l: mn - 700, r: mx + 700, t: Math.min(-700, Math.min(...plats.map(p => p.y)) - 600), b: Math.max(...plats.map(p => p.y)) + 560 }, spawn: [0] };
+}
+function playBuilt() {
+  if (!BLD.plats.some(p => p.t === 'solid')) { scene = 'builder'; BLD.msg = '地面を1つ以上おいてね'; return; }
+  const list = [{ ci: BLD.ci, alt: BLD.alt, human: true, stocks: 3 }]; for (let i = 0; i < 3; i++) list.push({ ci: randChar(list), lv: 2, stocks: 3 });
+  newMatch({ list, stageObj: builtStage(), rule: 'stock', items: 1, ext: () => ({ after: () => { gainXp(meF(), 20); scene = 'builder'; setBgm(5); } }) });
+  duo = false; scene = 'battle'; resetTouch();
+}
+function bTap(p) {
+  const x = snap(bwx(p.x)), y = snap(bwy(p.y)), T = BLD.tool;
+  if (T === 'erase') {
+    let k = BLD.plats.findIndex(q => x >= q.x1 - 10 && x <= q.x2 + 10 && Math.abs(y - q.y) < 30); if (k >= 0) { BLD.plats.splice(k, 1); return; }
+    k = BLD.springs.findIndex(q => Math.abs(q.x - x) < 40 && Math.abs(q.y - y) < 40); if (k >= 0) { BLD.springs.splice(k, 1); return; }
+    k = BLD.cannons.findIndex(q => Math.abs(q.x - x) < 50 && Math.abs(q.y - y) < 50); if (k >= 0) { BLD.cannons.splice(k, 1); return; }
+    k = BLD.warps.findIndex(q => Math.hypot(q[0] - x, q[1] - y) < 50 || Math.hypot(q[2] - x, q[3] - y) < 50); if (k >= 0) BLD.warps.splice(k, 1); return;
+  }
+  const gy = q => { const pl = BLD.plats.filter(r => x > r.x1 && x < r.x2 && r.y >= y - 40).sort((a, b) => a.y - b.y)[0]; return pl ? pl.y : y; };
+  if (T === 'spring') { BLD.springs.push({ x, y: gy(), pow: 21 }); return; }
+  if (T === 'cannon') { BLD.cannons.push({ x, y: gy(), dir: x < 0 ? 1 : -1 }); return; }
+  if (T === 'warp') { const w = BLD.warps[BLD.warps.length - 1]; if (w && w.length === 2) w.push(x, gy()); else BLD.warps.push([x, gy()]); return; }
+  if (!BLD.p0) { BLD.p0 = { x, y }; return; }
+  const x1 = Math.min(BLD.p0.x, x), x2 = Math.max(BLD.p0.x, x), py = BLD.p0.y; BLD.p0 = null;
+  if (x2 - x1 < 40) { BLD.msg = 'もう少し長くしてね'; return; }
+  const q = { t: T === 'solid' || T === 'conv' ? 'solid' : 'soft', x1, x2, y: py, h: 200 };
+  if (T === 'move') q.move = 1; if (T === 'crumble') q.crumble = 1; if (T === 'bounce') q.bounce = 1; if (T === 'conv') { q.conv = 1.4; q.convFlip = 600; }
+  BLD.plats.push(q);
+}
+function drawBuilder() {
+  const st = builtStage(), cam = { x: BLD.cx, y: -100 };
+  drawBG(st, cam, performance.now() / 16);
+  g.save(); g.translate(W / 2, 300); g.scale(BZ, BZ); g.translate(-BLD.cx, 0);
+  for (const p of st.plats) stageShape(st, p);
+  const save = G; G = { t: performance.now() / 16 | 0, cam, view: null, st, fs: [], hz: [], helpers: [] };
+  try { drawStage(st); drawGimmicks(); } finally { G = save; }
+  g.strokeStyle = 'rgba(255,255,255,.15)'; g.lineWidth = 2; g.strokeRect(st.blast.l, st.blast.t, st.blast.r - st.blast.l, st.blast.b - st.blast.t);
+  if (BLD.p0) { g.fillStyle = '#ffe14a'; circ(BLD.p0.x, BLD.p0.y, 14); g.fill(); }
+  for (const w of BLD.warps) if (w.length === 2) { g.fillStyle = '#c88aff'; circ(w[0], w[1] - 40, 20); g.fill(); }
+  g.restore();
+  ui.push({ x: 0, y: 92, w: W, h: 360, fn: p => { if (p) bTap(p); } });
+  // 上：道具
+  g.fillStyle = 'rgba(8,10,30,.85)'; g.fillRect(0, 0, W, 90);
+  button(6, 4, 80, 34, '◀ もどる', () => { scene = 'modes'; }, { size: 14, back: 1 });
+  BTOOLS.forEach(([k, l], i) => button(92 + i * 86, 4, 82, 34, l, () => { BLD.tool = k; BLD.p0 = null; }, { sel: BLD.tool === k, size: 12, red: k === 'erase' && BLD.tool === k }));
+  txt(BLD.p0 ? 'つぎに終わりの場所をタップ' : ['solid', 'soft', 'move', 'crumble', 'conv', 'bounce'].includes(BLD.tool) ? '床：はじめと終わりの2か所をタップ' : BLD.tool === 'warp' ? 'ワープ：入口と出口の2か所をタップ' : BLD.tool === 'erase' ? 'けしたい物をタップ' : '置きたい場所をタップ', 12, 58, 14, '#ffe14a', 'left', '#000', 3);
+  if (BLD.msg) txt(BLD.msg, W / 2 + 120, 58, 14, '#ff9a9a', 'center', '#000', 3);
+  button(W - 196, 44, 92, 40, '◀', () => { BLD.cx -= 600; }, { size: 16 }); button(W - 100, 44, 92, 40, '▶', () => { BLD.cx += 600; }, { size: 16 });
+  // 下：保存など
+  g.fillStyle = 'rgba(8,10,30,.85)'; g.fillRect(0, 456, W, 84);
+  button(8, 464, 150, 34, '背景：' + BLD.bg, () => { BLD.bg = BGS[(BGS.indexOf(BLD.bg) + 1) % BGS.length]; }, { size: 12 });
+  button(8, 502, 150, 32, 'ぜんぶけす', () => { Object.assign(BLD, { plats: [], springs: [], warps: [], cannons: [], p0: null }); }, { size: 12, back: 1 });
+  for (let i = 0; i < 5; i++) {
+    const has = BLD.saved[i];
+    button(170 + i * 112, 464, 104, 34, (has ? '★' : '') + 'ほぞん' + (i + 1), () => { BLD.saved[i] = { plats: BLD.plats, springs: BLD.springs, warps: BLD.warps, cannons: BLD.cannons, bg: BLD.bg }; try { localStorage.setItem('smashfighters-stages', JSON.stringify(BLD.saved)); } catch (e) { } BLD.msg = 'ほぞん' + (i + 1) + 'に保存した！'; sfx.item(); }, { size: 12 });
+    if (has) button(170 + i * 112, 502, 104, 32, 'よみこみ' + (i + 1), () => { Object.assign(BLD, JSON.parse(JSON.stringify(BLD.saved[i])), { p0: null }); BLD.msg = 'よみこんだ'; }, { size: 12, sel: 1 });
+  }
+  button(W - 210, 464, 200, 70, 'このステージであそぶ', () => goSelect('build'), { primary: 1, size: 17 });
+}
+// =====================================================================
+//  ランキング（Supabase）＆リプレイ
+// =====================================================================
+const RK_KINDS = [['wins', '勝ち数', 'desc', () => rec.wins], ['kos', '撃墜数', 'desc', () => rec.kos], ['hr', 'ホームラン(m)', 'desc', () => rec.hr], ['multi', '100人組み手', 'desc', () => rec.multi],
+  ['royale', 'ロイヤル最高順位', 'asc', () => rec.royale || 0], ['story', 'ストーリー章', 'desc', () => rec.story || 0], ['figs', 'フィギュア数', 'desc', () => figCount()]];
+const RK = { kind: 0, rows: null, msg: '', busy: false };
+function rkHeaders() { return { apikey: NET.key, Authorization: 'Bearer ' + NET.key, 'Content-Type': 'application/json' }; }
+async function rankSubmit() {
+  if (!NET.url || !NET.key) return;
+  if (!rec.pid) { rec.pid = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); saveRec(); }
+  rec.sent = rec.sent || {};
+  const best = Object.entries(rec.stats || {}).sort((a, b) => b[1].p - a[1].p)[0], ch = best ? best[0] : '';
+  const rows = RK_KINDS.map(([k, , , v]) => ({ pid: rec.pid, kind: k, name: rec.name, score: +v() || 0, ch })).filter(r => r.score > 0 && rec.sent[r.kind] !== r.score + ':' + r.name);
+  if (!rows.length) return;
+  const res = await fetch(NET.url + '/rest/v1/smash_rank?on_conflict=pid,kind', { method: 'POST', headers: { ...rkHeaders(), Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(rows) });
+  if (res.ok) { rows.forEach(r => { rec.sent[r.kind] = r.score + ':' + r.name; }); saveRec(); }
+}
+async function rankLoad() {
+  RK.rows = null; RK.msg = '読みこみ中…';
+  if (!NET.url) { RK.msg = 'オンライン設定がないので、この端末の記録だけ表示しています'; RK.rows = []; return; }
+  try {
+    await rankSubmit().catch(() => { });
+    const [k, , ord] = RK_KINDS[RK.kind];
+    const res = await fetch(NET.url + '/rest/v1/smash_rank?select=name,score,ch,pid&kind=eq.' + k + '&score=gt.0&order=score.' + ord + '&limit=30', { headers: rkHeaders() });
+    if (!res.ok) throw new Error(res.status);
+    RK.rows = await res.json(); RK.msg = '';
+  } catch (e) { RK.rows = []; RK.msg = 'ランキングサーバーにつながりませんでした（README の SQL を実行すると使えます）'; }
+}
+function drawRanking() {
+  menuBG('#1a3a6a', '#081028');
+  button(10, 8, 96, 34, '◀ もどる', () => { scene = 'modes'; }, { size: 15, back: 1 });
+  txt('全国ランキング', W / 2, 28, 26, '#ffe14a', 'center', '#000', 5);
+  RK_KINDS.forEach(([k, l], i) => button(14 + i * 134, 52, 128, 32, l, () => { RK.kind = i; rankLoad(); }, { sel: RK.kind === i, size: 12 }));
+  const [, label, , mine] = RK_KINDS[RK.kind];
+  txt('あなた（' + rec.name + '）の記録：' + (+mine() || 0), 20, 104, 15, '#7dff9a', 'left', '#000', 3);
+  if (RK.msg) txt(RK.msg, W / 2, 140, 14, '#ffd2a0', 'center', '#000', 3);
+  if (RK.rows && !RK.rows.length) RK_KINDS.forEach(([, l, , v], i) => txt(l + '：' + (+(+v() || 0).toFixed(1)), 40 + (i % 2) * 440, 190 + ((i / 2) | 0) * 40, 18, '#fff', 'left', '#000', 3));
+  (RK.rows || []).slice(0, 30).forEach((r, i) => {
+    const x = 20 + ((i / 10) | 0) * 310, y = 160 + (i % 10) * 30, me = r.pid === rec.pid;
+    g.fillStyle = me ? 'rgba(125,255,154,.25)' : 'rgba(255,255,255,.07)'; rr(x, y, 300, 26, 6); g.fill();
+    txt((i + 1) + '位', x + 10, y + 13, 13, i < 3 ? '#ffe14a' : '#fff', 'left', '#000', 2); txt(String(r.name).slice(0, 12), x + 60, y + 13, 13, '#fff', 'left', '#000', 2);
+    txt(String(+(+r.score).toFixed(1)), x + 290, y + 13, 14, '#ffe14a', 'right', '#000', 2);
+  });
+  button(20, 470, 200, 50, 'リプレイを見る', () => { if (REPLAY) startReplay(); }, { size: 17, sel: !!REPLAY });
+  if (!REPLAY) txt('（試合をするとリプレイが見られる）', 230, 495, 12, 'rgba(255,255,255,.6)', 'left');
+  button(W - 220, 470, 200, 50, '名前をかえる', editName, { size: 16 });
+}
+// ---- リプレイ：試合の最後の30秒を記録して、あとから見られる
+let REPLAY = null, RP = null;
+function recFrame() {
+  if (!G || G.demo || G.netClient || G.hr || !G.rp) return;
+  if (G.t % 3) return;
+  G.rp.push(buildSnap('_r'));
+  if (G.rp.length > 600) G.rp.shift();
+}
+function saveReplay() { if (G && G.rp && G.rp.length > 20) REPLAY = { o: { ...G.o, ext: null, net: false, netClient: true, demo: false }, stageObj: G.o.stageObj, stage: G.o.stage, frames: G.rp }; }
+function startReplay() {
+  const R = REPLAY; RP = { i: 0, sp: 1, pause: false, acc: 0, back: scene };
+  newMatch({ ...R.o, list: R.o.list.map(e => ({ ...e, human: false })) });
+  G.cd = 0; G.isReplay = true; scene = 'replay'; setBgm(-1);
+}
+function replayStep() {
+  if (RP.pause) return;
+  RP.acc += RP.sp;
+  while (RP.acc >= 3) { RP.acc -= 3; if (RP.i < REPLAY.frames.length) { netApply(REPLAY.frames[RP.i]); RP.i++; } else { RP.pause = true; break; } }
+  for (const f of G.fs) { if (f.nx === undefined) continue; f.x += (f.nx - f.x) * .5; f.y += (f.ny - f.y) * .5; }
+  for (const p of G.projs) { p.x += p.vx * .5 * RP.sp; p.y += p.vy * .5 * RP.sp; }
+  updatePlats(); updateParticles(); updateCamera();
+}
+function drawReplay() {
+  replayStep(); drawWorld(); drawHUD();
+  g.fillStyle = 'rgba(0,0,0,.55)'; rr(W / 2 - 300, 6, 600, 44, 10); g.fill();
+  txt('▶ リプレイ', W / 2 - 290, 28, 16, '#ff6a6a', 'left', '#000', 3);
+  const k = RP.i / REPLAY.frames.length; g.fillStyle = 'rgba(255,255,255,.3)'; rr(W / 2 - 180, 24, 200, 8, 4); g.fill(); g.fillStyle = '#ff6a6a'; rr(W / 2 - 180, 24, 200 * k, 8, 4); g.fill();
+  button(W / 2 + 30, 10, 50, 36, RP.pause ? '▶' : 'Ⅱ', () => { if (RP.i >= REPLAY.frames.length) startReplay(); else RP.pause = !RP.pause; }, { size: 16 });
+  button(W / 2 + 84, 10, 70, 36, 'x' + RP.sp, () => { RP.sp = RP.sp === 1 ? .5 : RP.sp === .5 ? 2 : 1; }, { size: 14 });
+  button(W / 2 + 158, 10, 130, 36, 'リプレイ終了', () => { goTitle(); scene = RP.back === 'ranking' ? 'ranking' : 'title'; }, { size: 14, back: 1 });
+}
 function drawMinigame() {
   menuBG('#1a4a3a', '#0a1a14');
   button(10, 8, 96, 34, '◀ もどる', goTitle, { size: 15, back: 1 });
@@ -4630,10 +5654,10 @@ function drawRecords() {
   txt('キャラごとの成績（つかった回数／勝ち）', 40, 190, 15, '#ffe14a', 'left');
   const t = performance.now() / 16;
   CHARS.forEach((c, i) => {
-    const x = 40 + (i % 8) * 112, y = 206 + ((i / 8) | 0) * 106, st = rec.stats[c.id] || { p: 0, w: 0 }, open = isUnlocked(i);
-    g.fillStyle = 'rgba(255,255,255,.07)'; rr(x, y, 104, 98, 10); g.fill();
-    if (open) { g.save(); rr(x, y, 104, 98, 10); g.clip(); g.translate(x + 52, y + 64); g.scale(.8, .8); drawChar(c, portraitPose(t, i)); g.restore(); txt(c.name, x + 52, y + 76, 12, '#fff', 'center', '#000', 3); txt(st.p + '回 / ' + st.w + '勝', x + 52, y + 90, 11, '#ffe14a', 'center', '#000', 3); }
-    else txt('？', x + 52, y + 48, 34, '#556');
+    const x = 20 + (i % 10) * 92, y = 202 + ((i / 10) | 0) * 92, st = rec.stats[c.id] || { p: 0, w: 0 }, open = isUnlocked(i);
+    g.fillStyle = 'rgba(255,255,255,.07)'; rr(x, y, 88, 86, 10); g.fill();
+    if (open) { g.save(); rr(x, y, 88, 86, 10); g.clip(); g.translate(x + 44, y + 56); g.scale(.7, .7); drawChar(c, portraitPose(t, i)); g.restore(); txt(c.name, x + 44, y + 66, 11, '#fff', 'center', '#000', 3); txt(st.p + '回/' + st.w + '勝', x + 44, y + 79, 10, '#ffe14a', 'center', '#000', 3); }
+    else txt('？', x + 44, y + 42, 30, '#556');
   });
 }
 
@@ -4650,9 +5674,11 @@ function drawResult() {
   const mine = G.team ? me && win && me.team === win.team : win === me;
   let head = win ? (G.team ? TEAMN[win.team] + 'チームの勝ち！' : (win.netName || tagOf(win).t) + '（' + win.c.name + '）の勝ち！') : 'ゲーム終了';
   if (mine && !duo) head = 'YOU WIN!';
+  if (G.o && G.o.bossMode !== undefined) head = G.winTeam === 0 || G.bossWin ? 'ボスをたおした！' : 'ボスにやられた…';
   txt(head, W / 2, 44, head === 'YOU WIN!' ? 54 : 34, mine ? '#ffe14a' : '#ffffff', 'center', '#000', 9);
   if (win) {
-    g.save(); g.translate(170, 400); g.scale(3.4, 3.4); drawChar(win.c, attackPose('taunt', (t * .012) % 1, idlePose(t)), { alt: win.alt }); g.restore();
+    g.save(); g.translate(170, 400); g.scale(3.4, 3.4); drawChar(win.c, win.human ? winPose(CHARS[win.ci], t, G.winPoseK) : attackPose('taunt', (t * .012) % 1, idlePose(t)), { alt: win.alt }); g.restore();
+    if (win.human) txt('称号：' + titleOf(CHARS[win.ci].id) + '（Lv.' + charLv(CHARS[win.ci].id) + '）', 170, 476, 13, '#9fe8ff', 'center', '#000', 3);
     txt('“' + win.c.quote + '”', 170, 452, 15, '#fff', 'center', '#000', 4);
   }
   if (res.length > 4) {
@@ -4679,6 +5705,8 @@ function drawResult() {
     txt('与ダメ ' + Math.round(f.dmgDone) + '%', x + 420, y + 22, 15, '#ffd2a0', 'left');
     if (G.rule === 'time') txt('スコア ' + (f.score > 0 ? '+' : '') + f.score, x + 420, y + 46, 15, '#7dff9a', 'left');
   });
+  if (REPLAY && !G.net && !G.netClient) button(W - 130, 8, 120, 34, '▶ リプレイ', () => { startReplay(); RP.back = 'title'; }, { size: 14 });
+  if (G.coinsGot) txt('🪙 +' + G.coinsGot + (G.lvUp ? '　' + G.lvUp : ''), 340, 442, 13, '#ffe14a', 'left', '#000', 3);
   if (G.net || G.netClient) {
     button(540, 460, 190, 54, 'ロビーへ', () => { scene = 'lobby'; if (NET.host) { NET.started = false; netLobbyBroadcast(); } }, { primary: 1, size: 22 });
     button(740, 460, 190, 54, '部屋を出る', () => { netLeave(); scene = 'online'; }, { size: 18, back: 1 });
@@ -4740,12 +5768,13 @@ function netLeave() {
 function netAbort(msg) {
   if (scene === 'battle' && G && (G.net || G.netClient) || scene === 'lobby' || scene === 'result' && G && G.netClient) { netLeave(); scene = 'online'; NET.msg = msg; }
 }
-function netHello() { netSend('hello', { name: rec.name, ci: NET.ci, alt: NET.alt }); if (NET.host) netLobbyBroadcast(); }
+function netHello() { netSend('hello', { name: rec.name, ci: NET.ci, alt: NET.alt, spec: NET.spec ? 1 : 0 }); if (NET.host) netLobbyBroadcast(); }
 function netUpdateMe() { const m = NET.members.find(q => q.id === NET.id); if (m) Object.assign(m, { ci: NET.ci, alt: NET.alt, name: rec.name }); netLobbyBroadcast(); }
 function netLobbyBroadcast() {
   if (!NET.host) return;
-  NET.rules = { rule: cfg.rule, stocks: cfg.stocks, time: cfg.time, lv: cfg.lv, items: cfg.items, team: cfg.team, special: cfg.special, stage: cfg.stage };
-  netSend('lobby', { members: NET.members.map(m => ({ id: m.id, name: m.name, ci: m.ci, alt: m.alt })), rules: NET.rules, cpus: NET.cpus, started: NET.started });
+  NET.rules = { rule: cfg.rule, stocks: cfg.stocks, time: cfg.time, lv: cfg.lv, items: cfg.items, team: cfg.team, special: cfg.special, stage: cfg.stage, mode: NET.mode || 'vs' };
+  const sp = NET.specs || {}; for (const k in sp) if (Date.now() - sp[k] > 15000) delete sp[k];
+  netSend('lobby', { members: NET.members.map(m => ({ id: m.id, name: m.name, ci: m.ci, alt: m.alt })), rules: NET.rules, cpus: NET.cpus, started: NET.started, specs: Object.keys(sp).length });
 }
 function netTick() {
   if (!NET.ws) return;
@@ -4767,11 +5796,17 @@ function netOnMessage(ev, p) {
   if (NET.host) {
     const m = NET.members.find(q => q.id === p.id);
     if (m) m.t = now;
+    if ((ev === 'hello' || ev === 'pick') && p.spec) {
+      // 観戦者：プレイヤーにはしない。試合中ならいまの試合を見せる
+      NET.specs = NET.specs || {}; if (!NET.specs[p.id]) sfx.select(); NET.specs[p.id] = now;
+      if (NET.started && NET.lastStart) netSend('start', { ...NET.lastStart, to: p.id });
+      netLobbyBroadcast(); return;
+    }
     if (ev === 'hello' || ev === 'pick') {
       if (!m) {
         if (NET.members.length >= NET_MAX || NET.started) { netSend('full', { to: p.id }); return; }
         NET.members.push({ id: p.id, name: String(p.name || 'ゲスト').slice(0, 12), ci: p.ci | 0, alt: p.alt | 0, t: now }); sfx.item();
-      } else Object.assign(m, { name: String(p.name || m.name).slice(0, 12), ci: (p.ci | 0) % CHARS.length, alt: (p.alt | 0) % 4 });
+      } else Object.assign(m, { name: String(p.name || m.name).slice(0, 12), ci: (p.ci | 0) % CHARS.length, alt: (p.alt | 0) % 8 });
       netLobbyBroadcast();
     } else if (ev === 'bye') {
       NET.members = NET.members.filter(q => q.id !== p.id);
@@ -4782,10 +5817,11 @@ function netOnMessage(ev, p) {
   }
   // ここからホスト以外
   if (ev === 'lobby') {
-    NET.lastLobby = now; NET.members = p.members || []; NET.rules = p.rules; NET.cpus = p.cpus;
-    if (!NET.members.some(q => q.id === NET.id)) netHello();
+    NET.lastLobby = now; NET.members = p.members || []; NET.rules = p.rules; NET.cpus = p.cpus; NET.nspec = p.specs | 0;
+    if (!NET.spec && !NET.members.some(q => q.id === NET.id)) netHello();
+    if (NET.spec && now - (NET.lastHello || 0) > 6000) { NET.lastHello = now; netHello(); }
   } else if (ev === 'full' && p.to === NET.id) { netLeave(); scene = 'online'; NET.msg = 'その部屋は満員か、試合中です'; }
-  else if (ev === 'start') { NET.lastLobby = now; netStartClient(p); }
+  else if (ev === 'start' && (!p.to || p.to === NET.id)) { NET.lastLobby = now; netStartClient(p); }
   else if (ev === 'st' && G && G.netClient) { NET.lastSnap = now; NET.lastLobby = now; netApply(p); }
   else if (ev === 'end' && G && G.netClient) { G.result = (p.res || []).map(i => G.fs[i]).filter(Boolean); G.winTeam = p.wt; G.over = true; G.done = true; scene = 'result'; }
   else if (ev === 'bye' && NET.members.length && NET.members[0].id === p.id) netAbort('ホストが部屋をとじました');
@@ -4799,16 +5835,24 @@ function netStartHost() {
   const cpu = Math.min(NET.cpus, MAXF - list.length);
   for (let i = 0; i < cpu; i++) list.push({ ci: randChar(list), lv: cfg.lv, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? list.length % cfg.team : list.length, alt: 0, netName: 'CPU' });
   addNpcs(list, Math.min(MAXNPC, NET.cpus - cpu));
-  const stage = cfg.stage < 0 ? (Math.random() * STAGES.length) | 0 : cfg.stage;
-  const o = { list, stage, rule: cfg.rule, time: cfg.time, items: cfg.items, team: cfg.team, special: cfg.special };
-  NET.started = true;
-  newMatch({ ...o, net: true });
+  let o;
+  if (NET.mode === 'boss') {
+    // ボス戦：みんな（とCPU）が赤チーム、ボスが青チーム
+    list.forEach(e => { e.team = 0; e.npc = false; e.stocks = cfg.rule === 'stock' ? Math.max(3, cfg.stocks) : 3; });
+    const bi = (Math.random() * BOSSES.length) | 0; list.splice(16); list.push(bossEntry(bi, list.length));
+    o = { list, stage: BOSSES[bi].stage, rule: 'stock', items: cfg.items, team: 2, special: 'none', bossMode: bi };
+  } else {
+    const stage = cfg.stage < 0 ? (Math.random() * STAGES.length) | 0 : cfg.stage;
+    o = { list, stage, rule: cfg.rule, time: cfg.time, items: cfg.items, team: cfg.team, special: cfg.special };
+  }
+  NET.started = true; NET.lastStart = o;
+  newMatch({ ...o, net: true, ext: o.bossMode !== undefined ? bossExt : null });
   for (const f of G.fs) if (f.remote && NET.inp[f.remote]) f.netSeen = { ...NET.inp[f.remote].c };
   netSend('start', o);
   duo = false; scene = 'battle'; resetTouch();
 }
 function netStartClient(o) {
-  newMatch({ ...o, list: o.list.map(e => ({ ...e, human: false })), netClient: true });
+  newMatch({ ...o, list: o.list.map(e => ({ ...e, human: false })), netClient: true, ext: o.bossMode !== undefined ? bossExt : null });
   G.me = G.fs.find(f => f.remote === NET.id) || null;
   NET.lastSnap = Date.now();
   duo = false; scene = 'battle'; resetTouch(); NET.cnt = {};
@@ -4819,34 +5863,40 @@ const NET_MAX = 16; // オンラインの最大プレイヤー数（さらにNPC
 function netHostSend() {
   const nf = G.fs.length;
   if (++NET.frame % (nf > 8 ? 6 : nf > 4 || NET.members.length >= 3 ? 4 : 3)) return;
-  const pmax = nf > 40 ? 40 : nf > 8 ? 70 : 140;
+  const s = buildSnap('_n');
+  NET.sfxQ = [];
+  netSend('st', s);
+}
+// 試合のようすを1コマぶん記録する（オンライン送信とリプレイで使う）
+function buildSnap(mk) {
+  const nf = G.fs.length, pmax = nf > 40 ? 40 : nf > 8 ? 70 : 140;
   const newP = [];
   for (const p of G.parts) {
-    if (p._n) continue; p._n = 1; if (newP.length > pmax) continue;
+    if (p[mk]) continue; p[mk] = 1; if (newP.length > pmax) continue;
     const e = {};
-    for (const k in p) { const v = p[k]; if (k === 'c' || k === '_n') continue; e[k] = typeof v === 'number' ? R1(v) : v; }
+    for (const k in p) { const v = p[k]; if (k === 'c' || k === '_n' || k === '_r') continue; e[k] = typeof v === 'number' ? R1(v) : v; }
     if (p.c) e.ci = p.c.idx;
     newP.push(e);
   }
   const bits = f => (f.sh ? 1 : 0) | (f.fsReady ? 2 : 0) | (f.metal ? 4 : 0) | (f.dead ? 8 : 0) | (f.out ? 16 : 0) | (f.pw > 0 ? 32 : 0) | (f.star > 0 ? 64 : 0) | (f.giga > 0 ? 128 : 0) |
-    (f.helpless ? 256 : 0) | (f.sbreak ? 512 : 0) | (f.crouch ? 1024 : 0) | (f.chgDone ? 2048 : 0) | (f.spd > 0 ? 4096 : 0);
+    (f.helpless ? 256 : 0) | (f.sbreak ? 512 : 0) | (f.crouch ? 1024 : 0) | (f.chgDone ? 2048 : 0) | (f.spd > 0 ? 4096 : 0) | (f.form ? 8192 : 0) | (f.ride ? (f.ride.type === 'rocket' ? 32768 : 16384) : 0);
   const mvKey = f => !f.mv ? '' : f.mv.item ? '!' + f.mv.key : f.mv.none ? '~' + f.mv.t : f.mv.key === 'counterHit' ? 'counterHit' : f.mv.key;
   const s = {
     t: G.t, cd: G.cd, go: G.goT, fz: G.freeze, sl: G.slow, sk: R1(G.shake), fl: G.flash, dk: G.dark, ov: G.over ? 1 : 0, et: G.endT, tl: G.timeLeft, ts: G.toSudden ? 1 : 0,
     cu: G.cutin ? [G.cutin.who.id, G.cutin.t, G.cutin.name] : 0, lv: G.lava ? [G.lava.s, R1(G.lava.y)] : 0,
     gm: [G.hz.map(h => [h.id, h.k, R1(h.x), R1(h.y), h.t, R1(h.gy || 0)]), G.wind ? [G.wind.s, G.wind.dir, G.wind.t] : 0, G.train ? [G.train.s, R1(G.train.x), G.train.dir, G.train.t] : 0,
       G.gp.map(i => { const p = G.st.plats[i]; return [p.off ? 1 : 0, p.gone | 0, R1(p.cr || 0), p.conv || 0]; }), (G.st.springs || []).map(sp => sp.a), (G.st.cannons || []).map(c => c.fire)],
+    bh: G.bossF ? [Math.round(G.bossF.hp), G.bossF.hpMax] : 0,
     // 場外に出たキャラは 0 だけ送る（NPCが多いときに軽くする）
     f: G.fs.map(f => f.out && !f.human && !f.remote ? 0 : [R1(f.x), R1(f.y), R1(f.vx), R1(f.vy), f.dir, R1(f.pct), f.stocks, f.state, mvKey(f), R1(f.mt), bits(f), R1(f.szv), f.item ? f.item.type : '', f.hammer,
       f.chg, f.ground ? G.st.plats.indexOf(f.ground) : -1, R1(f.anim), R1(f.rot), f.dodge, f.dodgeT, f.hangT, f.runT, f.flipT, f.taunt, f.sleep, f.frozen, f.inv, R1(f.shieldHp),
       f.score, f.kos, f.falls, Math.round(f.dmgDone), f.ci, f.alt, f.t, f.elecT, f.lag, f.hang ? [G.st.plats.indexOf(f.hang.p), f.hang.side] : 0]),
     p: G.projs.map(p => [p.id, p.shape, R1(p.x), R1(p.y), R1(p.vx), R1(p.vy), R1(p.r), p.fx, p.t]),
     i: G.items_.map(it => [it.id, it.type, R1(it.x), R1(it.y), it.state, R1(it.rot), it.hits, it.fuse, it.armed, it.life]),
-    h: G.helpers.map(h => [h.type, R1(h.x), R1(h.y), h.dir, R1(h.rot), h.cd, h.t]),
-    e: newP, s: NET.sfxQ || []
+    h: G.helpers.map(h => [h.type, R1(h.x), R1(h.y), h.dir, R1(h.rot), h.cd, h.t, h.own ? h.own.id : -1, h.mode || '', h.slot | 0, h.hide ? 1 : 0, R1(h.vx || 0)]),
+    e: newP, s: mk === '_n' ? NET.sfxQ || [] : []
   };
-  NET.sfxQ = [];
-  netSend('st', s);
+  return s;
 }
 // ---- ほかの人：届いたようすを反映 ----
 function netApply(s) {
@@ -4855,6 +5905,7 @@ function netApply(s) {
   G.shake = Math.max(G.shake, s.sk);
   if (s.cu) { const who = G.fs[s.cu[0]]; G.cutin = { who, t: s.cu[1], name: s.cu[2], col: who.c.cols[who.alt || 0] }; } else G.cutin = null;
   if (s.lv && G.lava) { G.lava.s = s.lv[0]; G.lava.y = s.lv[1]; }
+  if (s.bh && G.bossF) { G.bossF.hp = s.bh[0]; G.bossF.hpMax = s.bh[1]; }
   if (s.gm) {
     const [hz, wd, tr, gp, sp, cn] = s.gm;
     G.hz = hz.map(a => ({ id: a[0], k: a[1], x: a[2], y: a[3], t: a[4], gy: a[5] }));
@@ -4866,7 +5917,7 @@ function netApply(s) {
   s.f.forEach((a, i) => {
     const f = G.fs[i]; if (!f) return;
     if (a === 0) { f.out = true; f.dead = true; return; }
-    if (f.ci !== a[32]) { f.ci = a[32]; f.c = CHARS[f.ci]; }
+    const fm = !!(a[10] & 8192); if (f.ci !== a[32] || !!f.form !== fm) { f.ci = a[32]; f.form = fm; f.c = fm && CHARS[f.ci].formB ? CHARS[f.ci].formB : CHARS[f.ci]; }
     const far = f.nx === undefined || Math.hypot(a[0] - f.x, a[1] - f.y) > 160;
     f.nx = a[0]; f.ny = a[1]; if (far) { f.x = a[0]; f.y = a[1]; }
     [f.vx, f.vy, f.dir, f.pct, f.stocks, f.state] = [a[2], a[3], a[4], a[5], a[6], a[7]];
@@ -4874,6 +5925,7 @@ function netApply(s) {
     f.mv = !mk ? null : mk[0] === '!' ? ITEM_MOVES[mk.slice(1)] : mk[0] === '~' ? { t: +mk.slice(1), on: 999, off: 999, none: 1, k: 'none', hbs: [] } : f.c.moves[mk] || null;
     f.mt = a[9]; const b = a[10];
     f.sh = !!(b & 1); f.fsReady = !!(b & 2); f.metal = !!(b & 4); f.dead = !!(b & 8); f.out = !!(b & 16); f.pw = b & 32 ? 9 : 0; f.star = b & 64 ? 9 : 0; f.giga = b & 128 ? 9 : 0;
+    f.ride = b & 32768 ? { type: 'rocket' } : b & 16384 ? { type: 'board' } : null; if (f.ride) f.ride.t = 9;
     f.helpless = !!(b & 256); f.sbreak = !!(b & 512); f.crouch = !!(b & 1024); f.chgDone = !!(b & 2048); f.spd = b & 4096 ? 9 : 0;
     f.szv = a[11]; f.item = a[12] ? { type: a[12] } : null; f.hammer = a[13]; f.chg = a[14]; f.ground = a[15] >= 0 ? G.st.plats[a[15]] : null;
     [f.anim, f.rot, f.dodge, f.dodgeT, f.hangT, f.runT, f.flipT, f.taunt, f.sleep, f.frozen, f.inv, f.shieldHp, f.score, f.kos, f.falls, f.dmgDone] = a.slice(16, 32);
@@ -4883,7 +5935,7 @@ function netApply(s) {
   const oldP = new Map(G.projs.map(p => [p.id, p]));
   G.projs = s.p.map(a => { const p = oldP.get(a[0]) || { rot: 0, hits: new Set() }; Object.assign(p, { id: a[0], shape: a[1], x: a[2], y: a[3], vx: a[4], vy: a[5], r: a[6], fx: a[7], t: a[8] }); return p; });
   G.items_ = s.i.map(a => ({ id: a[0], type: a[1], x: a[2], y: a[3], state: a[4], rot: a[5], hits: a[6], fuse: a[7], armed: a[8], life: a[9] }));
-  G.helpers = s.h.map(a => ({ type: a[0], x: a[1], y: a[2], dir: a[3], rot: a[4], cd: a[5], t: a[6] }));
+  G.helpers = s.h.map(a => ({ type: a[0], x: a[1], y: a[2], dir: a[3], rot: a[4], cd: a[5], t: a[6], own: G.fs[a[7]] || null, mode: a[8], slot: a[9], hide: !!a[10], vx: a[11] }));
   for (const e of s.e) { if (e.ci !== undefined && e.ci >= 0) e.c = CHARS[e.ci]; G.parts.push(e); }
   for (const [n, ...a] of s.s) { if (n === 'say') say0(...a); else if (SFX0[n]) SFX0[n](...a); }
 }
@@ -4896,6 +5948,7 @@ function netClientStep() {
   if (Date.now() - NET.lastSnap > 6000) netAbort('ホストと通信できなくなりました');
 }
 function netSendInput() {
+  if (NET.spec) { clearEdges(); return; }
   const pi = 0, q = gps[0];
   let x = (held('right') ? 1 : 0) - (held('left') ? 1 : 0), y = (held('down') ? 1 : 0) - (held('up') ? 1 : 0);
   if (touchMode && stickO) { x = stickV.x; y = stickV.y; }
@@ -4927,7 +5980,7 @@ function drawOnline() {
   menuBG('#1a3a6a', '#081028');
   button(10, 8, 96, 34, '◀ もどる', goTitle, { size: 15, back: 1 });
   txt('オンライン対戦', W / 2, 40, 32, '#ffe14a', 'center', '#000', 6);
-  txt('別のスマホやパソコンの友だちと、部屋コードで対戦できるよ（最大4人）', W / 2, 82, 15, '#fff', 'center', '#000', 4);
+  txt('別のスマホやパソコンの友だちと、部屋コードで対戦できるよ（最大16人＋観戦）', W / 2, 82, 15, '#fff', 'center', '#000', 4);
   const t = performance.now() / 16, c = CHARS[NET.ci];
   g.fillStyle = 'rgba(255,255,255,.08)'; rr(80, 110, 300, 330, 18); g.fill();
   g.save(); g.translate(230, 340); g.scale(2.6, 2.6); drawChar(c, portraitPose(t, 0), { alt: NET.alt }); g.restore();
@@ -4935,15 +5988,16 @@ function drawOnline() {
   button(150, 150, 160, 30, '名前をかえる', editName, { size: 13 });
   txt(c.name, 230, 370, 22, '#fff', 'center', '#000', 5);
   button(130, 390, 200, 40, 'キャラをえらぶ', () => { cfg.slots[0].c = NET.ci; cfg.slots[0].alt = NET.alt; goSelect('online'); scene = 'select'; NET.selFromMenu = true; }, { size: 16 });
-  button(450, 140, 420, 80, '部屋をつくる', () => { netConnect(String(1000 + (Math.random() * 9000 | 0)), true); }, { primary: 1, size: 28 });
-  button(450, 240, 420, 80, '部屋に入る（コード入力）', () => { NET.pad = true; NET.code = ''; }, { size: 24, sel: 1 });
-  if (NET.msg) txt(NET.msg, 660, 360, 17, '#ffb0b0', 'center', '#000', 4);
+  button(450, 140, 420, 80, '部屋をつくる', () => { NET.spec = false; netConnect(String(1000 + (Math.random() * 9000 | 0)), true); }, { primary: 1, size: 28 });
+  button(450, 236, 420, 70, '部屋に入る（コード入力）', () => { NET.pad = true; NET.code = ''; NET.spec = false; }, { size: 24, sel: 1 });
+  button(450, 316, 420, 44, '👀 観戦で入る（試合を見るだけ）', () => { NET.pad = true; NET.code = ''; NET.spec = true; }, { size: 16 });
+  if (NET.msg) txt(NET.msg, 660, 384, 17, '#ffb0b0', 'center', '#000', 4);
   wrapText('※ 通信には少し時間差があります。ホスト（部屋をつくった人）の画面が止まると全員止まるので、ホストはアプリを切りかえないでね。', 450, 410, 420, 13, 20, 'rgba(255,255,255,.7)');
   if (NET.pad) {
     ui.length = 0;
     g.fillStyle = 'rgba(0,0,12,.85)'; g.fillRect(0, 0, W, H);
     g.fillStyle = 'rgba(20,26,60,.97)'; rr(W / 2 - 200, 30, 400, 480, 18); g.fill(); g.strokeStyle = '#6b78c4'; g.lineWidth = 3; g.stroke();
-    txt('部屋コードを入力', W / 2, 66, 22, '#ffe14a', 'center', '#000', 5);
+    txt(NET.spec ? '観戦する部屋のコード' : '部屋コードを入力', W / 2, 66, 22, '#ffe14a', 'center', '#000', 5);
     for (let i = 0; i < 4; i++) { g.fillStyle = 'rgba(255,255,255,.12)'; rr(W / 2 - 130 + i * 66, 92, 56, 66, 10); g.fill(); txt(NET.code[i] || '', W / 2 - 102 + i * 66, 126, 40, '#fff'); }
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'OK'];
     keys.forEach((k, i) => button(W / 2 - 150 + (i % 3) * 104, 176 + ((i / 3) | 0) * 72, 92, 62, k, () => {
@@ -4992,6 +6046,11 @@ function drawLobby() {
   txt(ruleTxt, 600, 322, 15, '#fff', 'center', '#000', 4);
   button(30, 150, 180, 44, 'キャラ変更', () => { cfg.slots[0].c = NET.ci; cfg.slots[0].alt = NET.alt; goSelect('online'); }, { size: 17 });
   button(30, 204, 180, 40, '部屋を出る', () => { netLeave(); scene = 'online'; }, { size: 16, back: 1 });
+  const mode = NET.host ? NET.mode || 'vs' : (NET.rules || {}).mode || 'vs';
+  if (NET.host) button(30, 254, 180, 40, 'モード：' + (mode === 'boss' ? 'ボス戦' : '大乱闘'), () => { NET.mode = mode === 'boss' ? 'vs' : 'boss'; netLobbyBroadcast(); }, { size: 15, sel: mode === 'boss' });
+  else txt('モード：' + (mode === 'boss' ? 'ボス戦（協力）' : '大乱闘'), 120, 274, 15, '#ffe14a', 'center', '#000', 3);
+  if (NET.spec) txt('👀 観戦モード', 120, 320, 18, '#7fe0ff', 'center', '#000', 4);
+  if (NET.host ? Object.keys(NET.specs || {}).length : NET.nspec) txt('観戦 ' + (NET.host ? Object.keys(NET.specs || {}).length : NET.nspec) + '人', 120, 348, 14, '#c8d0ff', 'center', '#000', 3);
   if (NET.host) {
     button(236, 350, 120, 44, 'ルール', () => { cfg.showRules = true; }, { size: 18 });
     button(364, 350, 150, 44, 'ステージ ▶', () => { cfg.stage = cfg.stage + 1 >= STAGES.length ? -1 : cfg.stage + 1; saveCfg(); netLobbyBroadcast(); }, { size: 17 });
@@ -5068,6 +6127,18 @@ function frame(now) {
     else if (scene === 'chLose') drawNewChar(false);
     else if (scene === 'online') drawOnline();
     else if (scene === 'lobby') drawLobby();
+    else if (scene === 'modes') drawModes();
+    else if (scene === 'modeResult') drawModeResult();
+    else if (scene === 'storyMap') drawStoryMap();
+    else if (scene === 'bossSel') drawBossSel();
+    else if (scene === 'events') drawEvents();
+    else if (scene === 'figures') drawFigures();
+    else if (scene === 'levels') drawLevels();
+    else if (scene === 'tourneySetup') drawTourneySetup();
+    else if (scene === 'tourney') drawTourney();
+    else if (scene === 'builder') drawBuilder();
+    else if (scene === 'ranking') drawRanking();
+    else if (scene === 'replay') drawReplay();
   } catch (e) { console.error(e); }
   g.restore();
   if (innerHeight > innerWidth * 1.15 && offY > 40) {
@@ -5080,7 +6151,7 @@ addEventListener('pagehide', () => { if (NET.ws) netSend('bye', {}); });
 goTitle();
 loadNetCfg();
 requestAnimationFrame(frame);
-window.__dbg = { get G() { return G; }, drawWorld, cfg, CHARS, STAGES, rec, NET, startGame, stepBattle, startDemo, newMatch, spawnItem, startHR, startMulti, netApply, netHostSend, netStartClient, setScene(s) { scene = s; }, get scene() { return scene; }, get CL() { return CL; }, startClassic, afterMatch, CH };
+window.__dbg = { get G() { return G; }, drawWorld, cfg, CHARS, STAGES, rec, NET, startGame, stepBattle, startDemo, newMatch, spawnItem, startHR, startMulti, netApply, netHostSend, netStartClient, setScene(s) { scene = s; }, get scene() { return scene; }, get CL() { return CL; }, startClassic, afterMatch, CH, applyHit, startStory, startBoss, startRoyale, startEvent, startTourney, tnPlay, playBuilt, openBuilder, BLD, pullGacha, startReplay, get TN() { return TN; }, get REPLAY() { return REPLAY; } };
 </script>
 </body>
 </html>
