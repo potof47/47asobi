@@ -227,7 +227,8 @@ const sfx = {
   alarm() { for (let i = 0; i < 3; i++) { tone(880, 660, .18, 'square', .05, i * .25); } },
   freeze() { tone(3000, 1200, .25, 'triangle', .05); },
   sleep() { tone(660, 440, .3, 'sine', .05); tone(440, 330, .3, 'sine', .05, .25); },
-  ball() { tone(800, 1600, .08, 'square', .05); }
+  ball() { tone(800, 1600, .08, 'square', .05); },
+  cancel() { tone(900, 1500, .06, 'triangle', .05); }
 };
 // BGM（ステージごとに曲がかわる）
 const BGMS = [
@@ -901,7 +902,10 @@ const TIPS = [
   '走りながらこうげきでダッシュこうげき。相手との距離をつめよう',
   'ガードを使いすぎるとブレイクしてしまう。気をつけて！',
   '同じキャラを選んだら、色ボタンで色を変えられるよ',
-  'ジャンプボタンを短く押すと小ジャンプ。空中でもう一度ジャンプできる'
+  'ジャンプボタンを短く押すと小ジャンプ。空中でもう一度ジャンプできる',
+  '攻撃が当たったら、すぐ次の技でキャンセルできる！ 弱→上強→空上 などでコンボをつなげよう',
+  '下投げや上強で相手を浮かせて、ジャンプ→空中攻撃で追いかけるとコンボになる',
+  '同じ技はコンボで2回使えない。いろんな技を組み合わせよう'
 ];
 
 // ---------------------------------------------------------------------
@@ -1068,7 +1072,7 @@ function mkFighter(ci, slot, human, x, lv) {
     inp: { x: 0, y: 0, shield: false, jumpHeld: false, atkHeld: false, specHeld: false, smashHeld: false }, prevShield: false, anim: 0, t: 0,
     pw: 0, spd: 0, star: 0, szMode: 0, szT: 0, szv: 1, giga: 0, metal: false, bossSz: 1, item: null, hammer: 0, held: null, heldBy: null, holdT: 0, pumT: 0,
     frozen: 0, sleep: 0, burn: 0, elecT: 0, lavaCd: 0, fsReady: false, dead: false, out: false, rt: 0, hang: null, hangT: 0, runT: 0,
-    lastHit: null, lastHitT: -9999, rot: 0, spin: 0, flipT: 0, jumpCut: false, ff: false, crouch: false, combo: 0, comboDmg: 0, comboT: 0, atkP: -1, trail: [],
+    lastHit: null, lastHitT: -9999, hitLanded: false, chainN: 0, chainUsed: new Set(), rot: 0, spin: 0, flipT: 0, jumpCut: false, ff: false, crouch: false, combo: 0, comboDmg: 0, comboT: 0, atkP: -1, trail: [],
     ai: human ? null : { lv, hold: 0, cd: rnd(30, 70), react: 0, rec: 0, tgt: null, retarget: 0, chgT: 0, spT: 0, rapT: 0, gt: 0, itemT: 0, edgeT: 0 }
   };
 }
@@ -1158,7 +1162,12 @@ function applyHit(att, o, hb, cx, cy, sd, opt = {}) {
   if (att) att.dmgDone += dmg;
   if (o.state === 'stun' || o.state === 'grabbed' || o.state === 'atk' && o.mv && o.mv.k && o.mv.k.startsWith('throw')) o.combo++; else { o.combo = 1; o.comboDmg = 0; }
   o.comboDmg += dmg; o.comboT = 100;
-  if (G.training && o.combo >= 2) G.comboShow = { n: o.combo, d: o.comboDmg, t: 120 };
+  if (att && o.combo >= 2 && !G.demo) {
+    if (att.human && !att.remote) G.comboShow = { n: o.combo, d: o.comboDmg, t: 110 };
+    const cp = o.comboPop, sz = 15 + Math.min(12, o.combo * 1.5);
+    if (cp && cp.life > 0 && G.parts.includes(cp)) Object.assign(cp, { text: o.combo + ' HIT!', life: 40, max: 40, sz, x: o.x, y: o.y - BH(o) - 26, _n: 0 });
+    else { popText(o.x, o.y - BH(o) - 26, o.combo + ' HIT!', '#ffe14a', sz, 40); o.comboPop = G.parts[G.parts.length - 1]; }
+  }
   if (att) { o.lastHit = att.id; o.lastHitT = G.t; }
   const hl0 = Math.round(clamp(Math.floor(dmg / 3) + 3, 3, 13) * (fxk === 'elec' ? 1.5 : 1));
   const hx = clamp(cx, o.x - BW(o) - 6, o.x + BW(o) + 6), hy = clamp(cy, o.y - BH(o), o.y);
@@ -1184,7 +1193,9 @@ function applyHit(att, o, hb, cx, cy, sd, opt = {}) {
   o.vx = lx * v; o.vy = ly * v;
   if (o.ground && o.vy > -1.5) o.vy = -1.5;
   if (o.vy < 0) o.ground = null;
-  o.stun = clamp(Math.round(v * 1.7) + 5, 7, 90);
+  o.stun = clamp(Math.round(v * 1.8) + 10, 12, 90);
+  if (o.combo >= 6) o.stun = Math.round(o.stun * (o.combo >= 9 ? .5 : .72));
+  o.chainN = 0; o.chainUsed = new Set();
   if (o.state === 'hang') o.noGrab = 30;
   o.state = 'stun'; o.mv = null; o.sh = false; o.hang = null; o.helpless = false; o.dodge = 0; o.sbreak = false; o.sleep = 0; o.taunt = 0;
   o.spin = v > 9 ? 1 : 0;
@@ -1233,7 +1244,7 @@ function startMove(f, key, isItem) {
   const gr = !!f.ground;
   if (key === 'usp' && !isItem) { if (!gr && f.upUsed) return false; f.upUsed = true; }
   if (mv.sp && Math.abs(f.inp.x) > .5) f.dir = sgn(f.inp.x);
-  f.state = 'atk'; f.mv = mv; f.mt = 0; f.pmt = -1; f.hitSet.clear(); f.mvAir = !gr; f.chg = 0; f.chgDone = false; f.rapidN = 0; f.sh = false; f.trail = [];
+  f.state = 'atk'; f.mv = mv; f.mt = 0; f.pmt = -1; f.hitSet.clear(); f.mvAir = !gr; f.chg = 0; f.chgDone = false; f.rapidN = 0; f.sh = false; f.trail = []; f.hitLanded = false;
   f.want.tjump = 0;
   if (mv.dive) { f.vy = gr ? -9 : -3; f.ground = null; }
   if (!mv.proj && mv.w && !mv.charge) sfx.swing(mv.dmg > 12);
@@ -1463,6 +1474,7 @@ function actAtk(f, P) {
   if (mv.meteor && act && Math.floor(f.mt / 3) !== Math.floor(f.pmt / 3)) spawnMeteor(f, mv.meteor);
   if (mv.hbs.length) checkMoveHits(f, mv);
   if (f.state !== 'atk' || f.mv !== mv) return;
+  if (comboCancel(f)) return;
   if (mv.rapid && f.mt >= mv.off) {
     const hold = mv.rapid === 'atk' ? (inp.atkHeld || w.atk > 0) : (inp.specHeld || w.spec > 0);
     if (hold && f.rapidN < 24) { f.mt = mv.on; f.rapidN++; w.atk = 0; if (mv.rapid === 'spec') w.spec = 0; }
@@ -1470,6 +1482,44 @@ function actAtk(f, P) {
   }
   if (mv.next && w.atk > 0 && f.mt >= mv.off && Math.abs(inp.x) < .4 && Math.abs(inp.y) < .55) { w.atk = 0; startMove(f, mv.next); return; }
   if (f.mt >= mv.t) endMove(f);
+}
+// ヒットキャンセル：攻撃が当たったら、スキを「ちがう技」かジャンプでキャンセルできる（全キャラ共通のコンボ）
+// 1回のコンボでキャンセルは4回まで・同じ技は使えない
+function comboCancel(f) {
+  const w = f.want, inp = f.inp, gr = !!f.ground, mv = f.mv;
+  if (!f.hitLanded || f.chainN >= 4 || mv.fs || mv.none || mv.item || mv.rise || mv.dive || mv.k === 'taunt') return false;
+  if (f.mt < Math.min(mv.off, mv.t)) return false;
+  let key = null;
+  if (w.spec > 0 && !f.fsReady) key = inp.y < -.55 ? 'usp' : inp.y > .55 ? 'dsp' : Math.abs(inp.x) > .5 ? 'ssp' : 'nsp';
+  else if (w.smash > 0 && gr) key = inp.y < -.55 ? 'usmash' : inp.y > .55 ? 'dsmash' : 'fsmash';
+  else if (w.atk > 0 || w.smash > 0) key = gr ? (inp.y < -.55 ? 'utilt' : inp.y > .55 ? 'dtilt' : Math.abs(inp.x) > .4 ? 'ftilt' : 'jab')
+    : (inp.y < -.55 ? 'uair' : inp.y > .55 ? 'dair' : Math.abs(inp.x) > .4 ? (sgn(inp.x) === f.dir ? 'fair' : 'bair') : 'nair');
+  else if ((w.jump > 0 || w.tjump > 0) && (gr || f.jumps > 0) && f.hammer <= 0) {
+    w.jump = w.tjump = 0; f.chainUsed.add(mv.key); f.chainN++; f.state = 'free'; f.mv = null; doJump(f); comboStep(f, true); comboFlash(f); return true;
+  }
+  if (!key || key === mv.key || f.chainUsed.has(key) || (key === 'jab' && /^jab/.test(mv.key || ''))) return false;
+  if (key === 'usp' && !gr && f.upUsed) return false;
+  if ((key === 'ftilt' || key === 'fsmash') && Math.abs(inp.x) > .3) f.dir = sgn(inp.x);
+  const used = f.chainUsed, n = f.chainN, old = mv.key;
+  if (!startMove(f, key)) return false;
+  w.atk = w.smash = w.spec = 0;
+  f.chainUsed = used; f.chainUsed.add(old); f.chainN = n + 1;
+  if (key !== 'bair' && !/sp$/.test(key)) comboStep(f, false);
+  comboFlash(f);
+  return true;
+}
+// つなぎやすいように、当てた相手のほうへ少しふみこむ
+function comboStep(f, jump) {
+  const o = f.lastVic; if (!o || o.dead || o.out) return;
+  const dx = o.x - f.x, dy = o.y - f.y; if (Math.abs(dx) > 180) return;
+  if (!jump) f.dir = sgn(dx) || f.dir;
+  const gap = Math.abs(dx) - (BW(f) + BW(o)) * .6;
+  if (gap > 0) f.vx = sgn(dx) * Math.min(7, gap * .25 + 1.5);
+  if (jump && dy < -40) f.vy = Math.min(f.vy, -f.c.jump * 1.05);
+}
+function comboFlash(f) {
+  ring(f.x, f.y - BH(f) / 2, '#ffe14a', 34, 10); spark(f.x, f.y - BH(f) / 2, 5, '#fff6a8', 4, 12);
+  sfx.cancel();
 }
 function checkMoveHits(f, mv) {
   for (let i = 0; i < mv.hbs.length; i++) {
@@ -1487,13 +1537,14 @@ function checkMoveHits(f, mv) {
       const mulD = mv.charge === 1 ? 1 + f.chg / 60 * .45 : 1;
       const r = applyHit(f, o, hb, rect.cx, rect.cy, sd, { mulD, homerun: mv.homerun });
       if (r) f.hitSet.add(key);
+      if (r === 1) { f.hitLanded = true; f.lastVic = o; }
       if (r === 3) return;
     }
     hitItems(f, rect, 'm' + i + ':' + rd + ':' + f.rapidN);
   }
 }
 function endMove(f) {
-  const mv = f.mv; f.state = 'free'; f.mv = null;
+  const mv = f.mv; f.state = 'free'; f.mv = null; f.chainN = 0; f.chainUsed = new Set();
   if (mv && (mv.rise || mv.dive) && !f.ground) f.helpless = true;
   if (mv && mv.k === 'taunt') f.taunt = 0;
 }
@@ -1556,6 +1607,7 @@ function doThrow(f, d) {
   f.state = 'atk'; f.mv = f.c.moves['throw' + d.toUpperCase()]; f.mt = 0; f.pmt = -1; f.hitSet.clear();
   o.inv = 0;
   applyHit(f, o, th, o.x, o.y - BH(o) / 2, sd, { thrown: 1 });
+  f.hitLanded = true; f.lastVic = o;
   sfx.throw_();
 }
 
@@ -2161,6 +2213,20 @@ function aiThink(f) {
     }
     return;
   }
+  if (f.state === 'atk' && f.hitLanded && lv >= 2 && f.chainN < 3 && f.mv && f.mt >= f.mv.off && !a.comboTried) {
+    a.comboTried = true;
+    const tg = a.tgt;
+    if (tg && !tg.dead && Math.random() < .3 + lv * .15) {
+      const dx = tg.x - f.x, dy = (tg.y - BH(tg) / 2) - (f.y - BH(f) / 2);
+      if (dy < -55) { if (f.ground && f.jumps >= 0 && Math.random() < .5) w.jump = 3; else { inp.y = -1; w.atk = 3; } }
+      else if (Math.abs(dx) > 100) { inp.x = sgn(dx); w.spec = 3; }
+      else if (Math.random() < .5) { inp.x = sgn(dx) * .9; w.atk = 3; }
+      else { inp.y = 1; w.atk = 3; }
+      a.hold = 3;
+    }
+    return;
+  }
+  if (f.state !== 'atk') a.comboTried = false;
   if (lv <= 0 || f.state === 'atk') return;
   // ---- マグマよけ
   if (G.lava && (G.lava.s === 'warn' || G.lava.s === 'up') && f.y > -60) {
@@ -2339,7 +2405,7 @@ function stepBattle() {
   for (const f of G.fs) {
     if (f.out) continue;
     updateFighter(f);
-    for (const k in f.want) if (f.want[k] > 0) f.want[k]--;
+    if (f.lag <= 0) for (const k in f.want) if (f.want[k] > 0) f.want[k]--;
   }
   updateProjs(); updateItems(); updateHelpers(); updateHazards(); if (G.hr) hrStep(); updateParticles(); updateCamera();
   if (G.comboShow && --G.comboShow.t <= 0) G.comboShow = null;
@@ -3600,6 +3666,7 @@ function drawHow() {
       ['ルール', 'ダメージ%がたまるほど遠くまでふっとぶ。画面の外に出したらKO！ストックがなくなったら脱落、最後まで残った人（チーム）の勝ち。タイム制では撃墜数で勝負'],
       ['こうげき', 'こうげき＝弱・強こうげき（方向で変化）。走りながらでダッシュこうげき。スマッシュ＝強いこうげき（長押しでためる）'],
       ['ひっさつ', 'ひっさつ＋方向でキャラごとに4種類。上ひっさつは空中で1回だけの復帰ワザ'],
+      ['コンボ', '攻撃が当たったら、すぐ次の技（ちがう技）やジャンプでスキをキャンセルできる。弱→上強→ジャンプ→空上 のようにつなげよう（1コンボ4回まで）'],
       ['ガード', 'ガードでふせぐ。ガード＋左右で回避、下でその場回避、空中でエアダッジ。ガード中にこうげきで「つかみ」→方向で投げ'],
       ['アイテム', 'こうげきで拾う・使う、スマッシュかつかみで投げる。スマッシュボールを3回たたくと「最後の切り札」！']
     ]],
