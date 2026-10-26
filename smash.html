@@ -28,7 +28,8 @@ const cv = document.getElementById('c');
 let g = cv.getContext('2d');
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-const MAXF = 16; // 1試合の最大人数
+const MAXF = 16; // プレイヤー枠の最大人数
+const MAXNPC = 100; // 追加できるNPCの最大人数
 const sgn = v => v > 0 ? 1 : v < 0 ? -1 : 0;
 const lerp = (a, b, t) => a + (b - a) * t;
 const pick = a => a[(Math.random() * a.length) | 0];
@@ -955,8 +956,8 @@ function mkStages() {
       plats: [{ t: 'solid', x1: -380, x2: -85, y: 0, h: 160 }, { t: 'solid', x1: 85, x2: 380, y: 0, h: 160 },
         { t: 'soft', x1: -60, x2: 60, y: -100, move: 150, speed: .012, cx: 0, hw: 60 }, { t: 'soft', x1: -110, x2: 110, y: -250 }],
       spawn: [-260, 260, -170, 170] },
-    { name: 'メカ工場', sub: '上下に動くエレベーター', bg: 'factory', bgm: 3, blast: { l: -820, r: 820, t: -680, b: 520 },
-      plats: [{ t: 'solid', x1: -350, x2: 350, y: 0, h: 180 },
+    { name: 'メカ工場', sub: 'エレベーターとベルトコンベア', bg: 'factory', bgm: 3, blast: { l: -820, r: 820, t: -680, b: 520 },
+      plats: [{ t: 'solid', x1: -350, x2: 350, y: 0, h: 180, conv: 1.3, convFlip: 600 },
         { t: 'soft', x1: -270, x2: -150, y: -60, vmove: 110, vspeed: .016, cy: -150, ph: 0 }, { t: 'soft', x1: 150, x2: 270, y: -60, vmove: 110, vspeed: .016, cy: -150, ph: Math.PI },
         { t: 'soft', x1: -70, x2: 70, y: -250 }],
       spawn: [-240, 240, -90, 90] },
@@ -978,17 +979,18 @@ function mkStages() {
       plats: [{ t: 'solid', x1: -640, x2: 640, y: 0, h: 220 },
         { t: 'soft', x1: -560, x2: -400, y: -130 }, { t: 'soft', x1: -230, x2: -70, y: -130 }, { t: 'soft', x1: 70, x2: 230, y: -130 }, { t: 'soft', x1: 400, x2: 560, y: -130 },
         { t: 'soft', x1: -400, x2: -240, y: -260 }, { t: 'soft', x1: 240, x2: 400, y: -260 }, { t: 'soft', x1: -80, x2: 80, y: -390 }],
+      springs: [{ x: -600, y: 0, pow: 21 }, { x: 600, y: 0, pow: 21 }],
       spawn: [-480, 480, -150, 150, -320, 320, -560, 560] },
-    { name: '氷の山', sub: 'つるつるすべる氷の床', bg: 'snow', bgm: 2, blast: { l: -860, r: 860, t: -700, b: 520 },
+    { name: '氷の山', sub: 'つるつる床＆ふぶき', bg: 'snow', bgm: 2, wind: 1, blast: { l: -860, r: 860, t: -700, b: 520 },
       plats: [{ t: 'solid', x1: -370, x2: 370, y: 0, h: 190, ice: 1 }, { t: 'soft', x1: -310, x2: -170, y: -135, ice: 1 }, { t: 'soft', x1: 170, x2: 310, y: -135, ice: 1 },
         { t: 'soft', x1: -70, x2: 70, y: -170, vmove: 90, vspeed: .014, cy: -200, ph: 0 }],
       spawn: [-250, 250, -90, 90] },
     { name: 'ジャングル', sub: '川の上を丸太がながれる', bg: 'jungle', bgm: 0, zmin: .42, blast: { l: -1000, r: 1000, t: -780, b: 560 },
       plats: [{ t: 'solid', x1: -560, x2: -150, y: 0, h: 200 }, { t: 'solid', x1: 150, x2: 560, y: -30, h: 230 },
         { t: 'soft', x1: -70, x2: 70, y: 20, move: 190, speed: .009, cx: 0, hw: 70, log: 1 },
-        { t: 'soft', x1: -460, x2: -300, y: -150 }, { t: 'soft', x1: 280, x2: 440, y: -190 }, { t: 'soft', x1: -100, x2: 100, y: -290 }],
+        { t: 'soft', x1: -460, x2: -300, y: -150, crumble: 1 }, { t: 'soft', x1: 280, x2: 440, y: -190, crumble: 1 }, { t: 'soft', x1: -100, x2: 100, y: -290 }],
       spawn: [-400, 380, -240, 250, -500, 500] },
-    { name: '月面基地', sub: 'ふわっと跳べる低重力', bg: 'moon', bgm: 1, lowg: .62, blast: { l: -900, r: 900, t: -820, b: 540 },
+    { name: '月面基地', sub: '低重力＆いん石', bg: 'moon', bgm: 1, lowg: .62, meteor: [420, 700], blast: { l: -900, r: 900, t: -820, b: 540 },
       plats: [{ t: 'solid', x1: -440, x2: 440, y: 0, h: 200 }, { t: 'soft', x1: -340, x2: -190, y: -160 }, { t: 'soft', x1: 190, x2: 340, y: -160 }, { t: 'soft', x1: -80, x2: 80, y: -320 }],
       spawn: [-300, 300, -110, 110, -200, 200] },
     { name: 'ネオン都市', sub: 'ビルの屋上とゴンドラ', bg: 'city', bgm: 3, zmin: .4, blast: { l: -1020, r: 1020, t: -800, b: 560 },
@@ -999,17 +1001,50 @@ function mkStages() {
       plats: [{ t: 'solid', x1: -380, x2: 380, y: 0, h: 180 }, { t: 'soft', x1: -540, x2: -430, y: 40, bounce: 1 }, { t: 'soft', x1: 430, x2: 540, y: 40, bounce: 1 },
         { t: 'soft', x1: -280, x2: -140, y: -140 }, { t: 'soft', x1: 140, x2: 280, y: -140 }, { t: 'soft', x1: -60, x2: 60, y: -150, bounce: 1 }, { t: 'soft', x1: -90, x2: 90, y: -320 }],
       spawn: [-260, 260, -110, 110, -330, 330] },
-    { name: '巨大要塞', sub: '16人用の超巨大ステージ', bg: 'castle', bgm: 3, zmin: .3, blast: { l: -1400, r: 1400, t: -1060, b: 700 },
+    { name: '巨大要塞', sub: '16人用・大砲がうってくる', bg: 'castle', bgm: 3, zmin: .3, cannons: [{ x: -880, y: 0, dir: 1 }, { x: 880, y: 0, dir: -1 }], blast: { l: -1400, r: 1400, t: -1060, b: 700 },
       plats: [{ t: 'solid', x1: -920, x2: -300, y: 0, h: 240, tower: 1 }, { t: 'solid', x1: 300, x2: 920, y: 0, h: 240, tower: 1 }, { t: 'soft', x1: -300, x2: 300, y: 0, bridge: 1 },
         { t: 'soft', x1: -820, x2: -660, y: -150 }, { t: 'soft', x1: -540, x2: -380, y: -150 }, { t: 'soft', x1: 380, x2: 540, y: -150 }, { t: 'soft', x1: 660, x2: 820, y: -150 },
         { t: 'soft', x1: -160, x2: 160, y: -190 }, { t: 'soft', x1: -680, x2: -520, y: -300 }, { t: 'soft', x1: 520, x2: 680, y: -300 }, { t: 'soft', x1: -70, x2: 70, y: -380 }],
-      spawn: [-760, 760, -460, 460, -600, 600, -360, 360, -840, 840, -100, 100] }
+      spawn: [-760, 760, -460, 460, -600, 600, -360, 360, -840, 840, -100, 100] },
+    // ---- めちゃくちゃ広いステージ（カメラは自分を追いかける・左上にミニマップ）
+    { name: 'ひろがる大草原', sub: '超ひろい！ジャンプ台・ワープ・かみなり', bg: 'day', bgm: 0, huge: 1, zmin: .5, thunder: [380, 640], blast: { l: -3800, r: 3800, t: -980, b: 640 },
+      plats: [{ t: 'solid', x1: -3000, x2: -2000, y: 0, h: 260 }, { t: 'solid', x1: -1800, x2: -900, y: -60, h: 300 }, { t: 'solid', x1: -700, x2: 700, y: 0, h: 260 },
+        { t: 'solid', x1: 900, x2: 1800, y: -60, h: 300 }, { t: 'solid', x1: 2000, x2: 3000, y: 0, h: 260 },
+        { t: 'soft', x1: -2000, x2: -1800, y: -30, crumble: 1 }, { t: 'soft', x1: -900, x2: -700, y: -30, crumble: 1 }, { t: 'soft', x1: 700, x2: 900, y: -30, crumble: 1 }, { t: 'soft', x1: 1800, x2: 2000, y: -30, crumble: 1 },
+        { t: 'soft', x1: -2800, x2: -2620, y: -140 }, { t: 'soft', x1: -2380, x2: -2200, y: -170 }, { t: 'soft', x1: -1600, x2: -1440, y: -210 }, { t: 'soft', x1: -1240, x2: -1080, y: -230 },
+        { t: 'soft', x1: -320, x2: -150, y: -140 }, { t: 'soft', x1: 150, x2: 320, y: -140 }, { t: 'soft', x1: -80, x2: 80, y: -270 },
+        { t: 'soft', x1: 1080, x2: 1240, y: -230 }, { t: 'soft', x1: 1440, x2: 1600, y: -210 }, { t: 'soft', x1: 2200, x2: 2380, y: -170 }, { t: 'soft', x1: 2620, x2: 2800, y: -140 }],
+      springs: [{ x: -2500, y: 0, pow: 23 }, { x: -1350, y: -60, pow: 23 }, { x: -480, y: 0, pow: 22 }, { x: 480, y: 0, pow: 22 }, { x: 1350, y: -60, pow: 23 }, { x: 2500, y: 0, pow: 23 }],
+      warps: [[-2900, 0, 2900, 0], [-1000, -60, 1000, -60]],
+      spawn: [-2600, 2600, -1400, 1400] },
+    { name: '天空の大陸', sub: '雲の島々をわたる・強風＆くずれる雲', bg: 'sky', bgm: 2, huge: 1, zmin: .5, wind: 1, blast: { l: -3700, r: 3700, t: -1040, b: 640 },
+      plats: [{ t: 'solid', x1: -2900, x2: -2300, y: 0, h: 220 }, { t: 'solid', x1: -2050, x2: -1550, y: -160, h: 200 }, { t: 'solid', x1: -1300, x2: -700, y: -40, h: 220 },
+        { t: 'solid', x1: -450, x2: 450, y: 0, h: 260 }, { t: 'solid', x1: 700, x2: 1300, y: -40, h: 220 }, { t: 'solid', x1: 1550, x2: 2050, y: -160, h: 200 }, { t: 'solid', x1: 2300, x2: 2900, y: 0, h: 220 },
+        { t: 'soft', x1: -2260, x2: -2090, y: -70, blink: 360, ph: 0 }, { t: 'soft', x1: -1510, x2: -1340, y: -110, crumble: 1 }, { t: 'soft', x1: -660, x2: -490, y: -20, crumble: 1 },
+        { t: 'soft', x1: 490, x2: 660, y: -20, crumble: 1 }, { t: 'soft', x1: 1340, x2: 1510, y: -110, crumble: 1 }, { t: 'soft', x1: 2090, x2: 2260, y: -70, blink: 360, ph: 180 },
+        { t: 'soft', x1: -2720, x2: -2480, y: -170 }, { t: 'soft', x1: -1060, x2: -900, y: -230 }, { t: 'soft', x1: -110, x2: 110, y: -200 }, { t: 'soft', x1: 900, x2: 1060, y: -230 }, { t: 'soft', x1: 2480, x2: 2720, y: -170 },
+        { t: 'soft', x1: -1880, x2: -1720, y: -330 }, { t: 'soft', x1: 1720, x2: 1880, y: -330 }],
+      springs: [{ x: -2400, y: 0, pow: 22 }, { x: 2400, y: 0, pow: 22 }, { x: -800, y: -40, pow: 22 }, { x: 800, y: -40, pow: 22 }],
+      warps: [[-2800, 0, 2800, 0]],
+      spawn: [-2600, 2600, -1000, 1000] },
+    { name: 'メガロポリス', sub: 'ビル街と電車・コンベア屋上', bg: 'city', bgm: 3, huge: 1, zmin: .5, blast: { l: -3900, r: 3900, t: -1000, b: 660 },
+      train: { x1: -1500, x2: 1500, y: 0 },
+      plats: [{ t: 'solid', x1: -1500, x2: 1500, y: 0, h: 200, road: 1 },
+        { t: 'solid', x1: -3200, x2: -2700, y: -120, h: 300, roof: 1 }, { t: 'solid', x1: -2600, x2: -2100, y: -40, h: 300, roof: 1, conv: 1.6, convFlip: 720 }, { t: 'solid', x1: -2000, x2: -1600, y: -200, h: 300, roof: 1 },
+        { t: 'solid', x1: 1600, x2: 2000, y: -200, h: 300, roof: 1 }, { t: 'solid', x1: 2100, x2: 2600, y: -40, h: 300, roof: 1, conv: -1.6, convFlip: 720 }, { t: 'solid', x1: 2700, x2: 3200, y: -120, h: 300, roof: 1 },
+        { t: 'soft', x1: -80, x2: 80, y: -230, move: 1100, speed: .003, cx: 0, hw: 80, gondola: 1 },
+        { t: 'soft', x1: -1300, x2: -1150, y: -170 }, { t: 'soft', x1: -600, x2: -450, y: -150 }, { t: 'soft', x1: 450, x2: 600, y: -150 }, { t: 'soft', x1: 1150, x2: 1300, y: -170 }, { t: 'soft', x1: -90, x2: 90, y: -330 },
+        { t: 'soft', x1: -2690, x2: -2610, y: -70, crumble: 1 }, { t: 'soft', x1: 2610, x2: 2690, y: -70, crumble: 1 }, { t: 'soft', x1: -2090, x2: -2010, y: -110, crumble: 1 }, { t: 'soft', x1: 2010, x2: 2090, y: -110, crumble: 1 },
+        { t: 'soft', x1: -1590, x2: -1510, y: -100 }, { t: 'soft', x1: 1510, x2: 1590, y: -100 }],
+      springs: [{ x: -1420, y: 0, pow: 21 }, { x: 1420, y: 0, pow: 21 }],
+      warps: [[-3100, -120, 3100, -120], [-1800, -200, 1800, -200]],
+      spawn: [-2900, 2900, -1800, 1800] }
   ];
 }
 let STAGES = mkStages();
 // 人数が多いときは足場全体にまんべんなく並べる
 function spawnX(st, i, n) {
-  if (n <= st.spawn.length || st.hrs) return st.spawn[i % st.spawn.length];
+  if ((n <= st.spawn.length && !st.huge) || st.hrs) return st.spawn[i % st.spawn.length];
   const ps = st.plats.filter(p => p.t === 'solid' && !p.field && !p.wall), tot = ps.reduce((a, p) => a + (p.x2 - p.x1 - 60), 0);
   let d = (i + .5) / n * tot;
   for (const p of ps) { const w = p.x2 - p.x1 - 60; if (d <= w) return p.x1 + 30 + d; d -= w; }
@@ -1029,17 +1064,17 @@ let scene = 'title', G = null;
 // slots[i].type: 'p1' / 'cpu' / 'p2' / 'off'   team: 0=赤 1=青   alt: カラー番号
 const cfg = {
   slots: Array.from({ length: MAXF }, (_, i) => ({ c: i ? -1 : 0, type: i ? 'cpu' : 'p1', team: i < 2 ? 0 : i < 4 ? 1 : i % 2, alt: 0 })),
-  n: 4, cur: 0, rule: 'stock', stocks: 3, time: 3, lv: 2, items: 1, stage: 0, tapJump: true, mode: 'vs', trCpu: 0, trMode: 0, team: false, special: 'none'
+  n: 4, npc: 0, npcStock: 1, cur: 0, rule: 'stock', stocks: 3, time: 3, lv: 2, items: 1, stage: 0, tapJump: true, mode: 'vs', trCpu: 0, trMode: 0, team: false, special: 'none'
 };
 try {
   const s = JSON.parse(localStorage.getItem('smashfighters-cfg') || 'null');
   if (s) {
-    for (const k of ['rule', 'stocks', 'time', 'lv', 'items', 'stage', 'tapJump', 'team', 'special', 'n']) if (k in s) cfg[k] = s[k];
+    for (const k of ['rule', 'stocks', 'time', 'lv', 'items', 'stage', 'tapJump', 'team', 'special', 'n', 'npc', 'npcStock']) if (k in s) cfg[k] = s[k];
     if (s.slots && s.slots.length >= 2 && s.slots[0].type) s.slots.slice(0, MAXF).forEach((q, i) => { cfg.slots[i] = Object.assign(cfg.slots[i], q); cfg.slots[i].team = (q.team | 0) % 4; });
-    cfg.n = clamp(cfg.n | 0 || 4, 2, MAXF); if (typeof cfg.team !== 'number') cfg.team = cfg.team ? 2 : 0;
+    cfg.n = clamp(cfg.n | 0 || 4, 2, MAXF); cfg.npc = clamp(cfg.npc | 0, 0, MAXNPC); if (typeof cfg.team !== 'number') cfg.team = cfg.team ? 2 : 0;
   }
 } catch (e) { }
-function saveCfg() { try { localStorage.setItem('smashfighters-cfg', JSON.stringify({ rule: cfg.rule, stocks: cfg.stocks, time: cfg.time, lv: cfg.lv, items: cfg.items, stage: cfg.stage, tapJump: cfg.tapJump, slots: cfg.slots, team: cfg.team, special: cfg.special, n: cfg.n })); } catch (e) { } }
+function saveCfg() { try { localStorage.setItem('smashfighters-cfg', JSON.stringify({ rule: cfg.rule, stocks: cfg.stocks, time: cfg.time, lv: cfg.lv, items: cfg.items, stage: cfg.stage, tapJump: cfg.tapJump, slots: cfg.slots, team: cfg.team, special: cfg.special, n: cfg.n, npc: cfg.npc, npcStock: cfg.npcStock })); } catch (e) { } }
 // きろく（解放・戦績）
 const LOCKED = ['reina', 'gou', 'usami', 'piyo', 'taiga', 'gamma', 'pop', 'draco'];
 const rec = { plays: 0, wins: 0, kos: 0, falls: 0, classic: 0, hr: 0, multi: 0, unlocked: [], stats: {}, nextCh: 1, name: '' };
@@ -1060,6 +1095,7 @@ const sameTeam = (a, b) => !!(G && G.team && a && b && a !== b && a.team === b.t
 function tagOf(f) {
   if (f.dummy) return { t: '', c: '#fff' };
   const c = G && G.team ? TEAMC[f.team] : tagCol(f);
+  if (f.npc) return { t: 'NPC', c };
   if (f.remote || (f.netName && !f.human)) return { t: f.netName || 'P', c };
   if (f.human) return { t: f.pi ? '2P' : (G && (G.net || G.netClient) ? (f.netName || '1P') : '1P'), c: G && G.team ? c : (f.pi ? '#4aa8ff' : '#ff4a4a') };
   return { t: 'CPU', c };
@@ -1085,10 +1121,12 @@ function newMatch(o) {
     multi: o.multi ? { count: 0, goal: 100, spawned: 0 } : null, hr: null, net: !!o.net, netClient: !!o.netClient, tip: pick(TIPS)
   };
   G = m;
+  for (const p of st.plats) stageShape(st, p);
   o.list.forEach((e, i) => {
     const f = mkFighter(e.ci, i, !!e.human, spawnX(st, i, o.list.length), e.lv || 0);
     f.stocks = e.stocks; f.pct = e.pct || 0; f.pi = e.pi || 0; f.team = e.team === undefined ? i : e.team; f.alt = e.alt || 0;
     if (e.remote) f.remote = e.remote; if (e.netName) f.netName = e.netName; if (e.owner) f.owner = e.owner;
+    if (e.npc) f.npc = true;
     if (e.metal) f.metal = true; if (e.boss) f.bossSz = e.boss; if (e.weak) f.weak = true; if (e.dummy) { f.dummy = true; f.c = SANDBAG; f.ai = null; }
     f.szv = f.bossSz;
     if (e.x !== undefined) f.x = e.x;
@@ -1098,6 +1136,8 @@ function newMatch(o) {
     applySpecial(f);
     m.fs.push(f);
   });
+  m.npcN = m.fs.filter(f => f.npc).length;
+  initGimmicks(m);
   if (m.special === 'bomb') { m.items = 2; }
   // 同じキャラ・同じ色がかぶったら色を変える
   for (const f of m.fs) for (let k = 0; k < 4 && m.fs.some(o2 => o2 !== f && o2.id < f.id && o2.ci === f.ci && o2.alt === f.alt); k++) f.alt = (f.alt + 1) % 4;
@@ -1357,7 +1397,7 @@ function updateFighter(f) {
   f.t++;
   if (f.inv > 0) f.inv--; if (f.pw > 0) f.pw--; if (f.spd > 0) f.spd--; if (f.star > 0) f.star--; if (f.drop > 0) f.drop--; if (f.noGrab > 0) f.noGrab--;
   if (f.burn > 0) { f.burn--; if (f.burn % 4 === 0) G.parts.push({ k: 'fl', x: f.x + rnd(-10, 10), y: f.y - rnd(0, BH(f)), vx: 0, vy: -2, life: 18, max: 18, col: '#ff8a2a', sz: rnd(4, 8) }); }
-  if (f.elecT > 0) f.elecT--; if (f.lavaCd > 0) f.lavaCd--; if (f.flipT > 0) f.flipT--; if (f.comboT > 0 && --f.comboT === 0) f.combo = 0;
+  if (f.elecT > 0) f.elecT--; if (f.lavaCd > 0) f.lavaCd--; if (f.warpCd > 0) f.warpCd--; if (f.flipT > 0) f.flipT--; if (f.comboT > 0 && --f.comboT === 0) f.combo = 0;
   if (f.szT > 0 && --f.szT <= 0) { f.szMode = 0; sfx.item(); }
   if (f.giga > 0 && --f.giga <= 0) { spark(f.x, f.y - 40, 20, f.c.col, 6, 24); }
   if (f.hammer > 0) f.hammer--;
@@ -1397,7 +1437,7 @@ function updateFighter(f) {
   if (f.vy > P.cap) f.vy = P.cap;
   if (f.jumpCut && f.state === 'free') { if (!inp.jumpHeld && f.vy < -5) { f.vy *= .55; f.jumpCut = false; } if (f.vy >= 0) f.jumpCut = false; }
   if (f.ground && f.ground.off) f.ground = null;
-  if (f.ground) { if (f.ground.dx) f.x += f.ground.dx; if (f.ground.dy) f.y += f.ground.dy; }
+  if (f.ground) { if (f.ground.dx) f.x += f.ground.dx; if (f.ground.dy) f.y += f.ground.dy; if (f.ground.conv && f.state !== 'hang') f.x += f.ground.conv; }
   const wasGr = !!f.ground; f.ground = null;
   f.x += f.vx; resolveX(f);
   const py = f.y; f.y += f.vy; resolveY(f, py);
@@ -1684,23 +1724,68 @@ function tryLedge(f) {
     }
   }
 }
+// ---- 足場の形：見た目どおりの当たり判定にする（上面からの深さ dy → 左右のへこみ量）
+function stageShape(st, p) {
+  if (p.t !== 'solid') return;
+  const w = p.x2 - p.x1;
+  p.tb = null; p.prof = null;
+  if (p.field || p.wall || p.box) { p.depth = p.h; return; }
+  if (p.roof || p.tower || p.road) { p.depth = p.h + 300; return; }
+  if (p.ship) { p.depth = 110; p.prof = dy => 70 * dy / 110; return; }
+  if (st.bg === 'factory') { const d = p.h * .4; p.depth = d; p.prof = dy => 20 * dy / d; return; }
+  // ふつうの浮島：上の角 → 下のとがった先 までのベジェ曲線を表にしておく
+  const d = p.h * .8; p.depth = d; p.tb = [];
+  for (let i = 0; i <= 24; i++) { const t = i / 24; p.tb.push([1.1 * d * t - .1 * d * t * t, .2 * w * t + .3 * w * t * t]); }
+}
+function inSolid(p, x, y, m = 0) {
+  if (p.t !== 'solid' || p.off || y <= p.y + m || y >= p.y + p.depth) return false;
+  const k = insetAt(p, y - p.y); return x > p.x1 + k && x < p.x2 - k;
+}
+function insetAt(p, dy) {
+  if (p.prof) return p.prof(dy);
+  if (!p.tb) return 0;
+  const tb = p.tb;
+  for (let i = 1; i < tb.length; i++) if (tb[i][0] >= dy) { const a = tb[i - 1], b = tb[i], k = (dy - a[0]) / Math.max(.001, b[0] - a[0]); return a[1] + (b[1] - a[1]) * k; }
+  return tb[tb.length - 1][1];
+}
+// x の位置での足場の下面（その x が足場の中にある一番深いところ）
+function undersideAt(p, x) {
+  const e = Math.min(x - p.x1, p.x2 - x);
+  if (e < 0) return p.y;
+  if (!p.prof && !p.tb) return p.y + p.depth;
+  let lo = 0, hi = p.depth;
+  for (let i = 0; i < 14; i++) { const m = (lo + hi) / 2; if (insetAt(p, m) <= e) lo = m; else hi = m; }
+  return p.y + lo;
+}
 function resolveX(f) {
   const bw = BW(f), bh = BH(f);
   for (const p of G.st.plats) {
-    if (p.t !== 'solid') continue;
-    if (f.y > p.y + .01 && f.y - bh < p.y + p.h && f.x + bw > p.x1 && f.x - bw < p.x2) {
-      if (f.x < (p.x1 + p.x2) / 2) f.x = p.x1 - bw; else f.x = p.x2 + bw;
-      f.vx = f.state === 'stun' ? -f.vx * .4 : 0;
-    }
+    if (p.t !== 'solid' || p.off) continue;
+    if (!(f.y > p.y + .01)) continue;
+    const top = f.y - bh, dy = Math.max(0, top - p.y);
+    if (dy >= p.depth) continue;
+    const ins = insetAt(p, dy), l = p.x1 + ins, r = p.x2 - ins;
+    if (!(f.x + bw > l && f.x - bw < r)) continue;
+    // いちばん浅くめりこんでいる方向へ押し出す（下から当たったときは resolveY で天井あつかい）
+    const penL = f.x + bw - l, penR = r - (f.x - bw), penD = f.y > p.y + 4 && top > p.y ? undersideAt(p, clamp(f.x, p.x1, p.x2)) - top : 1e9;
+    if (penD < Math.min(penL, penR) && penD < 40) continue;
+    if (penL < penR) f.x = l - bw; else f.x = r + bw;
+    f.vx = f.state === 'stun' ? -f.vx * .4 : 0;
   }
 }
 function resolveY(f, py) {
   const bw = BW(f), bh = BH(f);
   for (const p of G.st.plats) {
-    if (p.off || !(f.x + bw * .7 > p.x1 && f.x - bw * .7 < p.x2)) continue;
+    if (p.off) continue;
+    if (p.t === 'solid' && f.vy < 0 && f.x > p.x1 && f.x < p.x2) {
+      // 下から頭をぶつける：見た目の下面で止める
+      const uy = undersideAt(p, f.x);
+      if (f.y - bh < uy && py - bh >= uy - 2 && py > p.y + 4) { f.y = uy + bh; f.vy = f.state === 'stun' ? -f.vy * .4 : 0; continue; }
+    }
+    // 足もとの判定は足場の上だけ（体の中心が足場から少しでもはみ出たら落ちる）
+    if (!(f.x + bw * .3 > p.x1 && f.x - bw * .3 < p.x2)) continue;
     if (p.t === 'solid') {
       if (f.vy >= 0 && py <= p.y + .01 && f.y >= p.y) { f.y = p.y; f.vy = 0; f.ground = p; }
-      else if (f.vy < 0 && f.y - bh < p.y + p.h && py - bh >= p.y + p.h - .01) { f.y = p.y + p.h + bh; f.vy = f.state === 'stun' ? -f.vy * .4 : 0; }
     } else if (f.vy >= 0 && py <= p.y + .01 && f.y >= p.y && f.drop <= 0 && !(f.state === 'stun' && f.vy > 6) && f.state !== 'respawn') {
       if (p.bounce && f.vy > 2.5 && f.state !== 'grabbed') { f.y = p.y - 1; f.vy = -Math.min(20, 13 + f.vy * .5); f.jumps = f.c.jumps; f.upUsed = false; f.helpless = false; p.squash = 12; if (f.state === 'stun') f.state = 'free'; sfx.jump(); continue; }
       f.y = p.y; f.vy = 0; f.ground = p;
@@ -1779,7 +1864,7 @@ function respawn(f) {
     f.jumps = f.c.jumps; f.upUsed = f.adUsed = f.helpless = false; f.shieldHp = 100; f.lastHit = null; f.szv = 1; f.combo = 0; f.dir = f.x < 0 ? 1 : -1;
     return;
   }
-  f.dead = false; f.pct = 0; f.state = 'respawn'; f.rt = 170; f.inv = 220; f.x = (f.home !== undefined ? f.home : G.st.spawn[f.id % G.st.spawn.length]) * .6; f.y = -330; f.vx = f.vy = 0;
+  f.dead = false; f.pct = 0; f.state = 'respawn'; f.rt = 170; f.inv = 220; f.x = (f.home !== undefined ? f.home : G.st.spawn[f.id % G.st.spawn.length]) * (G.st.huge ? 1 : .6); f.y = G.st.huge ? nearestSolid(f.x).y - 330 : -330; f.vx = f.vy = 0;
   f.jumps = f.c.jumps; f.upUsed = false; f.adUsed = false; f.helpless = false; f.shieldHp = 100; f.dir = f.x < 0 ? 1 : -1; f.lastHit = null; f.szv = f.bossSz; f.combo = 0;
   applySpecial(f);
 }
@@ -2035,12 +2120,12 @@ function updateItems() {
         if (it.type === 'capsule') { openCapsule(it); continue; }
         it.state = 'ground'; it.vy = 0; it.vx *= .3; it.plat = p; it.armed = 0;
       }
-      for (const s of G.st.plats) if (s.t === 'solid' && it.x > s.x1 && it.x < s.x2 && it.y > s.y + 4 && it.y < s.y + s.h) { it.vx = -it.vx * .4; it.x += it.vx * 2; }
+      for (const s of G.st.plats) if (inSolid(s, it.x, it.y, 4)) { it.vx = -it.vx * .4; it.x += it.vx * 2; }
       if (it.y > bl.b || it.x < bl.l || it.x > bl.r) it.dead = true;
       continue;
     }
     // 地面のアイテム
-    if (it.plat) { it.x += it.plat.dx || 0; it.y += it.plat.dy || 0; }
+    if (it.plat) { it.x += (it.plat.dx || 0) + (it.plat.conv || 0); it.y += it.plat.dy || 0; }
     it.vy = Math.min(it.vy + .5, 11); const py = it.y; it.y += it.vy; it.x += it.vx;
     if (it.type !== 'star') it.vx *= .9;
     const p = landItem(it, py, r);
@@ -2118,6 +2203,237 @@ function updateHelpers() {
 // ---------------------------------------------------------------------
 //  ステージギミック（マグマ）
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+//  ステージギミック（いん石・かみなり・大砲・強風・電車・ベルトコンベア・くずれる床・ジャンプ台・ワープ）
+// ---------------------------------------------------------------------
+function groundAt(x) { let best = null; for (const p of G.st.plats) if (!p.off && x > p.x1 && x < p.x2 && (!best || p.y < best.y)) best = p; return best; }
+function initGimmicks(m) {
+  const st = m.st; m.hz = []; m.hzId = 1; m.camF = null;
+  m.wind = st.wind ? { s: 'idle', t: 0, next: rnd(400, 700), dir: 1 } : null;
+  m.train = st.train ? { s: 'idle', t: 0, next: rnd(450, 700), dir: 1, x: 0 } : null;
+  m.metT = st.meteor ? rnd(260, 420) : 0; m.thT = st.thunder ? rnd(300, 480) : 0;
+  (st.cannons || []).forEach((c, i) => { c.cd = 150 + i * 80; c.fire = 0; });
+  (st.springs || []).forEach(sp => { sp.a = 0; });
+  m.gp = st.plats.map((p, i) => p.crumble || p.conv ? i : -1).filter(i => i >= 0);
+}
+// 爆発（だれのものでもない攻撃）
+function hzBoom(x, y, r, hb, col = '#ff8a2a') {
+  for (const f of G.fs) {
+    if (f.dead || f.out) continue;
+    if (Math.hypot(f.x - x, f.y - BH(f) / 2 - y) < r + BW(f)) applyHit(null, f, { ...hb, radial: 1 }, x, y, sgn(f.x - x) || 1);
+  }
+  spark(x, y, 26, col, 10, 30); spark(x, y, 12, '#ffffff', 7, 20); ring(x, y, '#ffd23f', r, 16); dust(x, y + 10, 8);
+  G.shake = Math.max(G.shake, 8); sfx.boom();
+}
+function hzNear(x) { return Math.abs(x - G.cam.x) < W / G.cam.z; }
+function updateGimmicks() {
+  const st = G.st;
+  for (const p of st.plats) {
+    if (p.conv && p.convFlip && G.t % p.convFlip === 0) { p.conv = -p.conv; if (hzNear((p.x1 + p.x2) / 2)) popText((p.x1 + p.x2) / 2, p.y - 60, 'ベルトが逆回転！', '#ffd23f', 18, 60); }
+    if (p.crumble) {
+      if (p.gone > 0) { if (--p.gone === 0) { p.off = false; p.cr = 0; spark((p.x1 + p.x2) / 2, p.y, 10, '#ffffff', 4, 16); } }
+      else if (G.fs.some(f => f.ground === p && !f.dead)) {
+        p.cr = (p.cr || 0) + 1;
+        if (p.cr > 80) {
+          p.off = true; p.gone = 380; sfx.crate();
+          for (let i = 0; i < 10; i++) G.parts.push({ k: 'shard', x: rnd(p.x1, p.x2), y: p.y + 4, vx: rnd(-2, 2), vy: rnd(-3, 0), life: 50, max: 50, col: st.bg === 'sky' ? '#ffffff' : '#c98a4a', sz: rnd(5, 10), rot: rnd(0, TAU), g: .4 });
+        }
+      } else if (p.cr > 0) p.cr = Math.max(0, p.cr - .4);
+    }
+  }
+  // ジャンプ台
+  for (const sp of st.springs || []) {
+    if (sp.a > 0) sp.a--;
+    for (const f of G.fs) {
+      if (f.dead || f.out || !f.ground || f.state === 'respawn' || f.state === 'grabbed' || f.state === 'grabbing') continue;
+      if (Math.abs(f.x - sp.x) < 26 && Math.abs(f.y - sp.y) < 4) {
+        f.ground = null; f.y -= 2; f.vy = -(sp.pow || 21); f.vx += sp.vx || 0; f.jumps = f.c.jumps; f.upUsed = false; f.helpless = false;
+        sp.a = 14; spark(sp.x, sp.y, 6, '#ffe14a', 4, 14); sfx.jump();
+      }
+    }
+  }
+  // ワープ
+  for (const w of st.warps || []) for (const f of G.fs) {
+    if (f.dead || f.out || f.warpCd > 0 || f.state === 'respawn' || f.state === 'hang' || f.state === 'grabbed' || f.state === 'grabbing') continue;
+    for (const [a, b] of [[0, 2], [2, 0]]) if (Math.hypot(f.x - w[a], f.y - BH(f) / 2 - (w[a + 1] - 40)) < 30) {
+      spark(w[a], w[a + 1] - 40, 14, '#c88aff', 6, 20); f.x = w[b]; f.y = w[b + 1]; f.ground = null; f.vy = Math.min(f.vy, -2); f.warpCd = f.human ? 90 : 200;
+      spark(w[b], w[b + 1] - 40, 14, '#c88aff', 6, 20); ring(w[b], w[b + 1] - 40, '#e0b0ff', 50, 16); sfx.item(); break;
+    }
+  }
+  // いん石・かみなり
+  const drop = (k) => {
+    const cand = G.fs.filter(f => !f.dead && !f.out && f.state !== 'respawn'), n = st.huge || G.fs.length > 8 ? 3 : 1;
+    let warned = false;
+    for (let i = 0; i < n; i++) {
+      const t = pick(cand); if (!t) break;
+      const x = t.x + rnd(-170, 170), p = groundAt(x); if (!p) continue;
+      G.hz.push({ id: G.hzId++, k, x, gy: p.y, y: p.y - 1000, t: 0 });
+      if (!warned && hzNear(x)) { warned = true; popText(G.cam.x, G.cam.y - 170, k === 'met' ? '☄ いん石がふってくる！' : '⚡ かみなりに注意！', k === 'met' ? '#ff9a5a' : '#ffe94a', 22, 80); }
+    }
+  };
+  if (st.meteor && --G.metT <= 0) { G.metT = rnd(st.meteor[0], st.meteor[1]); drop('met'); }
+  if (st.thunder && --G.thT <= 0) { G.thT = rnd(st.thunder[0], st.thunder[1]); drop('bolt'); }
+  // 大砲
+  for (const c of st.cannons || []) {
+    if (c.fire > 0) c.fire--;
+    if (--c.cd <= 0) {
+      c.cd = rnd(260, 400); c.fire = 14;
+      G.hz.push({ id: G.hzId++, k: 'ball', x: c.x + c.dir * 50, y: c.y - 36, vx: c.dir * rnd(8, 13), vy: -rnd(6, 10.5), t: 0 });
+      spark(c.x + c.dir * 50, c.y - 36, 10, '#ffffff', 5, 18); if (hzNear(c.x)) { noise(.25, .12, 300); G.shake = Math.max(G.shake, 3); }
+    }
+  }
+  for (const h of G.hz) {
+    h.t++;
+    if (h.k === 'met') {
+      if (h.t > 80) { h.y += 22; if (h.y >= h.gy) { hzBoom(h.x, h.gy - 24, 80, { dmg: 15, kb: 7, ks: .12, ang: 80, fx: 'fire' }); h.dead = true; } }
+    } else if (h.k === 'bolt') {
+      if (h.t === 70) {
+        for (const f of G.fs) if (!f.dead && !f.out && Math.abs(f.x - h.x) < 38 + BW(f) && f.y > h.gy - 700 && f.y <= h.gy + 4) applyHit(null, f, { dmg: 13, kb: 6, ks: .12, ang: 75, fx: 'elec' }, h.x, f.y - BH(f) / 2, sgn(f.x - h.x) || 1);
+        spark(h.x, h.gy, 18, '#ffe94a', 8, 22); G.shake = Math.max(G.shake, 6); if (hzNear(h.x)) { G.flash = Math.max(G.flash, 4); noise(.4, .2, 1800); }
+      }
+      if (h.t > 88) h.dead = true;
+    } else if (h.k === 'ball') {
+      h.vy += .3; h.x += h.vx; h.y += h.vy;
+      for (const f of G.fs) if (!f.dead && !f.out && f.state !== 'respawn' && circleRect(h.x, h.y, 18, boxOf(f))) { hzBoom(h.x, h.y, 50, { dmg: 13, kb: 6.5, ks: .11, ang: 50, fx: 'fire' }); h.dead = true; break; }
+      const gp = groundAt(h.x);
+      if (!h.dead && (gp && h.y >= gp.y && h.y < gp.y + 30 || st.plats.some(p => inSolid(p, h.x, h.y)))) { hzBoom(h.x, h.y - 10, 60, { dmg: 13, kb: 6.5, ks: .11, ang: 60, fx: 'fire' }); h.dead = true; }
+      if (h.t > 320 || h.y > st.blast.b) h.dead = true;
+    }
+  }
+  G.hz = G.hz.filter(h => !h.dead);
+  // 強風
+  const Wd = G.wind;
+  if (Wd) {
+    Wd.t++;
+    if (Wd.s === 'idle' && Wd.t > Wd.next) { Wd.s = 'warn'; Wd.t = 0; Wd.dir = Math.random() < .5 ? -1 : 1; popText(G.cam.x, G.cam.y - 170, (Wd.dir > 0 ? '→→ ' : '←← ') + '強風注意！', '#bfe8ff', 24, 90); sfx.alarm(); }
+    else if (Wd.s === 'warn' && Wd.t > 90) { Wd.s = 'blow'; Wd.t = 0; noise(1.5, .08, 400); }
+    else if (Wd.s === 'blow') {
+      for (const f of G.fs) if (!f.dead && !f.out && f.state !== 'respawn' && f.state !== 'hang' && f.state !== 'grabbed') f.vx += Wd.dir * (f.ground ? .2 : .27) * 100 / weightOf(f);
+      if (Wd.t > 260) { Wd.s = 'idle'; Wd.t = 0; Wd.next = rnd(650, 1000); }
+    }
+  }
+  // 電車
+  const T = G.train, R = st.train;
+  if (T) {
+    T.t++;
+    if (T.s === 'idle' && T.t > T.next) { T.s = 'warn'; T.t = 0; T.dir = Math.random() < .5 ? 1 : -1; if (hzNear(0) || Math.abs(G.cam.x) < R.x2) { sfx.alarm(); popText(G.cam.x, G.cam.y - 170, '🚃 電車がくるぞ！ 線路からはなれて！', '#ffd23f', 22, 100); } }
+    else if (T.s === 'warn' && T.t > 120) { T.s = 'run'; T.t = 0; T.x = T.dir > 0 ? R.x1 - 700 : R.x2 + 700; }
+    else if (T.s === 'run') {
+      T.x += T.dir * 26;
+      for (const f of G.fs) {
+        if (f.dead || f.out || f.state === 'respawn' || f.lavaCd > 0) continue;
+        if (f.x > R.x1 && f.x < R.x2 && Math.abs(f.x - T.x) < 300 && f.y > R.y - 120 && f.y <= R.y + 2) { f.lavaCd = 40; applyHit(null, f, { dmg: 18, kb: 8.5, ks: .13, ang: 38, fx: 'normal' }, T.x + T.dir * 300, f.y - 40, T.dir); }
+      }
+      if (T.dir > 0 ? T.x > R.x2 + 700 : T.x < R.x1 - 700) { T.s = 'idle'; T.t = 0; T.next = rnd(700, 1100); }
+    }
+  }
+}
+// ---- 描画
+function drawGimmicks() {
+  const st = G.st, V = G.view, t = G.t;
+  for (const p of st.plats) {
+    if (V && (p.x2 < V.l || p.x1 > V.r)) continue;
+    const w = p.x2 - p.x1;
+    if (p.conv) {
+      // ベルトの矢印
+      g.save(); g.beginPath(); g.rect(p.x1, p.y - 2, w, 14); g.clip();
+      g.fillStyle = '#2a2a34'; g.fillRect(p.x1, p.y - 1, w, 12);
+      g.fillStyle = 'rgba(255,210,63,.85)'; const off = ((t * p.conv) % 40 + 40) % 40, d = sgn(p.conv);
+      for (let x = p.x1 - 40 + off; x < p.x2 + 40; x += 40) { g.beginPath(); g.moveTo(x - 8 * d, p.y + 1); g.lineTo(x + 4 * d, p.y + 5); g.lineTo(x - 8 * d, p.y + 9); g.lineTo(x - 2 * d, p.y + 5); g.closePath(); g.fill(); }
+      g.restore();
+    }
+    if (p.crumble) {
+      if (p.gone > 0) { g.setLineDash([6, 6]); g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; g.strokeRect(p.x1, p.y, w, 10); g.setLineDash([]); }
+      else if (p.cr > 0) {
+        const k = p.cr / 80; g.strokeStyle = `rgba(40,20,10,${.4 + k * .5})`; g.lineWidth = 2; g.beginPath();
+        for (let i = 1; i < 1 + k * 6; i++) { const x = p.x1 + w * i / 7; g.moveTo(x, p.y); g.lineTo(x + 6, p.y + 6); g.lineTo(x - 3, p.y + 12); }
+        g.stroke(); if (k > .6 && t % 6 < 3) { g.fillStyle = 'rgba(255,80,40,.25)'; g.fillRect(p.x1, p.y - 2, w, 14); }
+      }
+    }
+  }
+  for (const sp of st.springs || []) {
+    if (V && (sp.x < V.l || sp.x > V.r)) continue;
+    const q = sp.a > 0 ? Math.sin(sp.a / 14 * Math.PI) : 0, hh = 12 + q * 14;
+    g.strokeStyle = '#8a8aa0'; g.lineWidth = 3; g.beginPath(); for (let i = 0; i <= 6; i++) g.lineTo(sp.x + (i % 2 ? 12 : -12), sp.y - i * hh / 6); g.stroke();
+    rr(sp.x - 22, sp.y - hh - 6, 44, 8, 4); fs_('#ff4a6a', 2); rr(sp.x - 18, sp.y - 4, 36, 6, 3); fs_('#5a5a6a', 1.5);
+  }
+  for (const w of st.warps || []) for (const a of [0, 2]) {
+    const x = w[a], y = w[a + 1] - 40; if (V && (x < V.l || x > V.r)) continue;
+    g.save(); g.translate(x, y);
+    const gr = g.createRadialGradient(0, 0, 4, 0, 0, 36); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(.4, 'rgba(200,120,255,.75)'); gr.addColorStop(1, 'rgba(120,40,220,0)');
+    g.fillStyle = gr; ell(0, 0, 30, 40); g.fill();
+    g.strokeStyle = '#e0b0ff'; g.lineWidth = 3; for (let i = 0; i < 3; i++) { g.beginPath(); g.ellipse(0, 0, 26 - i * 7, 36 - i * 10, 0, t * .08 + i * 2, t * .08 + i * 2 + 4); g.stroke(); }
+    g.restore();
+  }
+  for (const c of st.cannons || []) {
+    g.save(); g.translate(c.x, c.y); g.scale(c.dir, 1);
+    g.fillStyle = '#5a3a1a'; rr(-30, -18, 50, 18, 4); g.fill(); g.fillStyle = '#3a2a1a'; circ(-18, -6, 10); g.fill(); circ(10, -6, 10); g.fill();
+    g.save(); g.translate(0, -26); g.rotate(-.5); rr(-10 - (c.fire > 8 ? 6 : 0), -11, 62, 22, 9); fs_('#2a2a34', 2); g.fillStyle = '#4a4a5a'; g.fillRect(42 - (c.fire > 8 ? 6 : 0), -12, 8, 24); g.restore();
+    g.restore();
+  }
+  const R = st.train;
+  if (R) {
+    // 線路とトンネル
+    g.fillStyle = '#5a5a6a'; g.fillRect(R.x1, R.y - 4, R.x2 - R.x1, 4);
+    for (const x of [R.x1, R.x2]) { g.fillStyle = '#1a1a26'; rr(x - 40, R.y - 150, 80, 150, 30); g.fill(); g.strokeStyle = '#7a7a8a'; g.lineWidth = 6; g.stroke();
+      const on = G.train && G.train.s !== 'idle' && t % 20 < 10; g.fillStyle = on ? '#ff3a3a' : '#5a1a1a'; circ(x, R.y - 170, 9); g.fill(); }
+  }
+}
+function drawHazards() {
+  const t = G.t;
+  for (const h of G.hz || []) {
+    if (h.k === 'met') {
+      const k = Math.min(1, h.t / 80);
+      g.fillStyle = `rgba(255,40,20,${.2 + .3 * k + (t % 10 < 5 ? .15 : 0)})`; ell(h.x, h.gy, 30 + k * 50, 8 + k * 6); g.fill();
+      if (h.t > 50) {
+        const y = h.t > 80 ? h.y : h.gy - 1000 + (h.t - 50) * 2;
+        g.fillStyle = 'rgba(255,160,40,.5)'; g.beginPath(); g.moveTo(h.x - 26, y - 10); g.lineTo(h.x + 26, y - 10); g.lineTo(h.x + 6, y - 160); g.closePath(); g.fill();
+        g.save(); g.translate(h.x, y); g.rotate(t * .1); g.beginPath(); for (let i = 0; i < 8; i++) { const a = i * TAU / 8, q = 30 * (.85 + (i % 3) * .1); g.lineTo(Math.cos(a) * q, Math.sin(a) * q); } g.closePath(); fs_('#6a4a3a', 3); g.fillStyle = '#ff7a2a'; circ(6, 6, 7); g.fill(); g.restore();
+      }
+    } else if (h.k === 'bolt') {
+      if (h.t < 70) { g.fillStyle = `rgba(255,240,100,${.15 + (t % 8 < 4 ? .25 : .05)})`; g.fillRect(h.x - 38, h.gy - 700, 76, 700); }
+      else {
+        const a = 1 - (h.t - 70) / 18; g.globalAlpha = a;
+        g.strokeStyle = '#fffbe0'; g.lineWidth = 10; g.shadowColor = '#ffe94a'; g.shadowBlur = 24; g.beginPath();
+        let x = h.x; for (let y = h.gy - 900; y <= h.gy; y += 60) { g.lineTo(x, y); x = h.x + rnd(-26, 26); } g.lineTo(h.x, h.gy); g.stroke();
+        g.shadowBlur = 0; g.globalAlpha = 1;
+      }
+    } else if (h.k === 'ball') { circ(h.x, h.y, 16); fs_('#2a2a34', 2.5); g.fillStyle = 'rgba(255,255,255,.4)'; circ(h.x - 5, h.y - 5, 5); g.fill(); }
+  }
+  const T = G.train, R = G.st.train;
+  if (T && R && T.s === 'run') {
+    g.save(); g.beginPath(); g.rect(R.x1, R.y - 200, R.x2 - R.x1, 200); g.clip();
+    for (let i = 0; i < 3; i++) {
+      const cx = T.x - T.dir * i * 205, x = cx - 100;
+      rr(x, R.y - 112, 200, 104, 14); fs_(i === 0 ? '#e83a5a' : '#4a8aff', 3);
+      g.fillStyle = '#d8f0ff'; for (let k = 0; k < 4; k++) rr(x + 14 + k * 46, R.y - 96, 34, 34, 5), g.fill();
+      g.fillStyle = '#ffd23f'; g.fillRect(x, R.y - 52, 200, 8);
+      g.fillStyle = '#1a1a26'; circ(x + 40, R.y - 6, 12); g.fill(); circ(x + 160, R.y - 6, 12); g.fill();
+      if (i === 0) { g.fillStyle = 'rgba(255,250,200,.9)'; circ(cx + T.dir * 96, R.y - 34, 9); g.fill(); }
+    }
+    g.restore();
+  }
+}
+// 強風の線（画面全体）
+function drawWind() {
+  const Wd = G.wind; if (!Wd || Wd.s === 'idle') return;
+  const n = Wd.s === 'blow' ? 40 : 10, t = G.t;
+  g.strokeStyle = Wd.s === 'blow' ? 'rgba(230,245,255,.55)' : 'rgba(230,245,255,.25)'; g.lineWidth = 2;
+  for (let i = 0; i < n; i++) { const y = (i * 53) % H, x = ((i * 137 + t * 24 * Wd.dir) % (W + 200) + W + 200) % (W + 200) - 100; g.beginPath(); g.moveTo(x, y); g.lineTo(x - Wd.dir * (60 + i % 4 * 30), y); g.stroke(); }
+}
+// 広いステージのミニマップ
+function drawMinimap() {
+  const B = G.st.blast, mw = 300, mh = 46, mx = 10, my = touchMode ? (hudList().length > 8 ? 96 : hudList().length > 4 ? 52 : 86) : 8;
+  const X = x => mx + (x - B.l) / (B.r - B.l) * mw, Y = y => my + clamp((y + 700) / 1000, 0, 1) * mh;
+  g.fillStyle = 'rgba(8,10,30,.6)'; rr(mx, my, mw, mh, 8); g.fill(); g.strokeStyle = 'rgba(255,255,255,.4)'; g.lineWidth = 1.5; g.stroke();
+  for (const p of G.st.plats) { if (p.off) continue; g.fillStyle = p.t === 'solid' ? 'rgba(200,220,255,.7)' : 'rgba(200,220,255,.35)'; g.fillRect(X(p.x1), Y(p.y), Math.max(1, X(p.x2) - X(p.x1)), p.t === 'solid' ? 3 : 1.5); }
+  const c = G.cam; g.strokeStyle = 'rgba(255,255,255,.7)'; g.strokeRect(X(c.x - W / 2 / c.z), my + 1, X(c.x + W / 2 / c.z) - X(c.x - W / 2 / c.z), mh - 2);
+  for (const f of G.fs) {
+    if (f.dead || f.out) continue;
+    const me = isLocal(f); g.fillStyle = f.npc ? 'rgba(200,200,220,.7)' : tagOf(f).c;
+    circ(X(f.x), Y(f.y), me ? 4 : f.npc ? 1.5 : 2.5); g.fill(); if (me) { g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.stroke(); }
+  }
+}
 function updateHazards() {
   const L = G.lava; if (!L) return;
   L.t++;
@@ -2175,7 +2491,7 @@ function updateProjs() {
     }
     if (p.ground && !p.landed) p.gx = .6;
     if (p.dead) continue;
-    for (const s of G.st.plats) if (s.t === 'solid' && p.x > s.x1 && p.x < s.x2 && p.y > s.y + 2 && p.y < s.y + s.h) { killProj(p); break; }
+    for (const s of G.st.plats) if (inSolid(s, p.x, p.y, 2)) { killProj(p); break; }
     if (!p.dead && (p.life <= 0 || p.x < bl.l - 100 || p.x > bl.r + 100 || p.y > bl.b + 100 || p.y < bl.t - 400)) killProj(p);
     if (p.dead) continue;
     for (const o of G.fs) {
@@ -2216,8 +2532,8 @@ function chooseTarget(f) {
 }
 function isOffstage(o) {
   if (o.ground) return false;
-  const overSolid = G.st.plats.some(p => p.t === 'solid' && o.x > p.x1 - 6 && o.x < p.x2 + 6);
-  return o.y > 30 || (!overSolid && o.y > -220 && !G.st.plats.some(p => p.t === 'soft' && o.x > p.x1 && o.x < p.x2 && o.y < p.y + 10 && o.y > p.y - 140));
+  // 下に足場があるか（地面は遠くても可、すり抜け床は近いときだけ）
+  return !G.st.plats.some(p => !p.off && o.x > p.x1 - 6 && o.x < p.x2 + 6 && o.y <= p.y + 4 && p.y - o.y < (p.t === 'solid' ? 3000 : 150));
 }
 function aiThink(f) {
   const a = f.ai, inp = f.inp, w = f.want, lv = a.lv, c = f.c;
@@ -2283,6 +2599,12 @@ function aiThink(f) {
     }
     return;
   }
+  // ---- ステージギミックよけ
+  if (lv >= 2 && f.ground) {
+    const T = G.train;
+    if (T && f.ground.road && (T.s === 'warn' || T.s === 'run' && sgn(f.x - T.x) === T.dir && Math.abs(f.x - T.x) < 700)) { w.jump = 3; inp.x = sgn(f.x) || 1; a.hold = 4; return; }
+    for (const h of G.hz) if ((h.k === 'met' || h.k === 'bolt') && h.t > 15 && Math.abs(h.x - f.x) < 120) { inp.x = sgn(f.x - h.x) || 1; a.hold = 5; return; }
+  }
   let tgt = a.tgt;
   if (!tgt || tgt.dead || tgt.out || --a.retarget <= 0) { tgt = a.tgt = chooseTarget(f); a.retarget = 120 + rnd(0, 140); }
   if (!tgt) return;
@@ -2312,7 +2634,11 @@ function aiThink(f) {
   if (!near) {
     inp.x = dirT * (lv === 1 ? .7 : 1);
     if (f.ground && f.ground.t === 'solid' && lv >= 2 && !isOffstage(tgt)) {
-      const nx = f.x + dirT * 55; if ((nx < f.ground.x1 + 14 || nx > f.ground.x2 - 14) && Math.abs(dy) < 140) inp.x = 0;
+      const nx = f.x + dirT * 55;
+      if ((nx < f.ground.x1 + 14 || nx > f.ground.x2 - 14) && Math.abs(dy) < 140) {
+        // 広いステージでは谷をジャンプでこえて追いかける
+        if (G.st.huge && ad > 220 && groundAt(f.x + dirT * 260)) w.jump = 3; else inp.x = 0;
+      }
     }
     if (f.ground && f.runT > 10 && ad < 130 && Math.abs(dy) < 40 && a.cd <= 0 && Math.random() < .08 * lv) { inp.x = dirT; w.atk = 3; a.cd = 30; a.hold = 2; return; }
     if (dy < -80 && f.ground && ad < 200 && Math.random() < .06 * lv) w.jump = 3;
@@ -2424,7 +2750,7 @@ function stepBattle() {
     clearEdges(); if (G.net) netHostSend(); return;
   }
   if (G.slow > 0) { G.slow--; G.slowTick = (G.slowTick + 1) % 4; if (G.slowTick !== 0) { updateCamera(); if (G.net) netHostSend(); return; } }
-  G.t++;
+  G.t++; sfxN = 0;
   if (G.shake > 0) { G.shake *= .86; if (G.shake < .3) G.shake = 0; }
   if (G.flash > 0) G.flash--; if (G.dark > 0) G.dark--;
   updatePlats();
@@ -2452,7 +2778,7 @@ function stepBattle() {
     updateFighter(f);
     if (f.lag <= 0) for (const k in f.want) if (f.want[k] > 0) f.want[k]--;
   }
-  updateProjs(); updateItems(); updateHelpers(); updateHazards(); if (G.hr) hrStep(); updateParticles(); updateCamera();
+  updateProjs(); updateItems(); updateHelpers(); updateHazards(); updateGimmicks(); if (G.hr) hrStep(); updateParticles(); updateCamera();
   if (G.comboShow && --G.comboShow.t <= 0) G.comboShow = null;
   if (G.over) {
     G.endT++;
@@ -2471,13 +2797,25 @@ function updateParticles() {
     if (p.rot !== undefined && (p.k === 'shard' || p.k === 'leaf')) p.rot += .2;
   }
   G.parts = G.parts.filter(p => p.life > 0);
-  if (G.parts.length > 900) G.parts.splice(0, G.parts.length - 900);
+  const pcap = G.fs.length > 40 ? 380 : 900;
+  if (G.parts.length > pcap) G.parts.splice(0, G.parts.length - pcap);
 }
 function updateCamera() {
   const c = G.cam;
   if (G.slow > 0 && G.slowF && !G.slowF.dead) { const f = G.slowF; c.x += (f.x - c.x) * .18; c.y += (f.y - 40 - c.y) * .18; c.z += (1.3 - c.z) * .15; return; }
   if (G.hr && G.hr.phase !== 'hit') { const f = G.hr.bag; c.x += (f.x - c.x) * .15; c.y += (clamp(f.y - 60, -900, 120) - c.y) * .12; c.z += (.62 - c.z) * .05; return; }
-  const al = G.fs.filter(f => !f.out && !f.dead);
+  let al = G.fs.filter(f => !f.out && !f.dead);
+  // NPCがいるときや広いステージでは、自分（いなければプレイヤー枠のキャラ）を中心に映す
+  if (G.npcN || G.st.huge) {
+    const mine = al.filter(isLocal), main = al.filter(f => !f.npc);
+    let foc = mine.length ? mine : main.length ? main : al;
+    if (G.st.huge && !mine.length && foc.length) {
+      if (!G.camF || G.camF.out || G.camF.dead || !foc.includes(G.camF)) G.camF = foc[0];
+      foc = [G.camF];
+    }
+    if (G.st.huge) foc = al.filter(o => foc.includes(o) || foc.some(q => Math.abs(q.x - o.x) < 420 && Math.abs(q.y - o.y) < 300));
+    al = foc;
+  }
   let mnx = -260, mxx = 260, mny = -200, mxy = 40;
   if (al.length) {
     mnx = 1e9; mxx = -1e9; mny = 1e9; mxy = -1e9;
@@ -2485,12 +2823,16 @@ function updateCamera() {
     for (const f of al) { const x = clamp(f.x, B.l + 80, B.r - 80), y = clamp(f.y, Math.max(-620, B.t + 80), 420); mnx = Math.min(mnx, x); mxx = Math.max(mxx, x); mny = Math.min(mny, y - BH(f) - 20); mxy = Math.max(mxy, y); }
   }
   // 人数が多いとHUDが2段になるので、そのぶん画面を上にずらす
-  const pad = G.demo ? 0 : G.fs.length > 8 ? 110 : G.fs.length > 4 ? 60 : 0;
+  const hn = hudList().length, pad = G.demo ? 0 : hn > 8 ? 110 : hn > 4 ? 60 : 0;
   const z = clamp(Math.min(W / (mxx - mnx + 520), (H - pad) / (mxy - mny + 340)), G.st.zmin || .48, 1.05);
   const tx = (mnx + mxx) / 2, ty = (mny + mxy) / 2 - 10 + (touchMode ? -pad : pad) * .5 / z;
   c.x += (tx - c.x) * .08; c.y += (ty - c.y) * .08; c.z += (z - c.z) * .06;
-  c.y = clamp(c.y, -320, 140 + pad);
+  c.y = G.st.huge ? clamp(c.y, G.st.blast.t + 300, G.st.blast.b - 200) : clamp(c.y, -320, 140 + pad);
 }
+// この端末で操作しているキャラか
+function isLocal(f) { return G.netClient ? f.remote === NET.id : f.human && !f.remote; }
+// HUDに出すキャラ（NPCは数だけ表示）
+function hudList() { return G.multi ? G.fs.filter(f => f.human) : G.hr ? [G.fs[1]] : G.fs.filter(f => !f.npc); }
 function togglePause() {
   if (scene !== 'battle' || !G || G.demo || G.over) return;
   if (G.net || G.netClient) { G.leaveAsk = !G.leaveAsk; sfx.select(); return; }
@@ -3026,6 +3368,29 @@ function drawGhost(c, L, P, s, opt) {
 // =====================================================================
 //  ファイター（ワールド座標）
 // =====================================================================
+// ---- 軽い描画：NPCがたくさん映るときは、キャラの絵を先に作っておいて貼るだけにする
+const SPR = new Map();
+function sprPose(k) {
+  const P = idlePose(0);
+  if (k === 'a') return attackPose('punch', .7, P);
+  if (k === 'h') return attackPose('scare', .5, P);
+  if (k === 'j') return { ...attackPose('rise', .5, P), lF: { a: .7, e: .8 }, lB: { a: -.2, e: .8 } };
+  if (k === 'r0' || k === 'r1') { const d = k === 'r0' ? 1 : -1; return { ...P, lF: { a: .7 * d, e: 1 }, lB: { a: -.7 * d, e: 1 }, aF: { a: -.6 * d, e: 1 }, aB: { a: .6 * d, e: 1 }, lean: .12 }; }
+  return P;
+}
+function drawSprite(f, P) {
+  const st = f.state, k = st === 'atk' ? 'a' : st === 'stun' ? 'h' : !f.ground ? 'j' : Math.abs(f.vx) > 1 ? (Math.sin(f.anim * 1.1) > 0 ? 'r0' : 'r1') : 'g';
+  const key = f.ci + '_' + (f.alt || 0) + '_' + k;
+  let cv = SPR.get(key);
+  if (!cv) {
+    cv = document.createElement('canvas'); cv.width = 132; cv.height = 138;
+    const save = g; g = cv.getContext('2d'); g.scale(.6, .6); g.translate(110, 200);
+    try { drawChar(f.c, sprPose(k), { look: f.c.looks[f.alt || 0] }); } finally { g = save; }
+    SPR.set(key, cv);
+  }
+  g.save(); if (P.rot) { g.translate(0, -BH(f) / 2 / f.szv); g.rotate(P.rot); g.translate(0, BH(f) / 2 / f.szv); }
+  g.drawImage(cv, -110, -200 + (P.bob || 0), 220, 230); g.restore();
+}
 function drawFighter(f) {
   if (f.dead || f.out) return;
   const c = f.c, P = poseOf(f), sz = f.szv;
@@ -3049,7 +3414,8 @@ function drawFighter(f) {
   if (f.metal) g.filter = 'grayscale(1) brightness(1.25) contrast(1.2)';
   const hamA = f.hammer > 0 ? Math.sin(f.t / 16 * TAU) * 1.6 - .2 : 0;
   const Pp = f.hammer > 0 ? { ...P, aF: { a: Math.PI - hamA * .3 + .2, e: 1.1 } } : P;
-  drawChar(c, Pp, { item: f.item ? f.item.type : null, hammer: f.hammer > 0, hammerA: hamA, look: c.looks[f.alt || 0] });
+  if (G.lod && f.npc && !f.item && f.hammer <= 0) drawSprite(f, P);
+  else drawChar(c, Pp, { item: f.item ? f.item.type : null, hammer: f.hammer > 0, hammerA: hamA, look: c.looks[f.alt || 0] });
   g.filter = 'none'; g.shadowBlur = 0;
   if (f.metal) { g.globalAlpha = .18 * alpha; g.fillStyle = '#ffffff'; ell(-4, -c.bh * .6, c.bw * .5, c.bh * .25, -.4); g.fill(); }
   g.globalAlpha = 1;
@@ -3067,8 +3433,9 @@ function drawFighter(f) {
     const cc = c.cols[f.alt || 0]; gr.addColorStop(0, hexA(cc, .1)); gr.addColorStop(1, hexA(cc, .55));
     g.fillStyle = gr; circ(f.x, cy, rad); g.fill(); g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2; g.stroke();
   }
-  // 名前マーカー
-  if (!G.demo && !f.dummy && !(G.multi && !f.human)) {
+  // 名前マーカー（NPCが多いときは小さな印だけ）
+  if (G.lod && f.npc) { g.fillStyle = tagOf(f).c; const my = f.y - BH(f) - 10; g.beginPath(); g.moveTo(f.x, my); g.lineTo(f.x - 4, my - 7); g.lineTo(f.x + 4, my - 7); g.closePath(); g.fill(); }
+  else if (!G.demo && !f.dummy && !(G.multi && !f.human)) {
     const tg = tagOf(f), my = f.y - BH(f) - 16;
     g.fillStyle = tg.c; g.beginPath(); g.moveTo(f.x, my); g.lineTo(f.x - 6, my - 10); g.lineTo(f.x + 6, my - 10); g.closePath(); g.fill();
     txt(tg.t === 'CPU' ? 'CP' : tg.t, f.x, my - 19, 13, tg.c, 'center', '#000', 3);
@@ -3461,7 +3828,9 @@ function drawGear(x, y, R, a, col) {
   g.closePath(); g.fill(); g.globalCompositeOperation = 'destination-out'; circ(0, 0, R * .35); g.fill(); g.globalCompositeOperation = 'source-over'; g.restore();
 }
 function drawStage(st) {
+  const V = G && G.view && st === G.st ? G.view : null;
   for (const p of st.plats) {
+    if (V && (p.x2 < V.l - 200 || p.x1 > V.r + 200) || p.gone > 0) continue;
     const w = p.x2 - p.x1;
     if (p.t === 'solid') {
       const depth = p.h * .8, mx = (p.x1 + p.x2) / 2;
@@ -3473,11 +3842,16 @@ function drawStage(st) {
         continue;
       }
       if (p.wall) { g.fillStyle = 'rgba(120,220,255,.25)'; g.fillRect(p.x1, p.y, w, p.h); g.strokeStyle = 'rgba(160,240,255,.8)'; g.lineWidth = 2; g.strokeRect(p.x1, p.y, w, p.h); continue; }
+      if (p.road) {
+        g.fillStyle = '#3a3a4a'; g.fillRect(p.x1, p.y, w, p.h + 300); g.fillStyle = '#2a2a38'; for (let x = p.x1 + 100; x < p.x2; x += 300) g.fillRect(x, p.y + 30, 40, p.h + 270);
+        g.fillStyle = '#4a4a5a'; g.fillRect(p.x1, p.y, w, 22); g.fillStyle = '#ffe14a'; for (let x = p.x1 + 20; x < p.x2; x += 80) g.fillRect(x, p.y + 9, 40, 4);
+        g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 3; g.strokeRect(p.x1, p.y, w, p.h + 300); continue;
+      }
       if (p.ship) {
-        g.beginPath(); g.moveTo(p.x1 - 40, p.y - 10); g.lineTo(p.x2 + 40, p.y - 10); g.lineTo(p.x2 - 30, p.y + 110); g.lineTo(p.x1 + 30, p.y + 110); g.closePath(); fs_('#8a4a22', 3);
-        g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; for (let y = p.y + 20; y < p.y + 100; y += 22) { g.beginPath(); g.moveTo(p.x1 - 20, y); g.lineTo(p.x2 + 20, y); g.stroke(); }
-        g.fillStyle = '#ffd23f'; for (let x = p.x1 + 40; x < p.x2 - 20; x += 90) { circ(x, p.y + 50, 9); g.fill(); g.fillStyle = '#2a1a0a'; circ(x, p.y + 50, 5); g.fill(); g.fillStyle = '#ffd23f'; }
-        rr(p.x1 - 6, p.y - 4, w + 12, 12, 4); g.fillStyle = '#c98a4a'; g.fill();
+        g.beginPath(); g.moveTo(p.x1, p.y); g.lineTo(p.x2, p.y); g.lineTo(p.x2 - 70, p.y + 110); g.lineTo(p.x1 + 70, p.y + 110); g.closePath(); fs_('#8a4a22', 3);
+        g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; for (let y = p.y + 20; y < p.y + 100; y += 22) { const k = 70 * (y - p.y) / 110; g.beginPath(); g.moveTo(p.x1 + k, y); g.lineTo(p.x2 - k, y); g.stroke(); }
+        g.fillStyle = '#ffd23f'; for (let x = p.x1 + 70; x < p.x2 - 50; x += 90) { circ(x, p.y + 50, 9); g.fill(); g.fillStyle = '#2a1a0a'; circ(x, p.y + 50, 5); g.fill(); g.fillStyle = '#ffd23f'; }
+        rr(p.x1, p.y - 2, w, 10, 4); g.fillStyle = '#c98a4a'; g.fill();
         g.fillStyle = '#6a3a1a'; g.fillRect((p.x1 + p.x2) / 2 - 7, p.y - 340, 14, 340);
         g.fillStyle = 'rgba(255,250,235,.95)'; g.beginPath(); g.moveTo((p.x1 + p.x2) / 2 + 8, p.y - 320); g.quadraticCurveTo((p.x1 + p.x2) / 2 + 150, p.y - 250, (p.x1 + p.x2) / 2 + 8, p.y - 230); g.fill();
         g.fillStyle = '#ff4a4a'; g.beginPath(); g.moveTo((p.x1 + p.x2) / 2, p.y - 340); g.lineTo((p.x1 + p.x2) / 2 + 40, p.y - 330); g.lineTo((p.x1 + p.x2) / 2, p.y - 320); g.fill();
@@ -3492,7 +3866,7 @@ function drawStage(st) {
       g.beginPath(); g.moveTo(p.x1, p.y);
       if (st.bg === 'factory') { g.lineTo(p.x2, p.y); g.lineTo(p.x2 - 20, p.y + depth * .5); g.lineTo(p.x1 + 20, p.y + depth * .5); }
       else if (p.roof || p.tower) { g.lineTo(p.x2, p.y); g.lineTo(p.x2 - 8, p.y + p.h + 300); g.lineTo(p.x1 + 8, p.y + p.h + 300); }
-      else { g.lineTo(p.x2, p.y); g.quadraticCurveTo(p.x2 - w * .1, p.y + depth * .55, mx + w * .08, p.y + depth); g.quadraticCurveTo(p.x1 + w * .1, p.y + depth * .55, p.x1, p.y); }
+      else { g.lineTo(p.x2, p.y); g.quadraticCurveTo(p.x2 - w * .1, p.y + depth * .55, mx, p.y + depth); g.quadraticCurveTo(p.x1 + w * .1, p.y + depth * .55, p.x1, p.y); }
       g.closePath(); g.fillStyle = gr; g.fill(); g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.35)'; g.stroke();
       if (st.bg === 'factory') {
         g.fillStyle = '#ffd23f'; for (let x = p.x1; x < p.x2; x += 28) { g.beginPath(); g.moveTo(x, p.y + 12); g.lineTo(x + 14, p.y + 12); g.lineTo(x + 24, p.y + 24); g.lineTo(x + 10, p.y + 24); g.closePath(); g.fill(); }
@@ -3540,7 +3914,7 @@ function drawStage(st) {
         rr(p.x1, p.y, w, 12, 4); g.fillStyle = '#3a2222'; g.fill(); g.fillStyle = '#ff7a3a'; g.fillRect(p.x1 + 6, p.y + 9, w - 12, 2);
       } else if (st.bg === 'sky') {
         g.globalAlpha = p.off ? .18 : p.warn && G.t % 10 < 5 ? .45 : 1;
-        g.fillStyle = '#ffffff'; for (let i = 0; i <= 4; i++) { ell(p.x1 + w * i / 4, p.y + 6, w / 6, 11); g.fill(); } ell(p.x1 + w / 2, p.y + 2, w / 3, 14); g.fill();
+        g.fillStyle = '#ffffff'; for (let i = 0; i <= 4; i++) { ell(p.x1 + w / 6 + (w * 2 / 3) * i / 4, p.y + 6, w / 6, 11); g.fill(); } ell(p.x1 + w / 2, p.y + 2, w / 3, 14); g.fill();
         g.fillStyle = 'rgba(160,200,230,.5)'; ell(p.x1 + w / 2, p.y + 14, w / 2.2, 5); g.fill();
         g.globalAlpha = 1;
       } else { g.fillStyle = '#c98a4a'; rr(p.x1, p.y, w, 10, 4); g.fill(); g.fillStyle = '#e8b070'; rr(p.x1 + 3, p.y + 1, w - 6, 3, 2); g.fill(); g.fillStyle = '#7a4a22'; g.fillRect(p.x1 + 8, p.y + 10, 6, 7); g.fillRect(p.x2 - 14, p.y + 10, 6, 7); }
@@ -3577,16 +3951,24 @@ function drawWorld() {
   g.save();
   const sx = shk ? rnd(-shk, shk) : 0, sy = shk ? rnd(-shk, shk) : 0;
   g.translate(W / 2 + sx, H * .58 + sy); g.scale(cam.z, cam.z); g.translate(-cam.x, -cam.y);
+  // 画面に映る範囲（外のものは描かない）
+  const V = G.view = { l: cam.x - W / 2 / cam.z - 160, r: cam.x + W / 2 / cam.z + 160, t: cam.y - H * .58 / cam.z - 260, b: cam.y + H * .42 / cam.z + 200 };
+  const vis = f => f.x > V.l && f.x < V.r && f.y > V.t && f.y < V.b;
+  G.lod = G.fs.filter(f => f.npc && !f.out && !f.dead && vis(f)).length > 12;
   drawStage(G.st);
+  drawGimmicks();
   if (G.dark > 0) { g.fillStyle = `rgba(10,0,30,${Math.min(.75, G.dark / 30)})`; g.fillRect(cam.x - 2000, cam.y - 2000, 4000, 4000); }
   drawItems(); drawHelpers();
   for (const p of G.projs) drawProj(p);
-  for (const f of G.fs) drawFighter(f);
-  for (const f of G.fs) drawHitboxes(f);
+  for (const f of G.fs) if (vis(f)) drawFighter(f);
+  for (const f of G.fs) if (vis(f)) drawHitboxes(f);
+  drawHazards();
   if (G.lava) drawLava();
   drawParticles();
   g.restore();
+  drawWind();
   drawBubbles();
+  if (G.st.huge) drawMinimap();
   drawScreenFx();
   if (G.flash > 0) { g.fillStyle = `rgba(255,255,255,${G.flash / 12})`; g.fillRect(0, 0, W, H); }
 }
@@ -3594,7 +3976,7 @@ function drawWorld() {
 function drawBubbles() {
   const cam = G.cam;
   for (const f of G.fs) {
-    if (f.dead || f.out) continue;
+    if (f.dead || f.out || f.npc || G.st.huge && !isLocal(f)) continue;
     const sx = W / 2 + (f.x - cam.x) * cam.z, sy = H * .58 + (f.y - BH(f) / 2 - cam.y) * cam.z;
     if (sx > -10 && sx < W + 10 && sy > -10 && sy < H + 10) continue;
     const bx = clamp(sx, 36, W - 36), by = clamp(sy, 36, H - 36);
@@ -3604,7 +3986,7 @@ function drawBubbles() {
 }
 function pctColor(p) { return p < 35 ? '#ffffff' : p < 80 ? '#ffe9a0' : p < 130 ? '#ffb347' : p < 190 ? '#ff6a3a' : '#d81818'; }
 function drawHUD() {
-  const list = G.multi ? G.fs.filter(f => f.human) : G.hr ? [G.fs[1]] : G.fs;
+  const list = hudList();
   const top = touchMode;
   if (list.length > 4) { drawHUDSmall(list, top); drawHUDTop(top ? (list.length > 8 ? 96 : 54) + 40 : 26, top); return; }
   const n = list.length, pw = Math.min(214, (W - 40) / n - 8), gap = 8, x0 = (W - (n * pw + (n - 1) * gap)) / 2;
@@ -3648,6 +4030,7 @@ function drawHUDSmall(list, top) {
   });
 }
 function drawHUDTop(ty, top) {
+  if (G.npcN) { const left = G.fs.filter(f => f.npc && !f.out).length; txt('NPC のこり ' + left + ' / ' + G.npcN, W - 62, top ? ty + 30 : 24, 15, '#c8d0ff', 'right', '#000', 4); }
   if (G.rule === 'time' && !G.sudden) {
     const s = Math.max(0, Math.ceil(G.timeLeft / 60)), mm = Math.floor(s / 60), ss = s % 60;
     txt(mm + ':' + (ss < 10 ? '0' : '') + ss, W / 2, ty, 30, s <= 10 ? '#ff5a5a' : '#ffffff', 'center', '#000', 6);
@@ -3898,7 +4281,7 @@ function drawSelect() {
     button(562, 10, 40, 30, '＋', () => setCount(cfg.n + 1), { size: 18 });
     ui.push({ x: 466, y: 8, w: 92, h: 34, fn: () => setCount(cfg.n >= MAXF ? 2 : cfg.n < 4 ? 4 : cfg.n < 8 ? 8 : MAXF) });
   }
-  if (cfg.mode === 'vs') button(612, 8, 180, 34, 'ルール：' + (cfg.rule === 'stock' ? 'ストック' + cfg.stocks : 'タイム' + cfg.time + '分') + (cfg.team ? '・チーム' : ''), () => { cfg.showRules = true; }, { size: 13 });
+  if (cfg.mode === 'vs') button(612, 8, 180, 34, 'ルール：' + (cfg.rule === 'stock' ? 'ストック' + cfg.stocks : 'タイム' + cfg.time + '分') + (cfg.team ? '・チーム' : '') + (cfg.npc ? '・NPC' + cfg.npc : ''), () => { cfg.showRules = true; }, { size: 13 });
   button(800, 6, 150, 38, cfg.mode === 'online' ? 'けってい ▶' : 'つぎへ ▶', selectNext, { primary: 1, size: 18 });
   const cols = 9, cw = 99, ch = 84, x0 = 12, y0 = 50;
   const cur = cfg.slots[cfg.cur];
@@ -3987,8 +4370,8 @@ function drawMoveList(c) {
 function drawRules() {
   ui.length = 0;
   g.fillStyle = 'rgba(0,0,12,.84)'; g.fillRect(0, 0, W, H);
-  g.fillStyle = 'rgba(20,26,60,.97)'; rr(130, 24, 700, 496, 18); g.fill(); g.strokeStyle = '#6b78c4'; g.lineWidth = 3; g.stroke();
-  txt('ルール', W / 2, 54, 26, '#ffe14a', 'center', '#000', 5);
+  g.fillStyle = 'rgba(20,26,60,.97)'; rr(130, 8, 700, 526, 18); g.fill(); g.strokeStyle = '#6b78c4'; g.lineWidth = 3; g.stroke();
+  txt('ルール', W / 2, 32, 24, '#ffe14a', 'center', '#000', 5);
   const rows = [
     ['ルール', [['ストック', 'stock'], ['タイム', 'time']], 'rule'],
     cfg.rule === 'stock' ? ['ストック', [['1', 1], ['2', 2], ['3', 3], ['5', 5]], 'stocks'] : ['じかん', [['1分', 1], ['2分', 2], ['3分', 3], ['5分', 5]], 'time'],
@@ -3998,18 +4381,30 @@ function drawRules() {
     ['スペシャル', null, 'special'],
     ['上でジャンプ', [['する', true], ['しない', false]], 'tapJump']
   ];
+  if (scene !== 'lobby') rows.push(['プレイヤー枠', 'n', 'n'], ['NPCの数', 'npc', 'npc'], ['NPCのストック', [['1つ', 1], ['ルールと同じ', 0]], 'npcStock']);
+  const step = scene !== 'lobby' ? 42 : 56;
   rows.forEach((r, i) => {
-    const y = 82 + i * 56;
-    txt(r[0], 164, y + 19, 17, '#7fe0ff', 'left');
+    const y = 52 + i * step;
+    if (r[1] === 'n' || r[1] === 'npc') {
+      // 数の設定：−10 −1 [値] +1 +10
+      txt(r[0], 164, y + 17, 16, '#7fe0ff', 'left');
+      const k = r[1], mx = k === 'n' ? MAXF : MAXNPC, mn = k === 'n' ? 2 : 0, set = v => { if (k === 'n') setCount(clamp(v, mn, mx)); else { cfg.npc = clamp(v, mn, mx); saveCfg(); } };
+      [[-10, 320], [-1, 384]].forEach(([d, x]) => button(x, y, 56, 34, String(d), () => set(cfg[k] + d), { size: 15 }));
+      g.fillStyle = 'rgba(8,10,30,.8)'; rr(448, y, 214, 34, 8); g.fill();
+      txt(cfg[k] + '人' + (k === 'n' ? '（最大' + MAXF + '）' : '（最大' + MAXNPC + '）'), 555, y + 17, 17, '#ffe14a', 'center', '#000', 3);
+      [[1, 670], [10, 734]].forEach(([d, x]) => button(x, y, 56, 34, '+' + d, () => set(cfg[k] + d), { size: 15 }));
+      return;
+    }
+    txt(r[0], 164, y + 17, 16, '#7fe0ff', 'left');
     if (!r[1]) {
       const idx = SPECIALS.findIndex(q => q[0] === cfg.special);
-      button(320, y, 470, 38, '◀  ' + SPECIALS[Math.max(0, idx)][1] + '  ▶', () => { cfg.special = SPECIALS[(Math.max(0, idx) + 1) % SPECIALS.length][0]; saveCfg(); }, { sel: cfg.special !== 'none', size: 16 });
+      button(320, y, 470, 34, '◀  ' + SPECIALS[Math.max(0, idx)][1] + '  ▶', () => { cfg.special = SPECIALS[(Math.max(0, idx) + 1) % SPECIALS.length][0]; saveCfg(); }, { sel: cfg.special !== 'none', size: 16 });
       return;
     }
     const n = r[1].length, bw = Math.floor((470 - (n - 1) * 8) / n);
-    r[1].forEach((o, k) => button(320 + k * (bw + 8), y, bw, 38, o[0], () => { cfg[r[2]] = o[1]; saveCfg(); }, { sel: cfg[r[2]] === o[1], size: 15 }));
+    r[1].forEach((o, k) => button(320 + k * (bw + 8), y, bw, 34, o[0], () => { cfg[r[2]] = o[1]; saveCfg(); }, { sel: cfg[r[2]] === o[1], size: 15 }));
   });
-  button(W / 2 - 100, 470, 200, 42, 'とじる', () => { cfg.showRules = false; saveCfg(); if (scene === 'lobby') netLobbyBroadcast(); }, { primary: 1 });
+  button(W / 2 - 100, 486, 200, 40, 'とじる', () => { cfg.showRules = false; saveCfg(); if (scene === 'lobby') netLobbyBroadcast(); }, { primary: 1 });
 }
 
 // =====================================================================
@@ -4019,14 +4414,14 @@ function drawStageSelect() {
   menuBG('#1a3a5a', '#0a1428');
   button(10, 8, 96, 34, '◀ もどる', () => { scene = 'select'; }, { size: 15, back: 1 });
   txt('ステージをえらぼう（タップでスタート）', 120, 25, 20, '#fff', 'left', '#000', 5);
-  const cols = 4, cw = 228, ch = 118, gap = 6, x0 = (W - (cols * cw + (cols - 1) * gap)) / 2;
+  const cols = 5, cw = 184, ch = 118, gap = 6, x0 = (W - (cols * cw + (cols - 1) * gap)) / 2;
   for (let i = 0; i <= STAGES.length; i++) {
     const x = x0 + (i % cols) * (cw + gap), y = 48 + ((i / cols) | 0) * (ch + gap), rand = i === STAGES.length;
     const sel = rand ? cfg.stage < 0 : cfg.stage === i;
     ui.push({ x, y, w: cw, h: ch, fn: () => { cfg.stage = rand ? -1 : i; saveCfg(); sfx.select(); startGame(); } });
     g.fillStyle = 'rgba(8,10,30,.9)'; rr(x, y, cw, ch, 12); g.fill();
     if (rand) { txt('?', x + cw / 2, y + 48, 56, '#fff', 'center', '#000', 8); txt('ランダム', x + cw / 2, y + 98, 18, '#fff', 'center', '#000', 5); }
-    else { drawStageThumb(STAGES[i], x + 4, y + 4, cw - 8, 76); txt(STAGES[i].name, x + cw / 2, y + 93, 16, '#fff', 'center', '#000', 4); txt(STAGES[i].sub, x + cw / 2, y + 110, 10, 'rgba(255,255,255,.8)'); }
+    else { drawStageThumb(STAGES[i], x + 4, y + 4, cw - 8, 76); txt(STAGES[i].name, x + cw / 2, y + 93, 15, '#fff', 'center', '#000', 4); txt(STAGES[i].sub, x + cw / 2, y + 110, 9, 'rgba(255,255,255,.8)'); if (STAGES[i].huge) txt('超ワイド', x + cw - 8, y + 14, 11, '#ffe14a', 'right', '#000', 3); }
     g.lineWidth = sel ? 4 : 2; g.strokeStyle = sel ? '#ffe14a' : '#5a68b8'; rr(x, y, cw, ch, 12); g.stroke();
   }
 }
@@ -4046,10 +4441,15 @@ function startGame() {
       list.push({ ci: s.c < 0 ? randChar(list) : s.c, human: i === 0 || p2, pi: p2 ? 1 : 0, lv: cfg.lv, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? s.team % cfg.team : i, alt: s.alt || 0 });
     });
     duo = list.some(e => e.pi === 1);
+    addNpcs(list, cfg.npc);
     if (cfg.team && new Set(list.map(e => e.team)).size < 2) list[list.length - 1].team = (list[0].team + 1) % cfg.team;
     newMatch({ list, stage, rule: cfg.rule, time: cfg.time, items: cfg.items, team: cfg.team, special: cfg.special });
   }
   scene = 'battle'; resetTouch(); saveCfg();
+}
+// NPC（ルールで決めた人数のCPUを追加。ストックは1かルールと同じ）
+function addNpcs(list, n) {
+  for (let i = 0; i < n; i++) list.push({ ci: randChar(list), lv: cfg.lv, npc: true, stocks: cfg.rule === 'stock' ? (cfg.npcStock === 1 ? 1 : cfg.stocks) : 99, team: cfg.team ? list.length % cfg.team : list.length, alt: (Math.random() * 4) | 0, netName: 'NPC' });
 }
 function resetTouch() { clearEdges(); tp.clear(); stickO = null; stickV = { x: 0, y: 0 }; }
 function afterMatch() {
@@ -4256,9 +4656,11 @@ function drawResult() {
     txt('“' + win.c.quote + '”', 170, 452, 15, '#fff', 'center', '#000', 4);
   }
   if (res.length > 4) {
-    // 大人数：2列のコンパクト表示
-    const per = Math.ceil(res.length / 2), rh = Math.min(68, Math.floor(370 / per) - 4);
-    res.forEach((f, i) => {
+    // 大人数：2列のコンパクト表示（NPCが多いときは上位16人まで）
+    const all = res.length, res2 = res.slice(0, 16);
+    if (all > 16) txt('ほか ' + (all - 16) + '人', 930, 452, 13, 'rgba(255,255,255,.75)', 'right', '#000', 3);
+    const per = Math.ceil(res2.length / 2), rh = Math.min(68, Math.floor(370 / per) - 4);
+    res2.forEach((f, i) => {
       const x = 340 + ((i / per) | 0) * 298, y = 78 + (i % per) * (rh + 4), tg = tagOf(f), first = G.team ? f.team === win.team : i === 0;
       g.fillStyle = first ? 'rgba(255,225,74,.28)' : 'rgba(255,255,255,.1)'; rr(x, y, 292, rh, 8); g.fill(); g.strokeStyle = first ? '#ffe14a' : G.team ? TEAMC[f.team] : '#5a68b8'; g.lineWidth = 2; g.stroke();
       txt(G.team ? (first ? 'WIN' : '') : (i + 1) + '位', x + 22, y + rh / 2, 14, first ? '#ffe14a' : '#fff', 'center', '#000', 3);
@@ -4294,7 +4696,8 @@ function drawResult() {
 const NET = { ws: null, id: Math.random().toString(36).slice(2, 10), room: '', topic: '', host: false, status: 'off', members: [], ref: 1, hb: 0, beat: 0,
   inp: {}, cnt: {}, lastIn: 0, lastKey: '', lastSnap: 0, msg: '', pad: false, code: '', ci: 0, alt: 0, started: false, frame: 0, cpus: 0, rules: null, url: '', key: '', cfgTried: false };
 const SFX0 = { ...sfx }, say0 = say;
-for (const k in SFX0) sfx[k] = (...a) => { if (G && G.net && NET.host) (NET.sfxQ || (NET.sfxQ = [])).push([k, ...a]); SFX0[k](...a); };
+let sfxN = 0;
+for (const k in SFX0) sfx[k] = (...a) => { if (G && G.fs && G.fs.length > 20 && ++sfxN > 5) return; if (G && G.net && NET.host) (NET.sfxQ || (NET.sfxQ = [])).push([k, ...a]); SFX0[k](...a); };
 say = s => { if (G && G.net && NET.host) (NET.sfxQ || (NET.sfxQ = [])).push(['say', s]); say0(s); };
 async function loadNetCfg() {
   if (NET.cfgTried) return; NET.cfgTried = true;
@@ -4392,7 +4795,10 @@ function netOnMessage(ev, p) {
 function netStartHost() {
   const list = [];
   NET.members.forEach((m, i) => list.push({ ci: m.ci, alt: m.alt, human: m.id === NET.id, remote: m.id === NET.id ? undefined : m.id, netName: m.name, owner: m.id, lv: 2, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? i % cfg.team : i }));
-  for (let i = 0; i < NET.cpus && list.length < MAXF; i++) list.push({ ci: randChar(list), lv: cfg.lv, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? list.length % cfg.team : list.length, alt: 0, netName: 'CPU' });
+  // CPUはプレイヤー枠（16人）まではふつうのCPU、それより多いぶんはNPC
+  const cpu = Math.min(NET.cpus, MAXF - list.length);
+  for (let i = 0; i < cpu; i++) list.push({ ci: randChar(list), lv: cfg.lv, stocks: cfg.rule === 'stock' ? cfg.stocks : 99, team: cfg.team ? list.length % cfg.team : list.length, alt: 0, netName: 'CPU' });
+  addNpcs(list, Math.min(MAXNPC, NET.cpus - cpu));
   const stage = cfg.stage < 0 ? (Math.random() * STAGES.length) | 0 : cfg.stage;
   const o = { list, stage, rule: cfg.rule, time: cfg.time, items: cfg.items, team: cfg.team, special: cfg.special };
   NET.started = true;
@@ -4409,10 +4815,11 @@ function netStartClient(o) {
 }
 // ---- ホスト：ようすを配る ----
 const R1 = v => Math.round(v * 10) / 10;
-const NET_MAX = 8; // オンラインの最大プレイヤー数（残りはCPUで16人まで）
+const NET_MAX = 16; // オンラインの最大プレイヤー数（さらにNPCを100人まで足せる）
 function netHostSend() {
-  if (++NET.frame % (G.fs.length > 8 ? 6 : G.fs.length > 4 || NET.members.length >= 3 ? 4 : 3)) return;
-  const pmax = G.fs.length > 8 ? 70 : 140;
+  const nf = G.fs.length;
+  if (++NET.frame % (nf > 8 ? 6 : nf > 4 || NET.members.length >= 3 ? 4 : 3)) return;
+  const pmax = nf > 40 ? 40 : nf > 8 ? 70 : 140;
   const newP = [];
   for (const p of G.parts) {
     if (p._n) continue; p._n = 1; if (newP.length > pmax) continue;
@@ -4427,7 +4834,10 @@ function netHostSend() {
   const s = {
     t: G.t, cd: G.cd, go: G.goT, fz: G.freeze, sl: G.slow, sk: R1(G.shake), fl: G.flash, dk: G.dark, ov: G.over ? 1 : 0, et: G.endT, tl: G.timeLeft, ts: G.toSudden ? 1 : 0,
     cu: G.cutin ? [G.cutin.who.id, G.cutin.t, G.cutin.name] : 0, lv: G.lava ? [G.lava.s, R1(G.lava.y)] : 0,
-    f: G.fs.map(f => [R1(f.x), R1(f.y), R1(f.vx), R1(f.vy), f.dir, R1(f.pct), f.stocks, f.state, mvKey(f), R1(f.mt), bits(f), R1(f.szv), f.item ? f.item.type : '', f.hammer,
+    gm: [G.hz.map(h => [h.id, h.k, R1(h.x), R1(h.y), h.t, R1(h.gy || 0)]), G.wind ? [G.wind.s, G.wind.dir, G.wind.t] : 0, G.train ? [G.train.s, R1(G.train.x), G.train.dir, G.train.t] : 0,
+      G.gp.map(i => { const p = G.st.plats[i]; return [p.off ? 1 : 0, p.gone | 0, R1(p.cr || 0), p.conv || 0]; }), (G.st.springs || []).map(sp => sp.a), (G.st.cannons || []).map(c => c.fire)],
+    // 場外に出たキャラは 0 だけ送る（NPCが多いときに軽くする）
+    f: G.fs.map(f => f.out && !f.human && !f.remote ? 0 : [R1(f.x), R1(f.y), R1(f.vx), R1(f.vy), f.dir, R1(f.pct), f.stocks, f.state, mvKey(f), R1(f.mt), bits(f), R1(f.szv), f.item ? f.item.type : '', f.hammer,
       f.chg, f.ground ? G.st.plats.indexOf(f.ground) : -1, R1(f.anim), R1(f.rot), f.dodge, f.dodgeT, f.hangT, f.runT, f.flipT, f.taunt, f.sleep, f.frozen, f.inv, R1(f.shieldHp),
       f.score, f.kos, f.falls, Math.round(f.dmgDone), f.ci, f.alt, f.t, f.elecT, f.lag, f.hang ? [G.st.plats.indexOf(f.hang.p), f.hang.side] : 0]),
     p: G.projs.map(p => [p.id, p.shape, R1(p.x), R1(p.y), R1(p.vx), R1(p.vy), R1(p.r), p.fx, p.t]),
@@ -4445,8 +4855,17 @@ function netApply(s) {
   G.shake = Math.max(G.shake, s.sk);
   if (s.cu) { const who = G.fs[s.cu[0]]; G.cutin = { who, t: s.cu[1], name: s.cu[2], col: who.c.cols[who.alt || 0] }; } else G.cutin = null;
   if (s.lv && G.lava) { G.lava.s = s.lv[0]; G.lava.y = s.lv[1]; }
+  if (s.gm) {
+    const [hz, wd, tr, gp, sp, cn] = s.gm;
+    G.hz = hz.map(a => ({ id: a[0], k: a[1], x: a[2], y: a[3], t: a[4], gy: a[5] }));
+    if (wd && G.wind) Object.assign(G.wind, { s: wd[0], dir: wd[1], t: wd[2] });
+    if (tr && G.train) Object.assign(G.train, { s: tr[0], x: tr[1], dir: tr[2], t: tr[3] });
+    gp.forEach((a, k) => { const p = G.st.plats[G.gp[k]]; if (p) { p.off = !!a[0]; p.gone = a[1]; p.cr = a[2]; p.conv = a[3]; } });
+    (G.st.springs || []).forEach((q, k) => { q.a = sp[k] || 0; }); (G.st.cannons || []).forEach((q, k) => { q.fire = cn[k] || 0; });
+  }
   s.f.forEach((a, i) => {
     const f = G.fs[i]; if (!f) return;
+    if (a === 0) { f.out = true; f.dead = true; return; }
     if (f.ci !== a[32]) { f.ci = a[32]; f.c = CHARS[f.ci]; }
     const far = f.nx === undefined || Math.hypot(a[0] - f.x, a[1] - f.y) > 160;
     f.nx = a[0]; f.ny = a[1]; if (far) { f.x = a[0]; f.y = a[1]; }
@@ -4488,7 +4907,9 @@ function netSendInput() {
   clearEdges();
   x = Math.round(x * 20) / 20; y = Math.round(y * 20) / 20;
   const key = x + ',' + y + ',' + b, now = performance.now();
-  if (pressed || (key !== NET.lastKey && now - NET.lastIn > 80) || now - NET.lastIn > 300) {
+  // 人数が多い部屋では送る回数を減らす（サーバーの上限対策）
+  const nm = NET.members.length, gap = nm > 8 ? 140 : nm > 4 ? 100 : 80, beat = nm > 8 ? 500 : 300;
+  if (pressed || (key !== NET.lastKey && now - NET.lastIn > gap) || now - NET.lastIn > beat) {
     netSend('in', { x, y, b, c: NET.cnt }); NET.lastIn = now; NET.lastKey = key;
   }
   void pi;
@@ -4541,7 +4962,8 @@ function drawLobby() {
   txt('友だちに教えてね', 120, 112, 13, '#fff', 'center', '#000', 3);
   txt(NET.host ? 'あなたがホストです' : 'ホストのスタートを待っています…', 600, 36, 20, '#fff', 'center', '#000', 5);
   const ms = NET.members, R = NET.host ? { rule: cfg.rule, stocks: cfg.stocks, time: cfg.time, lv: cfg.lv, items: cfg.items, team: cfg.team, special: cfg.special, stage: cfg.stage } : NET.rules || {};
-  const tot = ms.length + (NET.cpus || 0), shown = Math.max(4, Math.min(MAXF, tot + (ms.length < NET_MAX && tot < MAXF ? 1 : 0)));
+  const tot = Math.min(MAXF, ms.length + (NET.cpus || 0)), npc = Math.max(0, ms.length + (NET.cpus || 0) - MAXF), shown = Math.max(4, Math.min(MAXF, tot + (ms.length < NET_MAX && tot < MAXF ? 1 : 0)));
+  if (npc) txt('＋ NPC ' + npc + '人', 950, 304, 14, '#c8d0ff', 'right', '#000', 3);
   if (shown > 4) {
     // 大人数：小さい枠を2段にならべる
     for (let i = 0; i < shown; i++) {
@@ -4571,15 +4993,15 @@ function drawLobby() {
   button(30, 150, 180, 44, 'キャラ変更', () => { cfg.slots[0].c = NET.ci; cfg.slots[0].alt = NET.alt; goSelect('online'); }, { size: 17 });
   button(30, 204, 180, 40, '部屋を出る', () => { netLeave(); scene = 'online'; }, { size: 16, back: 1 });
   if (NET.host) {
-    button(250, 350, 170, 44, 'ルール', () => { cfg.showRules = true; }, { size: 18 });
-    button(430, 350, 170, 44, 'ステージ ▶', () => { cfg.stage = cfg.stage + 1 >= STAGES.length ? -1 : cfg.stage + 1; saveCfg(); netLobbyBroadcast(); }, { size: 17 });
-    const cmax = Math.max(0, MAXF - ms.length);
+    button(236, 350, 120, 44, 'ルール', () => { cfg.showRules = true; }, { size: 18 });
+    button(364, 350, 150, 44, 'ステージ ▶', () => { cfg.stage = cfg.stage + 1 >= STAGES.length ? -1 : cfg.stage + 1; saveCfg(); netLobbyBroadcast(); }, { size: 17 });
+    const cmax = Math.max(0, MAXF - ms.length) + MAXNPC, setC = v => { NET.cpus = clamp(v, 0, cmax); netLobbyBroadcast(); };
     if (NET.cpus > cmax) NET.cpus = cmax;
-    g.fillStyle = 'rgba(8,10,30,.7)'; rr(610, 350, 170, 44, 10); g.fill(); txt('CPU ' + NET.cpus + '人', 695, 372, 16, '#fff', 'center', '#000', 3);
-    button(612, 352, 36, 40, '−', () => { NET.cpus = Math.max(0, NET.cpus - 1); netLobbyBroadcast(); }, { size: 18 });
-    button(742, 352, 36, 40, '＋', () => { NET.cpus = Math.min(cmax, NET.cpus + 1); netLobbyBroadcast(); }, { size: 18 });
+    g.fillStyle = 'rgba(8,10,30,.7)'; rr(522, 350, 428, 44, 10); g.fill(); txt('CPU ' + NET.cpus + '人', 736, 372, 16, '#fff', 'center', '#000', 3);
+    button(524, 352, 50, 40, '−10', () => setC(NET.cpus - 10), { size: 14 }); button(578, 352, 44, 40, '−', () => setC(NET.cpus - 1), { size: 18 });
+    button(850, 352, 44, 40, '＋', () => setC(NET.cpus + 1), { size: 18 }); button(898, 352, 50, 40, '+10', () => setC(NET.cpus + 10), { size: 14 });
     const ok = ms.length + NET.cpus >= 2;
-    button(250, 410, 530, 70, ok ? 'スタート！' : '2人以上（CPU可）でスタートできます', () => { if (ok) netStartHost(); }, { primary: ok, size: ok ? 30 : 18 });
+    button(236, 410, 714, 70, ok ? 'スタート！' : '2人以上（CPU可）でスタートできます', () => { if (ok) netStartHost(); }, { primary: ok, size: ok ? 30 : 18 });
   }
   if (cfg.showRules) drawRules();
 }
@@ -4658,7 +5080,7 @@ addEventListener('pagehide', () => { if (NET.ws) netSend('bye', {}); });
 goTitle();
 loadNetCfg();
 requestAnimationFrame(frame);
-window.__dbg = { get G() { return G; }, cfg, CHARS, STAGES, rec, NET, startGame, stepBattle, startDemo, newMatch, spawnItem, startHR, startMulti, netApply, netHostSend, netStartClient, setScene(s) { scene = s; }, get scene() { return scene; }, get CL() { return CL; }, startClassic, afterMatch, CH };
+window.__dbg = { get G() { return G; }, drawWorld, cfg, CHARS, STAGES, rec, NET, startGame, stepBattle, startDemo, newMatch, spawnItem, startHR, startMulti, netApply, netHostSend, netStartClient, setScene(s) { scene = s; }, get scene() { return scene; }, get CL() { return CL; }, startClassic, afterMatch, CH };
 </script>
 </body>
 </html>
